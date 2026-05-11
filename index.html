@@ -17,8 +17,10 @@
   html,body{width:100%;overflow-x:hidden;}
   body{background:var(--cream);font-family:'Noto Sans TC',sans-serif;font-weight:300;color:var(--ink);min-height:100vh;padding-bottom:env(safe-area-inset-bottom);}
 
-  .screen{min-height:100vh;display:none;}
-  .screen.active{display:block;}
+  .screen{min-height:100vh;display:none!important;}
+  .screen.active{display:block!important;}
+  #loadingScreen.active{display:flex!important;}
+  #pendingScreen.active{display:flex!important;}
 
   /* Loading */
   #loadingScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--ink);color:#fff;}
