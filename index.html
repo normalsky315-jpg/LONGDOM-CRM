@@ -399,7 +399,7 @@
 <div class="modal-mask" id="maintModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">維修通報</div><div class="modal-subtitle">通報後將自動推播給主管</div><div class="field"><div class="field-label">問題類型 <span class="req">*</span></div><select class="sel" id="maint_type"><option value="">請選擇</option><option>燈具/電路</option><option>水管/漏水</option><option>空調</option><option>家具/門窗</option><option>清潔</option><option>樣品屋外觀</option><option>其他</option></select></div><div class="field"><div class="field-label">位置 / 戶別</div><input class="inp" type="text" id="maint_location" placeholder="例：A棟3F樣品屋客廳"></div><div class="field"><div class="field-label">問題描述 <span class="req">*</span></div><textarea class="ta" id="maint_desc" placeholder="詳細描述狀況…"></textarea></div><div class="field"><div class="field-label">優先度</div><select class="sel" id="maint_priority"><option value="normal">一般</option><option value="high" selected>高</option><option value="urgent">緊急</option></select></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('maintModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitMaint()">送 出 通 報</button></div></div></div>
 
 <div class="toast" id="toast"></div>
-https://github.com/normalsky315-jpg/LONGDOM-CRM/blob/main/index.html
+
 <script>
 /* ============================================================
  *  龍登 CRM v8.2 — GitHub Pages 版前端
@@ -494,13 +494,11 @@ function gasGet(action, params, onSuccess, onFail) {
     .catch(function(err){ console.error('gasGet', action, err); if (onFail) onFail(err); });
 }
 
-/* ══ API：POST ══ */
+/* ══ API：POST → 改用 GET 繞過 CORS ══ */
 function gasPost(action, payload, onSuccess, onFail) {
-  fetch(GAS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: action, payload: payload || {} })
-  })
+  var url = GAS_URL + '?action=' + encodeURIComponent(action) +
+            '&payload=' + encodeURIComponent(JSON.stringify(payload || {}));
+  fetch(url)
     .then(function(r){ return r.json(); })
     .then(function(data){ if (onSuccess) onSuccess(data); })
     .catch(function(err){ console.error('gasPost', action, err); if (onFail) onFail(err); });
