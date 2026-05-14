@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>華雄音樂匯 CRM</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700&family=Noto+Sans+TC:wght@300;400;500&display=swap" rel="stylesheet">
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  :root {
+    --cream:#FAF8F4; --ink:#1A1A2E; --ink-light:#4A4A6A; --ink-faint:#8A8AA0;
+    --gold:#C9A84C; --gold-soft:#F4EBC8; --rust:#C0392B; --rust-soft:#FBEAE7;
+    --teal:#1D9E75; --teal-soft:#E1F5EE; --surface:#FFFFFF;
+    --border:#E8E4DC; --border-strong:#D5CFC0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{width:100%;overflow-x:hidden;}
+  body{background:var(--cream);font-family:'Noto Sans TC',sans-serif;font-weight:300;color:var(--ink);min-height:100vh;padding-bottom:env(safe-area-inset-bottom);}
+
+  .screen{min-height:100vh;display:none;}
+  .screen.active{display:block;}
+
+  /* Loading */
+  #loadingScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--ink);color:#fff;}
+  .spinner{width:32px;height:32px;border:3px solid rgba(255,255,255,0.2);border-top-color:var(--gold);border-radius:50%;animation:spin 0.7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .loading-text{margin-top:16px;font-size:10px;letter-spacing:4px;color:rgba(255,255,255,0.4);}
+
+  /* Login */
+  #loginScreen{background:var(--ink);display:flex;flex-direction:column;padding:0 28px;padding-top:max(60px,env(safe-area-inset-top));padding-bottom:max(40px,env(safe-area-inset-bottom));min-height:100vh;}
+  .login-logo{display:flex;align-items:center;gap:14px;margin-bottom:40px;}
+  .login-logo svg{width:44px;height:44px;flex-shrink:0;}
+  .login-logo-text{display:flex;flex-direction:column;gap:3px;}
+  .login-brand{font-family:'Noto Serif TC',serif;font-size:17px;font-weight:700;color:#fff;letter-spacing:1px;}
+  .login-brand-en{font-size:9px;font-weight:300;color:rgba(255,255,255,0.35);letter-spacing:2.5px;}
+  .login-tag{font-size:10px;letter-spacing:3px;color:var(--gold);margin-bottom:10px;}
+  .login-title{font-family:'Noto Serif TC',serif;font-size:32px;font-weight:700;color:#fff;line-height:1.2;margin-bottom:6px;}
+  .login-subtitle{font-size:13px;color:rgba(255,255,255,0.4);margin-bottom:36px;}
+  .login-divider{height:1px;background:rgba(255,255,255,0.08);margin-bottom:28px;}
+  .login-user{display:flex;align-items:center;gap:10px;font-size:13px;color:rgba(255,255,255,0.5);margin-bottom:20px;min-height:24px;}
+  .login-user-avatar{width:28px;height:28px;border-radius:50%;background:rgba(201,168,76,0.2);color:var(--gold);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;}
+  .login-project-wrap{margin-bottom:14px;}
+  .login-project-label{font-size:12px;color:rgba(255,255,255,0.4);margin-bottom:6px;}
+  .login-project-sel{width:100%;padding:13px 18px;background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.12);border-radius:10px;font-family:'Noto Sans TC',sans-serif;font-size:14px;color:rgba(255,255,255,0.7);-webkit-appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23C9A84C' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
+  .login-project-sel option{background:#1A1A2E;color:#fff;}
+  .login-input{width:100%;padding:15px 18px;background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.12);border-radius:10px;font-family:'Noto Sans TC',sans-serif;font-size:16px;font-weight:400;color:#fff;margin-bottom:14px;-webkit-appearance:none;transition:border-color 0.2s;}
+  .login-input:focus{outline:none;border-color:var(--gold);background:rgba(255,255,255,0.1);}
+  .login-input::placeholder{color:rgba(255,255,255,0.25);}
+  .login-btn{width:100%;padding:16px;background:var(--gold);border:none;border-radius:10px;font-family:'Noto Serif TC',serif;font-size:15px;font-weight:700;color:var(--ink);letter-spacing:2px;cursor:pointer;transition:opacity 0.2s,transform 0.1s;margin-bottom:12px;}
+  .login-btn:active{transform:scale(0.98);opacity:0.9;}
+  .login-btn:disabled{opacity:0.5;cursor:not-allowed;}
+  .login-error{font-size:13px;color:#e74c3c;min-height:20px;text-align:center;transition:opacity 0.2s;opacity:0;}
+  .login-error.show{opacity:1;}
+
+  /* Pending */
+  #pendingScreen{background:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px;text-align:center;min-height:100vh;}
+  .pending-icon{font-size:56px;margin-bottom:20px;animation:pulse 2s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+  .pending-title{font-family:'Noto Serif TC',serif;font-size:22px;font-weight:700;color:#fff;margin-bottom:10px;}
+  .pending-sub{font-size:13px;color:rgba(255,255,255,0.45);line-height:1.8;margin-bottom:32px;}
+  .pending-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);border-radius:20px;padding:8px 18px;font-size:12px;color:var(--gold);letter-spacing:1px;}
+  .pending-back{margin-top:28px;padding:12px 24px;background:transparent;border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:rgba(255,255,255,0.4);font-family:'Noto Sans TC',sans-serif;font-size:13px;cursor:pointer;}
+
+  /* App */
+  #appScreen{background:var(--cream);}
+  .view.hidden{display:none;}
+
+  /* Header */
+  .app-header{background:var(--ink);padding:0 16px;padding-top:max(16px,env(safe-area-inset-top));}
+  .header-row{display:flex;align-items:center;height:52px;gap:8px;}
+  .header-back{width:36px;height:36px;border:none;background:rgba(255,255,255,0.08);border-radius:8px;color:var(--gold);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .header-title{font-family:'Noto Serif TC',serif;font-size:16px;font-weight:600;color:#fff;flex:1;text-align:center;}
+
+  /* Home */
+  .home-hero{background:var(--ink);padding:0 20px 24px;padding-top:max(16px,env(safe-area-inset-top));}
+  .home-tag{font-size:9px;letter-spacing:3px;color:var(--gold);margin-bottom:6px;padding-top:16px;}
+  .home-greeting{font-family:'Noto Serif TC',serif;font-size:22px;font-weight:700;color:#fff;margin-bottom:6px;}
+  .home-context{display:flex;align-items:center;gap:8px;font-size:12px;color:rgba(255,255,255,0.5);}
+  .role-badge{display:inline-block;padding:2px 9px;border-radius:10px;font-size:10px;font-weight:500;letter-spacing:0.5px;}
+  .role-badge.sales{background:rgba(201,168,76,0.2);color:var(--gold);}
+  .role-badge.manager{background:rgba(29,158,117,0.2);color:var(--teal);}
+  .role-badge.admin{background:rgba(192,57,43,0.2);color:#e74c3c;}
+  .home-content{padding:16px;}
+  .section-tag{font-size:10px;letter-spacing:2.5px;color:var(--ink-faint);margin-bottom:12px;margin-top:4px;}
+  .feature-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+  .feature-card{background:var(--surface);border-radius:12px;border:1px solid var(--border);padding:16px 14px;cursor:pointer;position:relative;overflow:hidden;transition:transform 0.15s;box-shadow:0 2px 6px rgba(26,26,46,0.05);}
+  .feature-card:active{transform:scale(0.97);}
+  .feature-card-icon{font-size:24px;margin-bottom:8px;}
+  .feature-card-title{font-family:'Noto Serif TC',serif;font-size:14px;font-weight:600;margin-bottom:3px;}
+  .feature-card-desc{font-size:11px;color:var(--ink-faint);}
+  .feature-card.task::after,.feature-card.maint::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;}
+  .feature-card.task::after{background:var(--gold);}
+  .feature-card.maint::after{background:var(--rust);}
+  .feature-badge{position:absolute;top:10px;right:10px;background:var(--rust);color:#fff;font-size:10px;font-weight:600;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px;}
+  .feature-badge.gold{background:var(--gold);color:var(--ink);}
+  .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;}
+  .stat-card{background:var(--surface);border-radius:10px;border:1px solid var(--border);padding:14px 10px;text-align:center;}
+  .stat-num{font-family:'Noto Serif TC',serif;font-size:26px;font-weight:700;}
+  .stat-label{font-size:10px;color:var(--ink-faint);letter-spacing:1px;margin-top:3px;}
+  .logout-btn{width:100%;padding:14px;background:transparent;border:1px solid var(--border-strong);border-radius:10px;font-family:'Noto Sans TC',sans-serif;font-size:13px;color:var(--ink-faint);cursor:pointer;}
+
+  /* Form */
+  .form-wrap{padding:16px 16px 0;}
+  .section{background:var(--surface);border-radius:12px;padding:18px 16px;margin-bottom:14px;border:1px solid var(--border);box-shadow:0 1px 4px rgba(26,26,46,0.04);}
+  .section-header{display:flex;align-items:center;gap:8px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);}
+  .section-num{width:24px;height:24px;background:var(--ink);color:#fff;border-radius:50%;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .section-name{font-family:'Noto Serif TC',serif;font-size:14px;font-weight:600;}
+  .field{margin-bottom:14px;}
+  .field:last-child{margin-bottom:0;}
+  .field-label{font-size:12px;font-weight:500;color:var(--ink-light);letter-spacing:0.5px;margin-bottom:7px;display:flex;align-items:center;gap:4px;}
+  .req{color:var(--rust);font-size:14px;line-height:1;}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .inp,.sel,.ta{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-family:'Noto Sans TC',sans-serif;font-size:14px;font-weight:300;color:var(--ink);background:var(--cream);transition:border-color 0.2s,box-shadow 0.2s;-webkit-appearance:none;}
+  .inp:focus,.sel:focus,.ta:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,168,76,0.12);background:#fff;}
+  .inp:disabled,.sel:disabled{background:#eee;color:#999;cursor:not-allowed;}
+  .sel{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%234a4a6a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;cursor:pointer;}
+  .ta{resize:vertical;min-height:90px;line-height:1.6;}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;}
+  .chip{position:relative;cursor:pointer;}
+  .chip input{position:absolute;opacity:0;width:0;height:0;}
+  .chip-label{display:inline-flex;align-items:center;padding:6px 13px;border:1.5px solid var(--border);border-radius:20px;font-size:12px;font-weight:400;color:var(--ink-light);background:var(--cream);transition:all 0.15s;user-select:none;white-space:nowrap;}
+  .chip input:checked+.chip-label{background:var(--ink);border-color:var(--ink);color:#fff;}
+  .chip input[type="checkbox"]:checked+.chip-label{background:var(--gold);border-color:var(--gold);color:var(--ink);}
+  .hidden{display:none!important;}
+  .extra-inp{margin-top:8px;}
+  .divider{height:1px;background:var(--border);margin:14px 0;}
+  .submit-wrap{padding:4px 0 20px;}
+  .btn-primary{width:100%;padding:16px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-family:'Noto Serif TC',serif;font-size:15px;font-weight:700;letter-spacing:2px;cursor:pointer;position:relative;overflow:hidden;transition:background 0.2s,transform 0.1s;}
+  .btn-primary::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;background:var(--gold);}
+  .btn-primary:active{transform:scale(0.98);}
+  .btn-primary:disabled{background:#aaa;cursor:not-allowed;}
+
+  /* List */
+  .list-wrap{padding:14px 16px;}
+  .list-tabs{display:flex;gap:0;margin-bottom:14px;background:var(--surface);border-radius:10px;border:1px solid var(--border);padding:4px;}
+  .list-tab{flex:1;padding:8px;text-align:center;font-size:13px;font-weight:400;color:var(--ink-faint);border-radius:7px;cursor:pointer;transition:all 0.15s;}
+  .list-tab.active{background:var(--ink);color:#fff;font-weight:500;}
+  .list-item{background:var(--surface);border-radius:10px;border:1px solid var(--border);padding:14px;margin-bottom:10px;}
+  .list-item-row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;}
+  .list-item-title{font-family:'Noto Serif TC',serif;font-size:14px;font-weight:600;flex:1;line-height:1.4;}
+  .list-item-meta{font-size:11px;color:var(--ink-faint);letter-spacing:0.5px;display:flex;gap:10px;flex-wrap:wrap;}
+  .list-item-desc{font-size:13px;color:var(--ink-light);margin:6px 0;line-height:1.5;}
+  .list-item-actions{display:flex;gap:8px;margin-top:10px;}
+  .btn-mini{flex:1;padding:8px;font-size:12px;border:1px solid var(--border);border-radius:7px;background:var(--cream);color:var(--ink);font-family:inherit;cursor:pointer;}
+  .btn-mini.primary{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .btn-mini.success{background:var(--teal);color:#fff;border-color:var(--teal);}
+  .btn-mini.danger{background:var(--rust-soft);color:var(--rust);border-color:var(--rust-soft);}
+  .status-pill{display:inline-block;padding:3px 8px;font-size:10px;border-radius:10px;font-weight:500;letter-spacing:0.5px;}
+  .status-pending{background:var(--gold-soft);color:#634e0c;}
+  .status-processing{background:#DDE7F3;color:#185FA5;}
+  .status-done{background:var(--teal-soft);color:#0f6e56;}
+  .status-active{background:var(--teal-soft);color:#0f6e56;}
+  .status-inactive{background:#eee;color:#999;}
+  .priority-pill{display:inline-block;padding:2px 7px;font-size:10px;border-radius:6px;font-weight:500;}
+  .priority-urgent{background:var(--rust);color:#fff;}
+  .priority-high{background:var(--rust-soft);color:var(--rust);}
+  .priority-normal{background:var(--border);color:var(--ink-light);}
+  .priority-low{background:#eee;color:var(--ink-light);}
+  .empty-state{text-align:center;padding:60px 20px;color:var(--ink-faint);}
+  .empty-state-icon{font-size:36px;opacity:0.3;margin-bottom:10px;}
+  .empty-state-text{font-size:13px;}
+  .fab{position:fixed;bottom:max(24px,env(safe-area-inset-bottom));right:20px;width:56px;height:56px;border-radius:50%;background:var(--ink);color:#fff;border:none;cursor:pointer;box-shadow:0 6px 16px rgba(26,26,46,0.3);font-size:24px;display:flex;align-items:center;justify-content:center;z-index:50;}
+  .fab::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;background:var(--gold);border-radius:0 0 50% 50%;}
+
+  /* Modal */
+  .modal-mask{position:fixed;inset:0;background:rgba(26,26,46,0.5);z-index:100;display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity 0.25s;}
+  .modal-mask.show{opacity:1;pointer-events:all;}
+  .modal{width:100%;background:var(--cream);border-radius:18px 18px 0 0;max-height:92vh;overflow-y:auto;padding:20px 18px max(30px,env(safe-area-inset-bottom));transform:translateY(100%);transition:transform 0.3s cubic-bezier(0.32,0.72,0,1);}
+  .modal-mask.show .modal{transform:translateY(0);}
+  .modal-handle{width:40px;height:4px;background:var(--border-strong);border-radius:2px;margin:0 auto 16px;}
+  .modal-title{font-family:'Noto Serif TC',serif;font-size:18px;font-weight:600;margin-bottom:4px;}
+  .modal-subtitle{font-size:12px;color:var(--ink-faint);margin-bottom:18px;}
+
+  /* Summary */
+  .summary-card{background:var(--ink);color:#fff;border-radius:12px;padding:18px 16px;margin-bottom:14px;}
+  .summary-card-label{font-size:10px;letter-spacing:3px;color:var(--gold);margin-bottom:6px;}
+  .summary-card-date{font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:14px;}
+  .summary-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .summary-stat{text-align:center;}
+  .summary-stat-num{font-family:'Noto Serif TC',serif;font-size:22px;font-weight:700;}
+  .summary-stat-label{font-size:10px;color:rgba(255,255,255,0.5);letter-spacing:1px;margin-top:2px;}
+
+  /* User Mgmt */
+  .user-card{background:var(--surface);border-radius:10px;border:1px solid var(--border);padding:14px;margin-bottom:10px;}
+  .user-card.pending{border-left:3px solid var(--gold);}
+  .user-card-top{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .user-avatar{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--gold);display:flex;align-items:center;justify-content:center;font-family:'Noto Serif TC',serif;font-size:15px;font-weight:700;flex-shrink:0;}
+  .user-info{flex:1;min-width:0;}
+  .user-name{font-family:'Noto Serif TC',serif;font-size:14px;font-weight:600;margin-bottom:2px;}
+  .user-meta{font-size:11px;color:var(--ink-faint);}
+  .user-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .user-sel{flex:1;min-width:90px;padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-family:'Noto Sans TC',sans-serif;font-size:12px;background:var(--cream);color:var(--ink);-webkit-appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%234a4a6a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;}
+  .user-tabs{display:flex;gap:0;margin-bottom:14px;background:var(--surface);border-radius:10px;border:1px solid var(--border);padding:4px;}
+  .user-tab{flex:1;padding:8px;text-align:center;font-size:12px;color:var(--ink-faint);border-radius:7px;cursor:pointer;transition:all 0.15s;}
+  .user-tab.active{background:var(--ink);color:#fff;}
+
+  /* Toast */
+  .toast{position:fixed;top:max(20px,env(safe-area-inset-top));left:50%;transform:translateX(-50%) translateY(-100px);background:var(--ink);color:#fff;padding:13px 22px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;transition:transform 0.32s cubic-bezier(0.34,1.56,0.64,1);white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,0.2);max-width:calc(100vw - 40px);}
+  .toast.show{transform:translateX(-50%) translateY(0);}
+  .toast.success::before{content:'✓  ';color:var(--gold);}
+  .toast.error::before{content:'✕  ';color:#e74c3c;}
+  .toast.info::before{content:'ℹ  ';color:var(--gold);}
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div class="screen active" id="loadingScreen">
+  <div class="spinner"></div>
+  <div class="loading-text">LOADING</div>
+</div>
+
+<!-- Login -->
+<div class="screen" id="loginScreen">
+  <div class="login-logo">
+    <svg viewBox="0 0 48 48" fill="none">
+      <circle cx="24" cy="24" r="22" stroke="#C0392B" stroke-width="2.8"/>
+      <circle cx="24" cy="24" r="15" stroke="#C0392B" stroke-width="1.2" opacity="0.5"/>
+      <line x1="24" y1="8" x2="24" y2="40" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+      <line x1="8" y1="24" x2="40" y2="24" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+      <line x1="13" y1="13" x2="35" y2="35" stroke="#C0392B" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+      <line x1="35" y1="13" x2="13" y2="35" stroke="#C0392B" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+      <circle cx="24" cy="24" r="3.5" fill="#C0392B"/>
+    </svg>
+    <div class="login-logo-text">
+      <div class="login-brand">龍登國際廣告</div>
+      <div class="login-brand-en">LONG DORN ADVERTISING</div>
+    </div>
+  </div>
+  <div class="login-tag">SECURE ACCESS</div>
+  <div class="login-title">華雄音樂匯<br>管理系統</div>
+  <div class="login-subtitle">請輸入公司密碼以進入系統</div>
+  <div class="login-divider"></div>
+  <div class="login-user" id="loginUser"></div>
+  <div class="login-project-wrap hidden" id="loginProjectWrap">
+    <div class="login-project-label">請選擇您所屬的案場</div>
+    <select class="login-project-sel" id="loginProjectSel">
+      <option value="">請選擇案場</option>
+    </select>
+  </div>
+  <input class="login-input" id="loginPwd" type="password" placeholder="公司密碼" autocomplete="off">
+  <button class="login-btn" id="loginBtn">進 入 系 統</button>
+  <div class="login-error" id="loginErr"></div>
+</div>
+
+<!-- Pending -->
+<div class="screen" id="pendingScreen">
+  <div class="pending-icon">⏳</div>
+  <div class="pending-title">等待管理員審核</div>
+  <div class="pending-sub">您的帳號申請已送出<br>請等候管理員審核後即可使用系統<br>審核通過後點下方按鈕重新確認</div>
+  <div class="pending-badge"><span>●</span> 審核中</div>
+  <button class="pending-back" onclick="location.reload()">重新確認狀態</button>
+</div>
+
+<!-- App -->
+<div class="screen" id="appScreen">
+
+  <!-- Home -->
+  <div id="viewHome" class="view">
+    <div class="home-hero">
+      <div class="home-tag">WELCOME BACK</div>
+      <div class="home-greeting" id="homeGreeting">您好</div>
+      <div class="home-context" id="homeContext"></div>
+    </div>
+    <div class="home-content">
+      <div class="section-tag">主要功能</div>
+      <div class="feature-grid">
+        <div class="feature-card" onclick="route('#/customer')">
+          <div class="feature-card-icon">👤</div>
+          <div class="feature-card-title">客戶登記</div>
+          <div class="feature-card-desc">新增訪客資料</div>
+        </div>
+        <div class="feature-card task" onclick="route('#/task')">
+          <div class="feature-card-icon">📋</div>
+          <div class="feature-card-title">任務系統</div>
+          <div class="feature-card-desc" id="taskCountDesc">查看待辦</div>
+          <span class="feature-badge hidden" id="taskBadge">0</span>
+        </div>
+        <div class="feature-card hidden" id="reportFeature" onclick="route('#/report')">
+          <span class="feature-badge gold">主管</span>
+          <div class="feature-card-icon">📊</div>
+          <div class="feature-card-title">銷售日報</div>
+          <div class="feature-card-desc">提交今日業績</div>
+        </div>
+        <div class="feature-card maint" onclick="route('#/maint')">
+          <div class="feature-card-icon">🔧</div>
+          <div class="feature-card-title">維修通報</div>
+          <div class="feature-card-desc">案場問題回報</div>
+        </div>
+        <div class="feature-card hidden" id="userMgmtFeature" onclick="route('#/users')" style="border-top:2px solid var(--ink);">
+          <span class="feature-badge" style="background:var(--ink-light);">管理</span>
+          <div class="feature-card-icon">👥</div>
+          <div class="feature-card-title">使用者管理</div>
+          <div class="feature-card-desc" id="pendingCountDesc">審核新成員</div>
+        </div>
+      </div>
+      <div class="section-tag">本月概況</div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-num" id="statVisitor">—</div><div class="stat-label">接待</div></div>
+        <div class="stat-card"><div class="stat-num" id="statRevisit">—</div><div class="stat-label">回籠</div></div>
+        <div class="stat-card"><div class="stat-num" id="statDeal">—</div><div class="stat-label">成交</div></div>
+      </div>
+      <button class="logout-btn" onclick="logout()">登出系統</button>
+    </div>
+  </div>
+
+  <!-- Customer -->
+  <div id="viewCustomer" class="view hidden">
+    <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">客戶資料登記</div><div style="width:36px;"></div></div></div>
+    <div class="form-wrap">
+      <div class="section">
+        <div class="section-header"><div class="section-num">1</div><div class="section-name">案場與接待資訊</div></div>
+        <div class="field"><div class="field-label">選擇案場 <span class="req">*</span></div><select class="sel" id="cust_project"></select></div>
+        <div class="field-row">
+          <div class="field"><div class="field-label">訪客日期</div><input class="inp" type="date" id="cust_visitDate"></div>
+          <div class="field"><div class="field-label">接待人員</div><select class="sel" id="cust_sales"><option value="">請先選案場</option></select></div>
+        </div>
+        <div class="field"><div class="field-label">訪客類別</div><div class="chips"><label class="chip"><input type="radio" name="cust_visitType" value="初訪"><span class="chip-label">初訪</span></label><label class="chip"><input type="radio" name="cust_visitType" value="回籠"><span class="chip-label">回籠</span></label></div></div>
+      </div>
+      <div class="section">
+        <div class="section-header"><div class="section-num">2</div><div class="section-name">客戶基本資料</div></div>
+        <div class="field-row">
+          <div class="field"><div class="field-label">姓名 <span class="req">*</span></div><input class="inp" type="text" id="cust_name" placeholder="請輸入姓名"></div>
+          <div class="field"><div class="field-label">電話 <span class="req">*</span></div><input class="inp" type="tel" id="cust_phone" placeholder="0912345678"></div>
+        </div>
+        <div class="field"><div class="field-label">居住行政區（高雄）</div><div class="chips" id="cust_distChips"></div><div class="extra-inp hidden" id="cust_distOtherWrap"><input class="inp" type="text" id="cust_distOther" placeholder="請輸入其他地區"></div></div>
+        <div class="field-row">
+          <div class="field"><div class="field-label">客戶職業</div><select class="sel" id="cust_industry"><option value="">請選擇</option></select></div>
+          <div class="field"><div class="field-label">購屋動機</div><select class="sel" id="cust_motive"><option value="">請選擇</option></select></div>
+        </div>
+        <div class="field"><div class="field-label">來源管道</div><div class="chips"><label class="chip"><input type="radio" name="cust_source" value="Facebook"><span class="chip-label">FB</span></label><label class="chip"><input type="radio" name="cust_source" value="網路媒體"><span class="chip-label">網路媒體</span></label><label class="chip"><input type="radio" name="cust_source" value="591"><span class="chip-label">591</span></label><label class="chip"><input type="radio" name="cust_source" value="戶外看板"><span class="chip-label">看板</span></label><label class="chip"><input type="radio" name="cust_source" value="親友介紹"><span class="chip-label">介紹</span></label><label class="chip"><input type="radio" name="cust_source" value="路過"><span class="chip-label">路過</span></label></div></div>
+      </div>
+      <div class="section">
+        <div class="section-header"><div class="section-num">3</div><div class="section-name">購屋需求</div></div>
+        <div class="field-row">
+          <div class="field"><div class="field-label">需求房型</div><div class="chips"><label class="chip"><input type="checkbox" name="cust_room" value="2房"><span class="chip-label">2房</span></label><label class="chip"><input type="checkbox" name="cust_room" value="3房"><span class="chip-label">3房</span></label><label class="chip"><input type="checkbox" name="cust_room" value="4房"><span class="chip-label">4房</span></label><label class="chip"><input type="checkbox" name="cust_room" value="店面"><span class="chip-label">店面</span></label></div></div>
+          <div class="field"><div class="field-label">購屋預算</div><select class="sel" id="cust_budget"><option value="">請選擇</option><option>800萬以下</option><option>800-1000萬</option><option>1001-1300萬</option><option>1301-1600萬</option><option>1601-2000萬</option><option>2001-2500萬</option><option>2500萬以上</option></select></div>
+        </div>
+        <div class="field"><div class="field-label">客戶癥結點（可多選）</div><div class="chips"><label class="chip"><input type="checkbox" name="cust_issue" value="單價總價"><span class="chip-label">單價總價</span></label><label class="chip"><input type="checkbox" name="cust_issue" value="格局座向"><span class="chip-label">格局座向</span></label><label class="chip"><input type="checkbox" name="cust_issue" value="地段環境"><span class="chip-label">地段環境</span></label><label class="chip"><input type="checkbox" name="cust_issue" value="考慮別案"><span class="chip-label">考慮別案</span></label><label class="chip"><input type="checkbox" name="cust_issue" value="其他"><span class="chip-label">其他</span></label></div></div>
+      </div>
+      <div class="section">
+        <div class="section-header"><div class="section-num">4</div><div class="section-name">再訪與成交</div></div>
+        <div class="field"><div class="field-label">預計再訪</div><div class="chips"><label class="chip"><input type="radio" name="cust_again" value="確認日期" onchange="toggleAgain(true)"><span class="chip-label">確認日期</span></label><label class="chip"><input type="radio" name="cust_again" value="一周內" onchange="toggleAgain(false)"><span class="chip-label">一周內</span></label><label class="chip"><input type="radio" name="cust_again" value="二周內" onchange="toggleAgain(false)"><span class="chip-label">二周內</span></label><label class="chip"><input type="radio" name="cust_again" value="一個月內" onchange="toggleAgain(false)"><span class="chip-label">一個月內</span></label><label class="chip"><input type="radio" name="cust_again" value="暫無計畫" onchange="toggleAgain(false)"><span class="chip-label">暫無計畫</span></label></div><div class="extra-inp hidden" id="cust_againDateWrap"><input class="inp" type="date" id="cust_againDate"></div></div>
+        <div class="divider"></div>
+        <div class="field"><div class="field-label">成交狀態</div><div class="chips"><label class="chip"><input type="radio" name="cust_deal" value="未成交" checked onchange="toggleDeal(false)"><span class="chip-label">未成交</span></label><label class="chip"><input type="radio" name="cust_deal" value="已成交" onchange="toggleDeal(true)"><span class="chip-label">已成交</span></label></div><div class="extra-inp hidden" id="cust_dealUnitWrap"><input class="inp" type="text" id="cust_dealUnit" placeholder="請輸入成交戶別（例：A棟15F A2）"></div></div>
+      </div>
+      <div class="section">
+        <div class="section-header"><div class="section-num">5</div><div class="section-name">接待狀況補充</div></div>
+        <div class="field"><div class="field-label">接待狀況 <span class="req">*</span></div><textarea class="ta" id="cust_note" placeholder="請詳述接待經過、客戶反應或癥結點說明…"></textarea></div>
+      </div>
+      <div class="submit-wrap"><button class="btn-primary" id="cust_submit" onclick="submitCustomer()">送 出 登 記</button></div>
+    </div>
+  </div>
+
+  <!-- Task -->
+  <div id="viewTask" class="view hidden">
+    <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">任務系統</div><div style="width:36px;"></div></div></div>
+    <div class="list-wrap">
+      <div class="list-tabs"><div class="list-tab active" data-status="pending" onclick="switchTaskTab(this)">待辦</div><div class="list-tab" data-status="done" onclick="switchTaskTab(this)">已完成</div></div>
+      <div id="taskList"></div>
+    </div>
+    <button class="fab" onclick="openTaskModal()">+</button>
+  </div>
+
+  <!-- Report -->
+  <div id="viewReport" class="view hidden">
+    <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">銷售日報</div><div style="width:36px;"></div></div></div>
+    <div class="list-wrap">
+      <div class="summary-card"><div class="summary-card-label">TODAY SUMMARY</div><div class="summary-card-date" id="reportDate">—</div><div class="summary-stats"><div class="summary-stat"><div class="summary-stat-num" id="sumVisitor">0</div><div class="summary-stat-label">接待</div></div><div class="summary-stat"><div class="summary-stat-num" id="sumFirst">0</div><div class="summary-stat-label">初訪</div></div><div class="summary-stat"><div class="summary-stat-num" id="sumRevisit">0</div><div class="summary-stat-label">回籠</div></div><div class="summary-stat"><div class="summary-stat-num" id="sumDeal">0</div><div class="summary-stat-label">成交</div></div></div></div>
+      <div id="reportList"></div>
+    </div>
+    <button class="fab" onclick="openReportModal()">+</button>
+  </div>
+
+  <!-- Maintenance -->
+  <div id="viewMaint" class="view hidden">
+    <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">維修通報</div><div style="width:36px;"></div></div></div>
+    <div class="list-wrap">
+      <div class="list-tabs"><div class="list-tab active" data-status="pending" onclick="switchMaintTab(this)">待處理</div><div class="list-tab" data-status="processing" onclick="switchMaintTab(this)">處理中</div><div class="list-tab" data-status="done" onclick="switchMaintTab(this)">已完成</div></div>
+      <div id="maintList"></div>
+    </div>
+    <button class="fab" onclick="openMaintModal()">+</button>
+  </div>
+
+  <!-- Users -->
+  <div id="viewUsers" class="view hidden">
+    <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">使用者管理</div><div style="width:36px;"></div></div></div>
+    <div class="list-wrap">
+      <div class="user-tabs"><div class="user-tab active" data-tab="pending" onclick="switchUserTab(this)">待審核</div><div class="user-tab" data-tab="active" onclick="switchUserTab(this)">啟用中</div><div class="user-tab" data-tab="inactive" onclick="switchUserTab(this)">已停用</div></div>
+      <div id="userList"></div>
+    </div>
+  </div>
+
+</div><!-- /appScreen -->
+
+<!-- Modals -->
+<div class="modal-mask" id="taskModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">新增任務</div><div class="modal-subtitle">建立後可指派並追蹤完成狀態</div><div class="field"><div class="field-label">任務類型</div><select class="sel" id="task_type"><option value="sales_task">📋 銷售跟進</option><option value="site_issue">⚠️ 現場問題</option><option value="reminder">🔔 提醒</option><option value="daily_follow">👥 客戶追蹤</option><option value="maintenance">🔧 維修</option></select></div><div class="field"><div class="field-label">任務標題 <span class="req">*</span></div><input class="inp" type="text" id="task_title" placeholder="例：聯絡王先生確認再訪日期"></div><div class="field"><div class="field-label">詳細說明</div><textarea class="ta" id="task_desc" placeholder="補充資訊…"></textarea></div><div class="field-row"><div class="field"><div class="field-label">優先度</div><select class="sel" id="task_priority"><option value="normal">一般</option><option value="high">高</option><option value="urgent">緊急</option><option value="low">低</option></select></div><div class="field"><div class="field-label">截止日期</div><input class="inp" type="date" id="task_due"></div></div><div class="field"><div class="field-label">指派對象</div><select class="sel" id="task_assign"><option value="">不指定</option></select></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('taskModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitTask()">建 立 任 務</button></div></div></div>
+<div class="modal-mask" id="reportModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">提交日報</div><div class="modal-subtitle">當日業績資料填寫</div><div class="field-row"><div class="field"><div class="field-label">日期</div><input class="inp" type="date" id="rep_date"></div><div class="field"><div class="field-label">業務</div><select class="sel" id="rep_sales"></select></div></div><div class="field-row"><div class="field"><div class="field-label">接待總組數</div><input class="inp" type="number" id="rep_visitor" min="0" value="0"></div><div class="field"><div class="field-label">初訪</div><input class="inp" type="number" id="rep_first" min="0" value="0"></div></div><div class="field-row"><div class="field"><div class="field-label">回籠</div><input class="inp" type="number" id="rep_revisit" min="0" value="0"></div><div class="field"><div class="field-label">電訪</div><input class="inp" type="number" id="rep_call" min="0" value="0"></div></div><div class="field-row"><div class="field"><div class="field-label">成交</div><input class="inp" type="number" id="rep_deal" min="0" value="0"></div><div class="field"><div class="field-label">成交戶別</div><input class="inp" type="text" id="rep_units" placeholder="A3-12F"></div></div><div class="field"><div class="field-label">觀看房型</div><input class="inp" type="text" id="rep_viewed" placeholder="2房、3房"></div><div class="field"><div class="field-label">備註</div><textarea class="ta" id="rep_notes" placeholder="特殊事項…"></textarea></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('reportModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitReport()">提 交 日 報</button></div></div></div>
+<div class="modal-mask" id="maintModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">維修通報</div><div class="modal-subtitle">通報後將自動推播給主管</div><div class="field"><div class="field-label">問題類型 <span class="req">*</span></div><select class="sel" id="maint_type"><option value="">請選擇</option><option>燈具/電路</option><option>水管/漏水</option><option>空調</option><option>家具/門窗</option><option>清潔</option><option>樣品屋外觀</option><option>其他</option></select></div><div class="field"><div class="field-label">位置 / 戶別</div><input class="inp" type="text" id="maint_location" placeholder="例：A棟3F樣品屋客廳"></div><div class="field"><div class="field-label">問題描述 <span class="req">*</span></div><textarea class="ta" id="maint_desc" placeholder="詳細描述狀況…"></textarea></div><div class="field"><div class="field-label">優先度</div><select class="sel" id="maint_priority"><option value="normal">一般</option><option value="high" selected>高</option><option value="urgent">緊急</option></select></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('maintModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitMaint()">送 出 通 報</button></div></div></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+ *  龍登 CRM v8.2 — GitHub Pages 版前端
+ *  用 fetch() 取代 google.script.run
+ * ============================================================ */
+
+// ★★★ 唯一需要你修改的地方 ★★★
+// 把 GAS 部署後的 /exec 網址貼在這裡
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbyEfQCyTBKJpSVifYO_HRN0w96FPmoGQHXQxPtGfma7wgN7QklunefibPAgcZTqCzvA/exec';  // ← 華雄音樂匯 GAS 部署後填在這裡
+
+var LIFF_ID     = '2010073719-nBMkVDk0';   // ← 華雄音樂匯 LIFF ID 填在這裡
+var TTL_DAYS    = 30;
+var STORAGE_KEY = 'long_dorn_hsyy_v82';
+
+var state = {
+  liffProfile: null,
+  user: null,
+  projects: [],
+  industries: [],
+  motives: [],
+  salesByProject: {},
+  taskTab: 'pending',
+  maintTab: 'pending',
+  userTab: 'pending',
+  allUsers: []
+};
+
+var DISTRICTS = ['楠梓區','左營區','鼓山區','三民區','苓雅區','新興區','前金區','鹽埕區','前鎮區','小港區','仁武區','鳳山區','其他'];
+
+/* ══ Bootstrap ══ */
+window.addEventListener('DOMContentLoaded', function(){ initApp(); });
+
+async function initApp() {
+  try {
+    await liff.init({ liffId: LIFF_ID });
+    if (!liff.isLoggedIn()) {
+      liff.login();
+      return;
+    }
+    state.liffProfile = await liff.getProfile();
+  } catch(err) {
+    console.warn('LIFF init failed (non-LINE browser):', err.message);
+    // 非 LINE 環境（電腦瀏覽器）→ 用空 profile 繼續，讓後端處理
+    state.liffProfile = { userId: '', displayName: '' };
+  }
+  proceedAfterProfile();
+}
+
+function proceedAfterProfile() {
+  var saved = loadSession();
+  if (saved && saved.lineUserId) {
+    // 有 session → 自動登入驗證
+    gasGet('checkAutoLogin', { lineUserId: saved.lineUserId }, function(res) {
+      if (res.ok) {
+        if (res.data.status === 'pending') { showScreen('pendingScreen'); return; }
+        onLoginSuccess(res.data);
+      } else {
+        clearSession(); showLogin();
+      }
+    }, function() { clearSession(); showLogin(); });
+  } else {
+    showLogin();
+  }
+}
+
+/* ══ Session ══ */
+function saveSession(userId) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ lineUserId: userId, expiresAt: Date.now() + TTL_DAYS*24*3600*1000 })); } catch(e){}
+}
+function loadSession() {
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    var d = JSON.parse(raw);
+    if (Date.now() > d.expiresAt) { clearSession(); return null; }
+    return d;
+  } catch(e){ return null; }
+}
+function clearSession() { try { localStorage.removeItem(STORAGE_KEY); } catch(e){} }
+
+/* ══ API：GET ══ */
+function gasGet(action, params, onSuccess, onFail) {
+  var url = GAS_URL + '?action=' + encodeURIComponent(action);
+  if (params) {
+    Object.keys(params).forEach(function(k) {
+      if (params[k] != null) url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    });
+  }
+  fetch(url)
+    .then(function(r){ return r.json(); })
+    .then(function(data){ if (onSuccess) onSuccess(data); })
+    .catch(function(err){ console.error('gasGet', action, err); if (onFail) onFail(err); });
+}
+
+/* ══ API：POST ══ */
+function gasPost(action, payload, onSuccess, onFail) {
+  fetch(GAS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: action, payload: payload || {} })
+  })
+    .then(function(r){ return r.json(); })
+    .then(function(data){ if (onSuccess) onSuccess(data); })
+    .catch(function(err){ console.error('gasPost', action, err); if (onFail) onFail(err); });
+}
+
+/* ══ Login ══ */
+function showLogin() {
+  showScreen('loginScreen');
+  var p = state.liffProfile;
+  var loginUser = document.getElementById('loginUser');
+  if (p && p.displayName) {
+    loginUser.innerHTML = '<div class="login-user-avatar">' + p.displayName.charAt(0) + '</div><div>LINE 帳號：' + escapeHtml(p.displayName) + '</div>';
+  }
+  // 預載案場清單
+  gasGet('getProjectList', null, function(res) {
+    if (!res.ok) return;
+    var sel = document.getElementById('loginProjectSel');
+    sel.innerHTML = '<option value="">請選擇案場</option>';
+    res.data.forEach(function(p) {
+      var o = document.createElement('option'); o.value = p; o.textContent = p; sel.appendChild(o);
+    });
+  });
+  setTimeout(function(){ document.getElementById('loginPwd').focus(); }, 200);
+  document.getElementById('loginBtn').onclick = doLogin;
+  document.getElementById('loginPwd').onkeypress = function(e){ if(e.key==='Enter') doLogin(); };
+}
+
+function doLogin() {
+  var pwd = document.getElementById('loginPwd').value;
+  var btn = document.getElementById('loginBtn');
+  document.getElementById('loginErr').classList.remove('show');
+  if (!pwd) { showLoginErr('請輸入密碼'); return; }
+
+  btn.disabled = true; btn.textContent = '驗證中…';
+
+  var selectedProject = document.getElementById('loginProjectSel').value;
+
+  gasPost('verifyAccess', {
+    lineUserId: state.liffProfile ? state.liffProfile.userId : '',
+    displayName: state.liffProfile ? state.liffProfile.displayName : '',
+    password: pwd,
+    selectedProject: selectedProject
+  }, function(res) {
+    btn.disabled = false; btn.textContent = '進 入 系 統';
+    if (!res.ok) { showLoginErr(res.error || '驗證失敗'); return; }
+
+    var d = res.data;
+    if (d.status === 'pending') {
+      if (!selectedProject) {
+        document.getElementById('loginProjectWrap').classList.remove('hidden');
+        showLoginErr('請選擇您所屬的案場，再按一次進入');
+        return;
+      }
+      saveSession(state.liffProfile ? state.liffProfile.userId : 'anon');
+      showScreen('pendingScreen');
+      return;
+    }
+
+    saveSession(d.lineUserId || (state.liffProfile && state.liffProfile.userId) || '');
+    onLoginSuccess(d);
+  }, function() {
+    btn.disabled = false; btn.textContent = '進 入 系 統';
+    showLoginErr('連線失敗，請確認網路後再試');
+  });
+}
+
+function showLoginErr(msg) {
+  var err = document.getElementById('loginErr');
+  err.textContent = msg; err.classList.add('show');
+}
+
+function onLoginSuccess(user) {
+  state.user = user;
+  showScreen('appScreen');
+  loadGlobalData(function(){ route(location.hash || '#/home'); });
+}
+
+function logout() {
+  clearSession(); state.user = null;
+  try { if (liff.isLoggedIn()) liff.logout(); } catch(e){}
+  location.reload();
+}
+
+/* ══ Global Data ══ */
+function loadGlobalData(done) {
+  var pending = 3;
+  function check(){ if(--pending===0 && done) done(); }
+  gasGet('getProjectList',        null, function(r){ state.projects   = r.ok ? r.data : []; check(); }, check);
+  gasGet('getIndustryList',       null, function(r){ state.industries = r.ok ? r.data : []; check(); }, check);
+  gasGet('getPurchaseMotiveList', null, function(r){ state.motives    = r.ok ? r.data : []; check(); }, check);
+}
+
+/* ══ Router ══ */
+window.addEventListener('hashchange', function(){ route(location.hash); });
+
+function route(hash) {
+  if (!state.user) { showLogin(); return; }
+  if (location.hash !== hash) location.hash = hash;
+  hash = hash || '#/home';
+  document.querySelectorAll('#appScreen .view').forEach(function(v){ v.classList.add('hidden'); });
+  switch(hash) {
+    case '#/home':     document.getElementById('viewHome').classList.remove('hidden');     renderHome(); break;
+    case '#/customer': document.getElementById('viewCustomer').classList.remove('hidden'); renderCustomerForm(); break;
+    case '#/task':     document.getElementById('viewTask').classList.remove('hidden');     renderTaskList(); break;
+    case '#/report':
+      if (state.user.role === 'sales') { route('#/home'); return; }
+      document.getElementById('viewReport').classList.remove('hidden'); renderReport(); break;
+    case '#/maint':    document.getElementById('viewMaint').classList.remove('hidden');    renderMaintList(); break;
+    case '#/users':
+      if (state.user.role === 'sales') { route('#/home'); return; }
+      document.getElementById('viewUsers').classList.remove('hidden'); renderUserList(); break;
+    default: route('#/home');
+  }
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+  document.getElementById(id).classList.add('active');
+}
+
+/* ══ Home ══ */
+function renderHome() {
+  var u = state.user;
+  document.getElementById('homeGreeting').textContent = (u.displayName || '您') + ' 您好';
+  var rl = { sales:'業務', manager:'主管', admin:'Admin' }[u.role] || u.role;
+  document.getElementById('homeContext').innerHTML =
+    '<span class="role-badge ' + u.role + '">' + rl + '</span><span>' + (u.projectName||'全部案場') + '</span>';
+
+  if (u.role !== 'sales') {
+    document.getElementById('reportFeature').classList.remove('hidden');
+    document.getElementById('userMgmtFeature').classList.remove('hidden');
+    gasGet('getUserList', { lineUserId: u.lineUserId }, function(res) {
+      if (!res.ok) return;
+      var cnt = res.data.filter(function(r){ return r.status==='pending'; }).length;
+      if (cnt > 0) {
+        document.getElementById('pendingCountDesc').textContent = cnt + ' 人待審核';
+        var b = document.getElementById('userMgmtFeature').querySelector('.feature-badge');
+        if (b) { b.textContent = cnt; b.style.background = 'var(--rust)'; b.style.color = '#fff'; }
+      }
+    });
+  }
+
+  gasGet('getTasks', { lineUserId: u.lineUserId, status: 'pending' }, function(res) {
+    if (!res.ok) return;
+    var n = res.data.length;
+    var badge = document.getElementById('taskBadge');
+    document.getElementById('taskCountDesc').textContent = n > 0 ? n + ' 個待辦' : '無待辦';
+    if (n > 0) { badge.textContent = n; badge.classList.remove('hidden'); }
+    else badge.classList.add('hidden');
+  });
+
+  gasGet('getCustomerList', { lineUserId: u.lineUserId }, function(res) {
+    if (!res.ok) return;
+    var ym = new Date().toISOString().substring(0,7);
+    var rows = res.data.filter(function(r){ return String(r.visit_date).indexOf(ym)===0; });
+    document.getElementById('statVisitor').textContent = rows.length;
+    document.getElementById('statRevisit').textContent = rows.filter(function(r){ return r.visit_type==='回籠'; }).length;
+    document.getElementById('statDeal').textContent    = rows.filter(function(r){ return r.deal_status==='已成交'; }).length;
+  });
+}
+
+/* ══ Customer Form ══ */
+function renderCustomerForm() {
+  var projSel = document.getElementById('cust_project');
+  if (projSel.children.length <= 1) {
+    projSel.innerHTML = '<option value="">請選擇案場</option>';
+    state.projects.forEach(function(p){ var o=document.createElement('option'); o.value=p; o.textContent=p; projSel.appendChild(o); });
+    if (state.user.role !== 'admin' && state.user.projectName) {
+      projSel.value = state.user.projectName; projSel.disabled = true; onCustProjectChange();
+    }
+  }
+  projSel.onchange = onCustProjectChange;
+  document.getElementById('cust_visitDate').value = todayStr();
+
+  var dc = document.getElementById('cust_distChips');
+  if (!dc.children.length) {
+    DISTRICTS.forEach(function(d) {
+      var label = document.createElement('label'); label.className = 'chip';
+      label.innerHTML = '<input type="radio" name="cust_dist" value="' + d + '"><span class="chip-label">' + (d==='其他'?'其他':d.replace('區','')) + '</span>';
+      dc.appendChild(label);
+      label.querySelector('input').addEventListener('change', function(){ document.getElementById('cust_distOtherWrap').classList.toggle('hidden', this.value!=='其他'); });
+    });
+  }
+  var indSel = document.getElementById('cust_industry');
+  if (indSel.children.length<=1) state.industries.forEach(function(x){ var o=document.createElement('option'); o.value=x; o.textContent=x; indSel.appendChild(o); });
+  var motSel = document.getElementById('cust_motive');
+  if (motSel.children.length<=1) state.motives.forEach(function(x){ var o=document.createElement('option'); o.value=x; o.textContent=x; motSel.appendChild(o); });
+}
+
+function onCustProjectChange() {
+  var proj = document.getElementById('cust_project').value;
+  var sel  = document.getElementById('cust_sales');
+  sel.innerHTML = '<option value="">不指定</option>';
+  if (!proj) return;
+  if (state.salesByProject[proj]) { fillSalesSelect(sel, state.salesByProject[proj]); return; }
+  gasGet('getSalesByProject', { project: proj }, function(res) {
+    if (res.ok) { state.salesByProject[proj] = res.data; fillSalesSelect(sel, res.data); }
+  });
+}
+function fillSalesSelect(sel, list) {
+  list.forEach(function(s){ var o=document.createElement('option'); o.value=s.lineUserId; o.dataset.name=s.name; o.textContent=s.name; sel.appendChild(o); });
+}
+function toggleAgain(s){ document.getElementById('cust_againDateWrap').classList.toggle('hidden',!s); }
+function toggleDeal(s) { document.getElementById('cust_dealUnitWrap').classList.toggle('hidden',!s); }
+
+function submitCustomer() {
+  var btn = document.getElementById('cust_submit');
+  var project = document.getElementById('cust_project').value;
+  var name    = document.getElementById('cust_name').value.trim();
+  var phone   = document.getElementById('cust_phone').value.trim();
+  var note    = document.getElementById('cust_note').value.trim();
+  if (!project||!name||!phone||!note) { showToast('請填寫案場、姓名、電話及接待狀況','error'); return; }
+
+  var distEl = document.querySelector('input[name="cust_dist"]:checked');
+  var dist = distEl ? distEl.value : '';
+  if (dist==='其他') { var ov=document.getElementById('cust_distOther').value.trim(); dist=ov?'其他：'+ov:'其他'; }
+  var againEl = document.querySelector('input[name="cust_again"]:checked');
+  var again = againEl ? againEl.value : '';
+  if (again==='確認日期') again = document.getElementById('cust_againDate').value||'未填日期';
+  var dealEl = document.querySelector('input[name="cust_deal"]:checked');
+  var dealStatus = dealEl ? dealEl.value : '未成交';
+  var salesSel = document.getElementById('cust_sales');
+  var salesOpt = salesSel.options[salesSel.selectedIndex];
+
+  btn.disabled=true; btn.textContent='送 出 中…';
+  gasPost('appendCustomerData', {
+    lineUserId: state.user.lineUserId, project_name: project,
+    visit_date: document.getElementById('cust_visitDate').value||todayStr(),
+    sales_line_user_id: salesSel.value,
+    sales_name: salesOpt?(salesOpt.dataset.name||salesOpt.textContent):'',
+    visit_type: getRadio('cust_visitType'), customer_name: name, phone: phone, district: dist,
+    occupation_industry: document.getElementById('cust_industry').value,
+    purchase_motive: document.getElementById('cust_motive').value,
+    source: getRadio('cust_source'),
+    room_types: getChecks('cust_room').join('、'),
+    budget: document.getElementById('cust_budget').value,
+    issues: getChecks('cust_issue').join('、'),
+    revisit_plan: again, deal_status: dealStatus,
+    deal_unit: dealStatus==='已成交'?document.getElementById('cust_dealUnit').value.trim():'',
+    status_note: note
+  }, function(res) {
+    btn.disabled=false; btn.textContent='送 出 登 記';
+    if (res.ok) { showToast('客戶資料已建立','success'); resetCustomerForm(); setTimeout(function(){ route('#/home'); },1200); }
+    else { showToast(res.error||'送出失敗','error'); }
+  }, function(){ btn.disabled=false; btn.textContent='送 出 登 記'; showToast('連線失敗','error'); });
+}
+
+function resetCustomerForm() {
+  ['cust_name','cust_phone','cust_note','cust_distOther','cust_dealUnit','cust_againDate'].forEach(function(id){ document.getElementById(id).value=''; });
+  document.querySelectorAll('#viewCustomer input[type="radio"]').forEach(function(r){ r.checked=false; });
+  document.querySelectorAll('#viewCustomer input[type="checkbox"]').forEach(function(c){ c.checked=false; });
+  ['cust_industry','cust_motive','cust_budget'].forEach(function(id){ document.getElementById(id).value=''; });
+  ['cust_distOtherWrap','cust_dealUnitWrap','cust_againDateWrap'].forEach(function(id){ document.getElementById(id).classList.add('hidden'); });
+}
+
+/* ══ Task ══ */
+function switchTaskTab(el) { document.querySelectorAll('#viewTask .list-tab').forEach(function(t){ t.classList.remove('active'); }); el.classList.add('active'); state.taskTab=el.dataset.status; renderTaskList(); }
+function renderTaskList() {
+  var box=document.getElementById('taskList');
+  box.innerHTML='<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div>';
+  gasGet('getTasks', { lineUserId: state.user.lineUserId, status: state.taskTab }, function(res) {
+    if (!res.ok) { box.innerHTML=''; showToast(res.error,'error'); return; }
+    if (!res.data.length) { box.innerHTML='<div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-text">'+(state.taskTab==='pending'?'目前沒有待辦任務':'尚無已完成任務')+'</div></div>'; return; }
+    box.innerHTML = res.data.map(taskRowHTML).join('');
+  });
+}
+function taskRowHTML(t) {
+  var pri=t.priority||'normal';
+  var typeIcon={maintenance:'🔧',sales_task:'📋',site_issue:'⚠️',reminder:'🔔',daily_follow:'👥'}[t.type]||'📋';
+  var statusPill='<span class="status-pill status-'+t.status+'">'+(t.status==='pending'?'待辦':'已完成')+'</span>';
+  var priPill='<span class="priority-pill priority-'+pri+'">'+({urgent:'緊急',high:'高',normal:'一般',low:'低'}[pri]||pri)+'</span>';
+  var btn=t.status==='pending'?'<button class="btn-mini primary" onclick="completeTask(\''+t.task_id+'\')">標記完成</button>':'';
+  return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">'+typeIcon+' '+escapeHtml(t.title)+'</div>'+statusPill+'</div>'+(t.description?'<div class="list-item-desc">'+escapeHtml(t.description)+'</div>':'')+'<div class="list-item-meta">'+priPill+(t.due_date?'<span>📅 '+t.due_date+'</span>':'')+(t.assigned_to?'<span>👤 '+escapeHtml(t.assigned_to)+'</span>':'')+'<span>'+escapeHtml(t.project_name||'')+'</span></div>'+(btn?'<div class="list-item-actions">'+btn+'</div>':'')+'</div>';
+}
+function completeTask(taskId) {
+  if (!confirm('確認將此任務標記為完成？')) return;
+  gasPost('updateTaskStatus', { lineUserId: state.user.lineUserId, task_id: taskId, status: 'done' }, function(res) {
+    if (res.ok) { showToast('任務已完成','success'); renderTaskList(); } else { showToast(res.error,'error'); }
+  });
+}
+function openTaskModal() {
+  var sel=document.getElementById('task_assign'); sel.innerHTML='<option value="">不指定</option>';
+  var proj=state.user.projectName;
+  if (proj) {
+    var load=function(list){ list.forEach(function(s){ var o=document.createElement('option'); o.value=s.lineUserId; o.dataset.name=s.name; o.textContent=s.name; sel.appendChild(o); }); };
+    if (state.salesByProject[proj]) load(state.salesByProject[proj]);
+    else gasGet('getSalesByProject',{project:proj},function(res){ if(res.ok){state.salesByProject[proj]=res.data;load(res.data);} });
+  }
+  openModal('taskModal');
+}
+function submitTask() {
+  var title=document.getElementById('task_title').value.trim();
+  if (!title) { showToast('請填寫任務標題','error'); return; }
+  var assignSel=document.getElementById('task_assign');
+  var assignOpt=assignSel.options[assignSel.selectedIndex];
+  gasPost('appendTask', {
+    lineUserId: state.user.lineUserId, type: document.getElementById('task_type').value,
+    title: title, description: document.getElementById('task_desc').value.trim(),
+    priority: document.getElementById('task_priority').value,
+    due_date: document.getElementById('task_due').value,
+    assigned_to_line_user_id: assignSel.value,
+    assigned_to: assignOpt?(assignOpt.dataset.name||assignOpt.textContent):''
+  }, function(res) {
+    if (res.ok) { showToast('任務已建立','success'); closeModal('taskModal'); ['task_title','task_desc','task_due'].forEach(function(id){ document.getElementById(id).value=''; }); renderTaskList(); }
+    else { showToast(res.error,'error'); }
+  });
+}
+
+/* ══ Daily Report ══ */
+function renderReport() {
+  document.getElementById('rep_date').value=todayStr();
+  gasGet('getDailyReportSummary',{lineUserId:state.user.lineUserId,date:todayStr()},function(res){
+    if (!res.ok) return;
+    var d=res.data;
+    document.getElementById('reportDate').textContent=d.report_date;
+    document.getElementById('sumVisitor').textContent=d.total_visitors;
+    document.getElementById('sumFirst').textContent=d.total_first_visit;
+    document.getElementById('sumRevisit').textContent=d.total_revisit;
+    document.getElementById('sumDeal').textContent=d.total_deals;
+    var box=document.getElementById('reportList');
+    box.innerHTML=d.reports.length?d.reports.map(function(r){
+      return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">'+escapeHtml(r.salesperson||r.created_by)+'</div><span class="list-item-meta">'+r.report_date+'</span></div><div class="list-item-meta"><span>接待 '+(r.visitor_count||0)+'</span><span>初訪 '+(r.first_visit_count||0)+'</span><span>回籠 '+(r.revisit_count||0)+'</span><span>成交 '+(r.deal_count||0)+'</span></div>'+(r.notes?'<div class="list-item-desc">'+escapeHtml(r.notes)+'</div>':'')+'</div>';
+    }).join(''):'<div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-text">今日尚未有日報提交</div></div>';
+  });
+}
+function openReportModal() {
+  var sel=document.getElementById('rep_sales'); sel.innerHTML='<option value="">請選擇</option>';
+  var proj=state.user.projectName;
+  if (proj) {
+    var load=function(list){ list.forEach(function(s){ var o=document.createElement('option'); o.value=s.lineUserId; o.dataset.name=s.name; o.textContent=s.name; sel.appendChild(o); }); };
+    if (state.salesByProject[proj]) load(state.salesByProject[proj]);
+    else gasGet('getSalesByProject',{project:proj},function(res){ if(res.ok){state.salesByProject[proj]=res.data;load(res.data);} });
+  }
+  openModal('reportModal');
+}
+function submitReport() {
+  var salesSel=document.getElementById('rep_sales'); var salesOpt=salesSel.options[salesSel.selectedIndex];
+  gasPost('appendDailyReport',{
+    lineUserId:state.user.lineUserId, report_date:document.getElementById('rep_date').value,
+    sales_line_user_id:salesSel.value, salesperson:salesOpt?(salesOpt.dataset.name||salesOpt.textContent):'',
+    visitor_count:+document.getElementById('rep_visitor').value||0, first_visit_count:+document.getElementById('rep_first').value||0,
+    revisit_count:+document.getElementById('rep_revisit').value||0, call_count:+document.getElementById('rep_call').value||0,
+    deal_count:+document.getElementById('rep_deal').value||0,
+    transaction_units:document.getElementById('rep_units').value.trim(),
+    viewed_units:document.getElementById('rep_viewed').value.trim(),
+    notes:document.getElementById('rep_notes').value.trim()
+  },function(res){
+    if (res.ok) { showToast('日報已提交','success'); closeModal('reportModal'); ['rep_units','rep_viewed','rep_notes'].forEach(function(id){ document.getElementById(id).value=''; }); ['rep_visitor','rep_first','rep_revisit','rep_call','rep_deal'].forEach(function(id){ document.getElementById(id).value='0'; }); renderReport(); }
+    else { showToast(res.error,'error'); }
+  });
+}
+
+/* ══ Maintenance ══ */
+function switchMaintTab(el) { document.querySelectorAll('#viewMaint .list-tab').forEach(function(t){ t.classList.remove('active'); }); el.classList.add('active'); state.maintTab=el.dataset.status; renderMaintList(); }
+function renderMaintList() {
+  var box=document.getElementById('maintList');
+  box.innerHTML='<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div>';
+  gasGet('getMaintenanceList',{lineUserId:state.user.lineUserId},function(res){
+    if (!res.ok) { box.innerHTML=''; showToast(res.error,'error'); return; }
+    var list=res.data.filter(function(r){ return r.status===state.maintTab; });
+    if (!list.length) { box.innerHTML='<div class="empty-state"><div class="empty-state-icon">🔧</div><div class="empty-state-text">尚無維修記錄</div></div>'; return; }
+    box.innerHTML=list.map(function(m){
+      var sp='<span class="status-pill status-'+m.status+'">'+({pending:'待處理',processing:'處理中',done:'已完成'}[m.status]||m.status)+'</span>';
+      var act='';
+      if (state.user.role!=='sales') {
+        if (m.status==='pending') act='<button class="btn-mini primary" onclick="updateMaint(\''+m.maintenance_id+'\',\'processing\')">開始處理</button>';
+        else if (m.status==='processing') act='<button class="btn-mini primary" onclick="updateMaint(\''+m.maintenance_id+'\',\'done\')">標記完成</button>';
+      }
+      return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">🔧 '+escapeHtml(m.issue_type)+(m.location?' @ '+escapeHtml(m.location):'')+'</div>'+sp+'</div><div class="list-item-desc">'+escapeHtml(m.description||'')+'</div><div class="list-item-meta"><span>👤 '+escapeHtml(m.reported_by||'')+'</span><span>📅 '+String(m.created_at||'').substring(0,10)+'</span></div>'+(act?'<div class="list-item-actions">'+act+'</div>':'')+'</div>';
+    }).join('');
+  });
+}
+function updateMaint(id,status) {
+  gasPost('updateMaintenanceStatus',{lineUserId:state.user.lineUserId,maintenance_id:id,status:status},function(res){
+    if (res.ok) { showToast('狀態已更新','success'); renderMaintList(); } else { showToast(res.error,'error'); }
+  });
+}
+function openMaintModal(){ openModal('maintModal'); }
+function submitMaint() {
+  var type=document.getElementById('maint_type').value;
+  var desc=document.getElementById('maint_desc').value.trim();
+  if (!type||!desc) { showToast('請填寫問題類型與描述','error'); return; }
+  gasPost('appendMaintenance',{
+    lineUserId:state.user.lineUserId, issue_type:type,
+    location:document.getElementById('maint_location').value.trim(),
+    description:desc, priority:document.getElementById('maint_priority').value
+  },function(res){
+    if (res.ok) { showToast('維修通報已送出','success'); closeModal('maintModal'); ['maint_location','maint_desc'].forEach(function(id){ document.getElementById(id).value=''; }); document.getElementById('maint_type').value=''; renderMaintList(); }
+    else { showToast(res.error,'error'); }
+  });
+}
+
+/* ══ User Management ══ */
+function switchUserTab(el) { document.querySelectorAll('.user-tab').forEach(function(t){ t.classList.remove('active'); }); el.classList.add('active'); state.userTab=el.dataset.tab; renderUserListFiltered(); }
+function renderUserList() {
+  state.allUsers=[];
+  var box=document.getElementById('userList');
+  box.innerHTML='<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div>';
+  gasGet('getUserList',{lineUserId:state.user.lineUserId},function(res){
+    if (!res.ok) { box.innerHTML=''; showToast(res.error,'error'); return; }
+    state.allUsers=res.data; renderUserListFiltered();
+  });
+}
+function renderUserListFiltered() {
+  var box=document.getElementById('userList');
+  var list=state.allUsers.filter(function(u){ return u.status===state.userTab; });
+  if (!list.length) { box.innerHTML='<div class="empty-state"><div class="empty-state-icon">'+(state.userTab==='pending'?'✅':state.userTab==='active'?'👥':'🚫')+'</div><div class="empty-state-text">'+(state.userTab==='pending'?'目前沒有待審核使用者':state.userTab==='active'?'尚無啟用使用者':'尚無停用使用者')+'</div></div>'; return; }
+  box.innerHTML=list.map(userCardHTML).join('');
+}
+function userCardHTML(u) {
+  var isPending=u.status==='pending';
+  var roleOpts=[{val:'sales',label:'業務'},{val:'manager',label:'主管'}];
+  if (state.user.role==='admin') roleOpts.push({val:'admin',label:'管理員'});
+  var roleSel='<select class="user-sel" id="role_'+u.line_user_id+'">'+roleOpts.map(function(r){ return '<option value="'+r.val+'"'+(u.role===r.val?' selected':'')+'>'+r.label+'</option>'; }).join('')+'</select>';
+  var projSel='<select class="user-sel" id="proj_'+u.line_user_id+'"><option value="">無案場</option>'+state.projects.map(function(p){ return '<option value="'+p+'"'+(u.project_name===p?' selected':'')+'>'+p+'</option>'; }).join('')+'</select>';
+  var actionBtns='';
+  if (isPending) actionBtns='<button class="btn-mini success" onclick="doApproveUser(\''+u.line_user_id+'\')">✓ 核准</button><button class="btn-mini danger" onclick="doRejectUser(\''+u.line_user_id+'\')">✕ 拒絕</button>';
+  else if (u.status==='active') actionBtns='<button class="btn-mini primary" onclick="doUpdateUser(\''+u.line_user_id+'\')">儲存修改</button><button class="btn-mini danger" onclick="doDeactivateUser(\''+u.line_user_id+'\')">停用</button>';
+  else actionBtns='<button class="btn-mini success" onclick="doActivateUser(\''+u.line_user_id+'\')">重新啟用</button>';
+  var sp='<span class="status-pill status-'+u.status+'">'+({pending:'待審核',active:'啟用中',inactive:'已停用'}[u.status]||u.status)+'</span>';
+  return '<div class="user-card'+(isPending?' pending':'')+'"><div class="user-card-top"><div class="user-avatar">'+(u.display_name||'?').charAt(0)+'</div><div class="user-info"><div class="user-name">'+escapeHtml(u.display_name||u.line_user_id)+'</div><div class="user-meta">'+escapeHtml(u.project_name||'無案場')+' · '+String(u.created_at||'').substring(0,10)+'</div></div>'+sp+'</div>'+(isPending||u.status==='active'?'<div class="user-controls">'+roleSel+projSel+'</div>':'')+'<div class="list-item-actions">'+actionBtns+'</div></div>';
+}
+function doApproveUser(id) {
+  var role=document.getElementById('role_'+id)?document.getElementById('role_'+id).value:'sales';
+  var proj=document.getElementById('proj_'+id)?document.getElementById('proj_'+id).value:'';
+  gasPost('approveUser',{lineUserId:state.user.lineUserId,targetUserId:id,role:role,projectName:proj},function(res){ if(res.ok){showToast('已核准','success');renderUserList();}else{showToast(res.error,'error');} });
+}
+function doRejectUser(id) {
+  if (!confirm('確定要拒絕此申請？')) return;
+  gasPost('rejectUser',{lineUserId:state.user.lineUserId,targetUserId:id},function(res){ if(res.ok){showToast('已拒絕','info');renderUserList();}else{showToast(res.error,'error');} });
+}
+function doUpdateUser(id) {
+  var role=document.getElementById('role_'+id)?document.getElementById('role_'+id).value:null;
+  var proj=document.getElementById('proj_'+id)?document.getElementById('proj_'+id).value:null;
+  gasPost('updateUserRole',{lineUserId:state.user.lineUserId,targetUserId:id,role:role,projectName:proj},function(res){ if(res.ok){showToast('已儲存','success');renderUserList();}else{showToast(res.error,'error');} });
+}
+function doDeactivateUser(id) {
+  if (!confirm('確定要停用此帳號？')) return;
+  gasPost('updateUserRole',{lineUserId:state.user.lineUserId,targetUserId:id,status:'inactive'},function(res){ if(res.ok){showToast('已停用','info');renderUserList();}else{showToast(res.error,'error');} });
+}
+function doActivateUser(id) {
+  gasPost('updateUserRole',{lineUserId:state.user.lineUserId,targetUserId:id,status:'active'},function(res){ if(res.ok){showToast('已啟用','success');renderUserList();}else{showToast(res.error,'error');} });
+}
+
+/* ══ Modal ══ */
+function openModal(id) { document.getElementById(id).classList.add('show'); document.body.style.overflow='hidden'; }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); document.body.style.overflow=''; }
+['taskModal','reportModal','maintModal'].forEach(function(id){
+  document.getElementById(id).addEventListener('click',function(e){ if(e.target.id===id) closeModal(id); });
+});
+
+/* ══ Helpers ══ */
+function showToast(msg,type){ var t=document.getElementById('toast'); t.textContent=msg; t.className='toast '+(type||'info'); setTimeout(function(){ t.classList.add('show'); },10); setTimeout(function(){ t.classList.remove('show'); },3000); }
+function todayStr(){ return new Date().toISOString().split('T')[0]; }
+function getRadio(name){ var el=document.querySelector('input[name="'+name+'"]:checked'); return el?el.value:''; }
+function getChecks(name){ return Array.from(document.querySelectorAll('input[name="'+name+'"]:checked')).map(function(e){ return e.value; }); }
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+</script>
+</body>
+</html>
