@@ -17,8 +17,8 @@
   html,body{width:100%;height:100%;overflow-x:hidden;}
   body{background:var(--cream);font-family:'Noto Sans TC',sans-serif;font-weight:300;color:var(--ink);min-height:100vh;padding-bottom:env(safe-area-inset-bottom);}
 
-  .screen{min-height:100vh;display:none;}
-  .screen.active{display:block;}
+.screen{position:fixed;top:0;left:0;width:100%;height:100%;display:none;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.screen.active{display:block;}
 
   /* Loading */
   #loadingScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--ink);color:#fff;height:100vh;}
