@@ -17,7 +17,7 @@
   html,body{width:100%;height:100%;overflow-x:hidden;}
   body{background:var(--cream);font-family:'Noto Sans TC',sans-serif;font-weight:300;color:var(--ink);min-height:100vh;padding-bottom:env(safe-area-inset-bottom);}
 
-.screen{position:fixed;top:0;left:0;width:100%;height:100%;display:none;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.screen{min-height:100vh;display:none;}
 .screen.active{display:block;}
 
   /* Loading */
@@ -624,8 +624,14 @@ function route(hash) {
 }
 
 function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
-  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.screen').forEach(function(s){
+    s.classList.remove('active');
+    s.style.display = 'none';
+  });
+  var el = document.getElementById(id);
+  el.classList.add('active');
+  el.style.display = '';
+  window.scrollTo(0, 0);
 }
 
 /* ══ Home ══ */
