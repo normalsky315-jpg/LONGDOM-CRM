@@ -675,9 +675,11 @@ function renderCustomerForm() {
   if (projSel.children.length <= 1) {
     projSel.innerHTML = '<option value="">請選擇案場</option>';
     state.projects.forEach(function(p){ var o=document.createElement('option'); o.value=p; o.textContent=p; projSel.appendChild(o); });
-    if (state.user.role !== 'admin' && state.user.projectName) {
-      projSel.value = state.user.projectName; projSel.disabled = true; onCustProjectChange();
-    }
+   if (state.user.projectName) {
+  projSel.value = state.user.projectName; projSel.disabled = true; onCustProjectChange();
+} else if (state.projects.length === 1) {
+  projSel.value = state.projects[0]; projSel.disabled = true; onCustProjectChange();
+}
   }
   projSel.onchange = onCustProjectChange;
   document.getElementById('cust_visitDate').value = todayStr();
