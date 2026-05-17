@@ -503,12 +503,11 @@ function gasGet(action, params, onSuccess, onFail) {
 }
 
 /* ══ API：POST ══ */
+/* ══ API：POST（改用 GET+payload 避免 CORS 問題）══ */
 function gasPost(action, payload, onSuccess, onFail) {
-  fetch(GAS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: action, payload: payload || {} })
-  })
+  var url = GAS_URL + '?action=' + encodeURIComponent(action)
+            + '&payload=' + encodeURIComponent(JSON.stringify(payload || {}));
+  fetch(url)
     .then(function(r){ return r.json(); })
     .then(function(data){ if (onSuccess) onSuccess(data); })
     .catch(function(err){ console.error('gasPost', action, err); if (onFail) onFail(err); });
