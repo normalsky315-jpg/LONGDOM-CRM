@@ -14,20 +14,27 @@
     --border:#E8E4DC; --border-strong:#D5CFC0;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-  html,body{width:100%;height:100%;overflow-x:hidden;}
-  body{background:var(--cream);font-family:'Noto Sans TC',sans-serif;font-weight:300;color:var(--ink);min-height:100vh;padding-bottom:env(safe-area-inset-bottom);}
+  html,body{width:100%;height:100%;overflow:hidden;}
+  body{background:var(--cream);font-family:'Noto Sans TC',sans-serif;font-weight:300;color:var(--ink);}
 
-.screen{min-height:100vh;display:none;}
-.screen.active{display:block;}
+  /* ── Screen 系統：fixed 全螢幕疊層 ── */
+  .screen{
+    position:fixed;top:0;left:0;width:100%;height:100%;
+    display:none;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  .screen.active{display:block;}
 
   /* Loading */
-  #loadingScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--ink);color:#fff;height:100vh;}
+  #loadingScreen{display:none;flex-direction:column;align-items:center;justify-content:center;background:var(--ink);color:#fff;}
+  #loadingScreen.active{display:flex;}
   .spinner{width:32px;height:32px;border:3px solid rgba(255,255,255,0.2);border-top-color:var(--gold);border-radius:50%;animation:spin 0.7s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
   .loading-text{margin-top:16px;font-size:10px;letter-spacing:4px;color:rgba(255,255,255,0.4);}
 
   /* Login */
-  #loginScreen{background:var(--ink);display:flex;flex-direction:column;padding:0 28px;padding-top:max(60px,env(safe-area-inset-top));padding-bottom:max(40px,env(safe-area-inset-bottom));min-height:100vh;overflow-y:auto;}
+  #loginScreen{background:var(--ink);display:none;flex-direction:column;padding:0 28px;padding-top:max(60px,env(safe-area-inset-top));padding-bottom:max(40px,env(safe-area-inset-bottom));min-height:100%;}
+  #loginScreen.active{display:flex;}
   .login-logo{display:flex;align-items:center;gap:14px;margin-bottom:40px;}
   .login-logo svg{width:44px;height:44px;flex-shrink:0;}
   .login-logo-text{display:flex;flex-direction:column;gap:3px;}
@@ -53,7 +60,8 @@
   .login-error.show{opacity:1;}
 
   /* Pending */
-  #pendingScreen{background:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px;text-align:center;min-height:100vh;}
+  #pendingScreen{background:var(--ink);display:none;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px;text-align:center;min-height:100%;}
+  #pendingScreen.active{display:flex;}
   .pending-icon{font-size:56px;margin-bottom:20px;animation:pulse 2s ease-in-out infinite;}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
   .pending-title{font-family:'Noto Serif TC',serif;font-size:22px;font-weight:700;color:#fff;margin-bottom:10px;}
@@ -62,7 +70,7 @@
   .pending-back{margin-top:28px;padding:12px 24px;background:transparent;border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:rgba(255,255,255,0.4);font-family:'Noto Sans TC',sans-serif;font-size:13px;cursor:pointer;}
 
   /* App */
-  #appScreen{background:var(--cream);min-height:100vh;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  #appScreen{background:var(--cream);}
   .view.hidden{display:none;}
 
   /* Header */
@@ -93,11 +101,30 @@
   .feature-card.maint::after{background:var(--rust);}
   .feature-badge{position:absolute;top:10px;right:10px;background:var(--rust);color:#fff;font-size:10px;font-weight:600;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px;}
   .feature-badge.gold{background:var(--gold);color:var(--ink);}
-  .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;}
+  .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
   .stat-card{background:var(--surface);border-radius:10px;border:1px solid var(--border);padding:14px 10px;text-align:center;}
   .stat-num{font-family:'Noto Serif TC',serif;font-size:26px;font-weight:700;}
   .stat-label{font-size:10px;color:var(--ink-faint);letter-spacing:1px;margin-top:3px;}
-  .logout-btn{width:100%;padding:14px;background:transparent;border:1px solid var(--border-strong);border-radius:10px;font-family:'Noto Sans TC',sans-serif;font-size:13px;color:var(--ink-faint);cursor:pointer;}
+  .logout-btn{width:100%;padding:14px;background:transparent;border:1px solid var(--border-strong);border-radius:10px;font-family:'Noto Sans TC',sans-serif;font-size:13px;color:var(--ink-faint);cursor:pointer;margin-top:10px;}
+
+  /* 近期客戶總表 */
+  .recent-customers-wrap{margin-bottom:20px;}
+  .recent-filter-bar{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;-webkit-overflow-scrolling:touch;}
+  .recent-filter-bar::-webkit-scrollbar{display:none;}
+  .filter-chip{flex-shrink:0;padding:5px 14px;border-radius:20px;font-size:12px;border:1.5px solid var(--border);background:var(--cream);color:var(--ink-light);cursor:pointer;transition:all 0.15s;}
+  .filter-chip.active{background:var(--ink);border-color:var(--ink);color:#fff;}
+  .cust-card{background:var(--surface);border-radius:10px;border:1px solid var(--border);padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(26,26,46,0.04);}
+  .cust-card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
+  .cust-card-name{font-family:'Noto Serif TC',serif;font-size:15px;font-weight:600;}
+  .cust-card-date{font-size:11px;color:var(--ink-faint);}
+  .cust-card-sales{font-size:12px;color:var(--teal);font-weight:500;margin-bottom:8px;}
+  .cust-card-body{font-size:12px;color:var(--ink-light);line-height:1.7;}
+  .cust-card-body span{margin-right:10px;}
+  .cust-card-note{font-size:12px;color:var(--ink-light);margin-top:6px;padding-top:6px;border-top:1px solid var(--border);line-height:1.5;}
+  .cust-card-deal{display:inline-block;margin-top:8px;padding:3px 10px;border-radius:8px;font-size:11px;font-weight:500;}
+  .cust-card-deal.done{background:var(--teal-soft);color:#0f6e56;}
+  .cust-card-deal.pending{background:var(--gold-soft);color:#634e0c;}
+  .deal-btn{margin-top:8px;padding:7px 14px;font-size:12px;background:var(--ink);color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:inherit;}
 
   /* Form */
   .form-wrap{padding:16px 16px 0;}
@@ -156,7 +183,7 @@
   .priority-high{background:var(--rust-soft);color:var(--rust);}
   .priority-normal{background:var(--border);color:var(--ink-light);}
   .priority-low{background:#eee;color:var(--ink-light);}
-  .empty-state{text-align:center;padding:60px 20px;color:var(--ink-faint);}
+  .empty-state{text-align:center;padding:40px 20px;color:var(--ink-faint);}
   .empty-state-icon{font-size:36px;opacity:0.3;margin-bottom:10px;}
   .empty-state-text{font-size:13px;}
   .fab{position:fixed;bottom:max(24px,env(safe-area-inset-bottom));right:20px;width:56px;height:56px;border-radius:50%;background:var(--ink);color:#fff;border:none;cursor:pointer;box-shadow:0 6px 16px rgba(26,26,46,0.3);font-size:24px;display:flex;align-items:center;justify-content:center;z-index:50;}
@@ -300,6 +327,16 @@
         <div class="stat-card"><div class="stat-num" id="statRevisit">—</div><div class="stat-label">回籠</div></div>
         <div class="stat-card"><div class="stat-num" id="statDeal">—</div><div class="stat-label">成交</div></div>
       </div>
+      <!-- 近期客戶總表（主管/admin 才顯示） -->
+      <div class="recent-customers-wrap hidden" id="recentCustomersSection">
+        <div class="section-tag" style="margin-top:10px;">近7天客戶資料</div>
+        <div class="recent-filter-bar" id="recentFilterBar">
+          <div class="filter-chip active" data-sales="all" onclick="filterRecentCustomers(this)">全部</div>
+        </div>
+        <div id="recentCustomerList">
+          <div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div>
+        </div>
+      </div>
       <button class="logout-btn" onclick="logout()">登出系統</button>
     </div>
   </div>
@@ -313,7 +350,11 @@
         <div class="field"><div class="field-label">選擇案場 <span class="req">*</span></div><select class="sel" id="cust_project"></select></div>
         <div class="field-row">
           <div class="field"><div class="field-label">訪客日期</div><input class="inp" type="date" id="cust_visitDate"></div>
-          <div class="field"><div class="field-label">接待人員</div><select class="sel" id="cust_sales"><option value="">請先選案場</option></select></div>
+          <div class="field"><div class="field-label">接待人員</div>
+            <!-- 業務：顯示自己名字鎖定；主管：可選 -->
+            <input class="inp hidden" type="text" id="cust_sales_display" disabled>
+            <select class="sel hidden" id="cust_sales_sel"><option value="">不指定</option></select>
+          </div>
         </div>
         <div class="field"><div class="field-label">訪客類別</div><div class="chips"><label class="chip"><input type="radio" name="cust_visitType" value="初訪"><span class="chip-label">初訪</span></label><label class="chip"><input type="radio" name="cust_visitType" value="回籠"><span class="chip-label">回籠</span></label></div></div>
       </div>
@@ -325,24 +366,75 @@
         </div>
         <div class="field"><div class="field-label">居住行政區（高雄）</div><div class="chips" id="cust_distChips"></div><div class="extra-inp hidden" id="cust_distOtherWrap"><input class="inp" type="text" id="cust_distOther" placeholder="請輸入其他地區"></div></div>
         <div class="field-row">
-          <div class="field"><div class="field-label">客戶職業</div><select class="sel" id="cust_industry"><option value="">請選擇</option></select></div>
-          <div class="field"><div class="field-label">購屋動機</div><select class="sel" id="cust_motive"><option value="">請選擇</option></select></div>
+          <div class="field">
+            <div class="field-label">客戶職業</div>
+            <select class="sel" id="cust_industry"><option value="">請選擇</option></select>
+            <div class="extra-inp hidden" id="cust_industryOtherWrap"><input class="inp" type="text" id="cust_industryOther" placeholder="請輸入職業"></div>
+          </div>
+          <div class="field">
+            <div class="field-label">購屋動機</div>
+            <select class="sel" id="cust_motive"><option value="">請選擇</option></select>
+            <div class="extra-inp hidden" id="cust_motiveOtherWrap"><input class="inp" type="text" id="cust_motiveOther" placeholder="請輸入動機"></div>
+          </div>
         </div>
-        <div class="field"><div class="field-label">來源管道</div><div class="chips"><label class="chip"><input type="radio" name="cust_source" value="Facebook"><span class="chip-label">FB</span></label><label class="chip"><input type="radio" name="cust_source" value="網路媒體"><span class="chip-label">網路媒體</span></label><label class="chip"><input type="radio" name="cust_source" value="591"><span class="chip-label">591</span></label><label class="chip"><input type="radio" name="cust_source" value="戶外看板"><span class="chip-label">看板</span></label><label class="chip"><input type="radio" name="cust_source" value="親友介紹"><span class="chip-label">介紹</span></label><label class="chip"><input type="radio" name="cust_source" value="路過"><span class="chip-label">路過</span></label></div></div>
+        <div class="field">
+          <div class="field-label">來源管道</div>
+          <div class="chips">
+            <label class="chip"><input type="radio" name="cust_source" value="Facebook"><span class="chip-label">FB</span></label>
+            <label class="chip"><input type="radio" name="cust_source" value="網路媒體"><span class="chip-label">網路媒體</span></label>
+            <label class="chip"><input type="radio" name="cust_source" value="591"><span class="chip-label">591</span></label>
+            <label class="chip"><input type="radio" name="cust_source" value="戶外看板"><span class="chip-label">看板</span></label>
+            <label class="chip"><input type="radio" name="cust_source" value="親友介紹"><span class="chip-label">介紹</span></label>
+            <label class="chip"><input type="radio" name="cust_source" value="路過"><span class="chip-label">路過</span></label>
+            <label class="chip"><input type="radio" name="cust_source" value="其他" onchange="toggleOther('cust_sourceOtherWrap',true)"><span class="chip-label">其他</span></label>
+          </div>
+          <div class="extra-inp hidden" id="cust_sourceOtherWrap"><input class="inp" type="text" id="cust_sourceOther" placeholder="請輸入來源管道"></div>
+        </div>
       </div>
       <div class="section">
         <div class="section-header"><div class="section-num">3</div><div class="section-name">購屋需求</div></div>
         <div class="field-row">
           <div class="field"><div class="field-label">需求房型</div><div class="chips"><label class="chip"><input type="checkbox" name="cust_room" value="2房"><span class="chip-label">2房</span></label><label class="chip"><input type="checkbox" name="cust_room" value="3房"><span class="chip-label">3房</span></label><label class="chip"><input type="checkbox" name="cust_room" value="4房"><span class="chip-label">4房</span></label><label class="chip"><input type="checkbox" name="cust_room" value="店面"><span class="chip-label">店面</span></label></div></div>
-          <div class="field"><div class="field-label">購屋預算</div><select class="sel" id="cust_budget"><option value="">請選擇</option><option>800萬以下</option><option>800-1000萬</option><option>1001-1300萬</option><option>1301-1600萬</option><option>1601-2000萬</option><option>2001-2500萬</option><option>2500萬以上</option></select></div>
+          <div class="field">
+            <div class="field-label">購屋預算</div>
+            <select class="sel" id="cust_budget">
+              <option value="">請選擇</option>
+              <option>800萬以下</option><option>800-1000萬</option>
+              <option>1001-1300萬</option><option>1301-1600萬</option>
+              <option>1601-2000萬</option><option>2001-2500萬</option>
+              <option>2500萬以上</option>
+              <option value="其他">其他</option>
+            </select>
+            <div class="extra-inp hidden" id="cust_budgetOtherWrap"><input class="inp" type="text" id="cust_budgetOther" placeholder="請輸入預算範圍"></div>
+          </div>
         </div>
-        <div class="field"><div class="field-label">客戶癥結點（可多選）</div><div class="chips"><label class="chip"><input type="checkbox" name="cust_issue" value="單價總價"><span class="chip-label">單價總價</span></label><label class="chip"><input type="checkbox" name="cust_issue" value="格局座向"><span class="chip-label">格局座向</span></label><label class="chip"><input type="checkbox" name="cust_issue" value="地段環境"><span class="chip-label">地段環境</span></label><label class="chip"><input type="checkbox" name="cust_issue" value="考慮別案"><span class="chip-label">考慮別案</span></label><label class="chip"><input type="checkbox" name="cust_issue" value="其他"><span class="chip-label">其他</span></label></div></div>
+        <div class="field">
+          <div class="field-label">客戶癥結點（可多選）</div>
+          <div class="chips">
+            <label class="chip"><input type="checkbox" name="cust_issue" value="單價總價"><span class="chip-label">單價總價</span></label>
+            <label class="chip"><input type="checkbox" name="cust_issue" value="格局座向"><span class="chip-label">格局座向</span></label>
+            <label class="chip"><input type="checkbox" name="cust_issue" value="地段環境"><span class="chip-label">地段環境</span></label>
+            <label class="chip"><input type="checkbox" name="cust_issue" value="考慮別案"><span class="chip-label">考慮別案</span></label>
+            <label class="chip"><input type="checkbox" name="cust_issue" value="其他" onchange="toggleOther('cust_issueOtherWrap',this.checked)"><span class="chip-label">其他</span></label>
+          </div>
+          <div class="extra-inp hidden" id="cust_issueOtherWrap"><input class="inp" type="text" id="cust_issueOther" placeholder="請輸入其他癥結點"></div>
+        </div>
       </div>
       <div class="section">
-        <div class="section-header"><div class="section-num">4</div><div class="section-name">再訪與成交</div></div>
-        <div class="field"><div class="field-label">預計再訪</div><div class="chips"><label class="chip"><input type="radio" name="cust_again" value="確認日期" onchange="toggleAgain(true)"><span class="chip-label">確認日期</span></label><label class="chip"><input type="radio" name="cust_again" value="一周內" onchange="toggleAgain(false)"><span class="chip-label">一周內</span></label><label class="chip"><input type="radio" name="cust_again" value="二周內" onchange="toggleAgain(false)"><span class="chip-label">二周內</span></label><label class="chip"><input type="radio" name="cust_again" value="一個月內" onchange="toggleAgain(false)"><span class="chip-label">一個月內</span></label><label class="chip"><input type="radio" name="cust_again" value="暫無計畫" onchange="toggleAgain(false)"><span class="chip-label">暫無計畫</span></label></div><div class="extra-inp hidden" id="cust_againDateWrap"><input class="inp" type="date" id="cust_againDate"></div></div>
-        <div class="divider"></div>
-        <div class="field"><div class="field-label">成交狀態</div><div class="chips"><label class="chip"><input type="radio" name="cust_deal" value="未成交" checked onchange="toggleDeal(false)"><span class="chip-label">未成交</span></label><label class="chip"><input type="radio" name="cust_deal" value="已成交" onchange="toggleDeal(true)"><span class="chip-label">已成交</span></label></div><div class="extra-inp hidden" id="cust_dealUnitWrap"><input class="inp" type="text" id="cust_dealUnit" placeholder="請輸入成交戶別（例：A棟15F A2）"></div></div>
+        <div class="section-header"><div class="section-num">4</div><div class="section-name">再訪計畫</div></div>
+        <div class="field">
+          <div class="field-label">預計再訪</div>
+          <div class="chips">
+            <label class="chip"><input type="radio" name="cust_again" value="確認日期" onchange="toggleAgain(true)"><span class="chip-label">確認日期</span></label>
+            <label class="chip"><input type="radio" name="cust_again" value="一周內" onchange="toggleAgain(false)"><span class="chip-label">一周內</span></label>
+            <label class="chip"><input type="radio" name="cust_again" value="二周內" onchange="toggleAgain(false)"><span class="chip-label">二周內</span></label>
+            <label class="chip"><input type="radio" name="cust_again" value="一個月內" onchange="toggleAgain(false)"><span class="chip-label">一個月內</span></label>
+            <label class="chip"><input type="radio" name="cust_again" value="暫無計畫" onchange="toggleAgain(false)"><span class="chip-label">暫無計畫</span></label>
+            <label class="chip"><input type="radio" name="cust_again" value="其他" onchange="toggleAgain(false);toggleOther('cust_againOtherWrap',true)"><span class="chip-label">其他</span></label>
+          </div>
+          <div class="extra-inp hidden" id="cust_againDateWrap"><input class="inp" type="date" id="cust_againDate"></div>
+          <div class="extra-inp hidden" id="cust_againOtherWrap"><input class="inp" type="text" id="cust_againOther" placeholder="請說明再訪計畫"></div>
+        </div>
       </div>
       <div class="section">
         <div class="section-header"><div class="section-num">5</div><div class="section-name">接待狀況補充</div></div>
@@ -398,16 +490,32 @@
 <div class="modal-mask" id="reportModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">提交日報</div><div class="modal-subtitle">當日業績資料填寫</div><div class="field-row"><div class="field"><div class="field-label">日期</div><input class="inp" type="date" id="rep_date"></div><div class="field"><div class="field-label">業務</div><select class="sel" id="rep_sales"></select></div></div><div class="field-row"><div class="field"><div class="field-label">接待總組數</div><input class="inp" type="number" id="rep_visitor" min="0" value="0"></div><div class="field"><div class="field-label">初訪</div><input class="inp" type="number" id="rep_first" min="0" value="0"></div></div><div class="field-row"><div class="field"><div class="field-label">回籠</div><input class="inp" type="number" id="rep_revisit" min="0" value="0"></div><div class="field"><div class="field-label">電訪</div><input class="inp" type="number" id="rep_call" min="0" value="0"></div></div><div class="field-row"><div class="field"><div class="field-label">成交</div><input class="inp" type="number" id="rep_deal" min="0" value="0"></div><div class="field"><div class="field-label">成交戶別</div><input class="inp" type="text" id="rep_units" placeholder="A3-12F"></div></div><div class="field"><div class="field-label">觀看房型</div><input class="inp" type="text" id="rep_viewed" placeholder="2房、3房"></div><div class="field"><div class="field-label">備註</div><textarea class="ta" id="rep_notes" placeholder="特殊事項…"></textarea></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('reportModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitReport()">提 交 日 報</button></div></div></div>
 <div class="modal-mask" id="maintModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">維修通報</div><div class="modal-subtitle">通報後將自動推播給主管</div><div class="field"><div class="field-label">問題類型 <span class="req">*</span></div><select class="sel" id="maint_type"><option value="">請選擇</option><option>燈具/電路</option><option>水管/漏水</option><option>空調</option><option>家具/門窗</option><option>清潔</option><option>樣品屋外觀</option><option>其他</option></select></div><div class="field"><div class="field-label">位置 / 戶別</div><input class="inp" type="text" id="maint_location" placeholder="例：A棟3F樣品屋客廳"></div><div class="field"><div class="field-label">問題描述 <span class="req">*</span></div><textarea class="ta" id="maint_desc" placeholder="詳細描述狀況…"></textarea></div><div class="field"><div class="field-label">優先度</div><select class="sel" id="maint_priority"><option value="normal">一般</option><option value="high" selected>高</option><option value="urgent">緊急</option></select></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('maintModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitMaint()">送 出 通 報</button></div></div></div>
 
+<!-- 成交 Modal -->
+<div class="modal-mask" id="dealModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">標記成交</div>
+    <div class="modal-subtitle">確認此客戶已成交</div>
+    <input type="hidden" id="deal_custId">
+    <div class="field">
+      <div class="field-label">成交戶別</div>
+      <input class="inp" type="text" id="deal_unit" placeholder="例：A棟15F A2（可留空）">
+    </div>
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('dealModal')">取消</button>
+      <button class="btn-mini success" style="flex:2;padding:14px;font-weight:600;" onclick="confirmDeal()">確 認 成 交</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
 /* ============================================================
- *  龍登 CRM v8.2 — GitHub Pages 版前端
- *  用 fetch() 取代 google.script.run
+ *  龍登 CRM v8.3 — GitHub Pages 前端
  * ============================================================ */
 
 // ★★★ 唯一需要你修改的地方 ★★★
-// 把 GAS 部署後的 /exec 網址貼在這裡
 var GAS_URL = 'https://script.google.com/macros/s/AKfycbyEfQCyTBKJpSVifYO_HRN0w96FPmoGQHXQxPtGfma7wgN7QklunefibPAgcZTqCzvA/exec';
 
 var LIFF_ID     = '2009971664-MlqtPsqc';
@@ -424,7 +532,9 @@ var state = {
   taskTab: 'pending',
   maintTab: 'pending',
   userTab: 'pending',
-  allUsers: []
+  allUsers: [],
+  recentCustomers: [],
+  recentFilterSales: 'all'
 };
 
 var DISTRICTS = ['楠梓區','左營區','鼓山區','三民區','苓雅區','新興區','前金區','鹽埕區','前鎮區','小港區','仁武區','鳳山區','其他'];
@@ -433,9 +543,7 @@ var DISTRICTS = ['楠梓區','左營區','鼓山區','三民區','苓雅區','�
 window.addEventListener('DOMContentLoaded', function(){ initApp(); });
 
 async function initApp() {
-  // ── 優化 A：LIFF init 與 session 檢查平行執行 ──
   var saved = loadSession();
-  // ── 優化 B：session 有效 → 不打 GAS，直接用快取資料進入 ──
   if (saved && saved.lineUserId && saved.userData) {
     liff.init({ liffId: LIFF_ID }).then(function() {
       if (!liff.isLoggedIn()) return;
@@ -444,7 +552,6 @@ async function initApp() {
     onLoginSuccess(saved.userData);
     return;
   }
-  // 沒有 session → 正常走 LIFF init 流程
   try {
     await liff.init({ liffId: LIFF_ID });
     if (!liff.isLoggedIn()) { liff.login(); return; }
@@ -502,8 +609,7 @@ function gasGet(action, params, onSuccess, onFail) {
     .catch(function(err){ console.error('gasGet', action, err); if (onFail) onFail(err); });
 }
 
-/* ══ API：POST ══ */
-/* ══ API：POST（改用 GET+payload 避免 CORS 問題）══ */
+/* ══ API：POST → 改用 GET+payload 避免 CORS ══ */
 function gasPost(action, payload, onSuccess, onFail) {
   var url = GAS_URL + '?action=' + encodeURIComponent(action)
             + '&payload=' + encodeURIComponent(JSON.stringify(payload || {}));
@@ -511,6 +617,18 @@ function gasPost(action, payload, onSuccess, onFail) {
     .then(function(r){ return r.json(); })
     .then(function(data){ if (onSuccess) onSuccess(data); })
     .catch(function(err){ console.error('gasPost', action, err); if (onFail) onFail(err); });
+}
+
+/* ══ Screen 切換 ══ */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(function(s){
+    s.classList.remove('active');
+    s.style.display = 'none';
+  });
+  var el = document.getElementById(id);
+  el.classList.add('active');
+  el.style.display = '';
+  el.scrollTop = 0;
 }
 
 /* ══ Login ══ */
@@ -521,7 +639,6 @@ function showLogin() {
   if (p && p.displayName) {
     loginUser.innerHTML = '<div class="login-user-avatar">' + p.displayName.charAt(0) + '</div><div>LINE 帳號：' + escapeHtml(p.displayName) + '</div>';
   }
-  // 預載案場清單
   gasGet('getProjectList', null, function(res) {
     if (!res.ok) return;
     var sel = document.getElementById('loginProjectSel');
@@ -623,17 +740,6 @@ function route(hash) {
   }
 }
 
-function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(function(s){
-    s.classList.remove('active');
-    s.style.display = 'none';
-  });
-  var el = document.getElementById(id);
-  el.classList.add('active');
-  el.style.display = '';
-  window.scrollTo(0, 0);
-}
-
 /* ══ Home ══ */
 function renderHome() {
   var u = state.user;
@@ -645,6 +751,7 @@ function renderHome() {
   if (u.role !== 'sales') {
     document.getElementById('reportFeature').classList.remove('hidden');
     document.getElementById('userMgmtFeature').classList.remove('hidden');
+    document.getElementById('recentCustomersSection').classList.remove('hidden');
     gasGet('getUserList', { lineUserId: u.lineUserId }, function(res) {
       if (!res.ok) return;
       var cnt = res.data.filter(function(r){ return r.status==='pending'; }).length;
@@ -654,6 +761,7 @@ function renderHome() {
         if (b) { b.textContent = cnt; b.style.background = 'var(--rust)'; b.style.color = '#fff'; }
       }
     });
+    loadRecentCustomers();
   }
 
   gasGet('getTasks', { lineUserId: u.lineUserId, status: 'pending' }, function(res) {
@@ -675,20 +783,130 @@ function renderHome() {
   });
 }
 
+/* ══ 近期客戶總表 ══ */
+function loadRecentCustomers() {
+  var box = document.getElementById('recentCustomerList');
+  box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div>';
+  gasGet('getRecentCustomers', { lineUserId: state.user.lineUserId }, function(res) {
+    if (!res.ok) { box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">' + escapeHtml(res.error) + '</div></div>'; return; }
+    state.recentCustomers = res.data;
+    buildRecentFilterBar(res.data);
+    renderRecentCustomers();
+  });
+}
+
+function buildRecentFilterBar(list) {
+  var bar = document.getElementById('recentFilterBar');
+  var salesSet = {};
+  list.forEach(function(r){ if(r.sales_name) salesSet[r.sales_name] = r.sales_line_user_id || r.sales_name; });
+  var html = '<div class="filter-chip active" data-sales="all" onclick="filterRecentCustomers(this)">全部</div>';
+  Object.keys(salesSet).forEach(function(name){
+    html += '<div class="filter-chip" data-sales="' + escapeHtml(name) + '" onclick="filterRecentCustomers(this)">' + escapeHtml(name) + '</div>';
+  });
+  bar.innerHTML = html;
+}
+
+function filterRecentCustomers(el) {
+  document.querySelectorAll('#recentFilterBar .filter-chip').forEach(function(c){ c.classList.remove('active'); });
+  el.classList.add('active');
+  state.recentFilterSales = el.dataset.sales;
+  renderRecentCustomers();
+}
+
+function renderRecentCustomers() {
+  var box = document.getElementById('recentCustomerList');
+  var list = state.recentCustomers;
+  if (state.recentFilterSales !== 'all') {
+    list = list.filter(function(r){ return r.sales_name === state.recentFilterSales; });
+  }
+  if (!list.length) {
+    box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👤</div><div class="empty-state-text">近7天暫無客戶資料</div></div>';
+    return;
+  }
+  box.innerHTML = list.map(function(c){ return recentCustCardHTML(c); }).join('');
+}
+
+function recentCustCardHTML(c) {
+  var isDone = c.deal_status === '已成交';
+  var dealBadge = '<span class="cust-card-deal ' + (isDone?'done':'pending') + '">' + (isDone?'✓ 已成交':'未成交') + (c.deal_unit?' — '+escapeHtml(c.deal_unit):'') + '</span>';
+  var dealBtn = !isDone && state.user.role !== 'sales'
+    ? '<button class="deal-btn" onclick="openDealModal(\'' + escapeHtml(c.customer_id) + '\')">標記成交</button>'
+    : '';
+  var fields = [
+    c.phone            ? '📞 ' + escapeHtml(String(c.phone))              : '',
+    c.district         ? '📍 ' + escapeHtml(String(c.district))           : '',
+    c.visit_type       ? '🚶 ' + escapeHtml(String(c.visit_type))         : '',
+    c.occupation_industry ? '💼 ' + escapeHtml(String(c.occupation_industry)) : '',
+    c.purchase_motive  ? '🏠 ' + escapeHtml(String(c.purchase_motive))   : '',
+    c.source           ? '📣 ' + escapeHtml(String(c.source))             : '',
+    c.room_types       ? '🛏 ' + escapeHtml(String(c.room_types))         : '',
+    c.budget           ? '💰 ' + escapeHtml(String(c.budget))             : '',
+    c.issues           ? '⚠️ ' + escapeHtml(String(c.issues))             : '',
+    c.revisit_plan     ? '📅 再訪：' + escapeHtml(String(c.revisit_plan)) : ''
+  ].filter(Boolean);
+
+  return '<div class="cust-card">' +
+    '<div class="cust-card-head">' +
+      '<div class="cust-card-name">' + escapeHtml(c.customer_name||'') + '</div>' +
+      '<div class="cust-card-date">' + String(c.visit_date||'').substring(0,10) + '</div>' +
+    '</div>' +
+    '<div class="cust-card-sales">👤 ' + escapeHtml(c.sales_name||c.created_by_name||'') + '</div>' +
+    '<div class="cust-card-body">' + fields.map(function(f){ return '<span>'+f+'</span>'; }).join('') + '</div>' +
+    (c.status_note ? '<div class="cust-card-note">📝 ' + escapeHtml(String(c.status_note)) + '</div>' : '') +
+    dealBadge + dealBtn +
+  '</div>';
+}
+
+function openDealModal(custId) {
+  document.getElementById('deal_custId').value = custId;
+  document.getElementById('deal_unit').value = '';
+  openModal('dealModal');
+}
+
+function confirmDeal() {
+  var custId = document.getElementById('deal_custId').value;
+  var unit   = document.getElementById('deal_unit').value.trim();
+  gasPost('updateCustomerDeal', {
+    lineUserId: state.user.lineUserId,
+    customer_id: custId,
+    deal_status: '已成交',
+    deal_unit: unit
+  }, function(res) {
+    if (res.ok) {
+      showToast('已標記成交','success');
+      closeModal('dealModal');
+      loadRecentCustomers();
+    } else { showToast(res.error,'error'); }
+  });
+}
+
 /* ══ Customer Form ══ */
 function renderCustomerForm() {
   var projSel = document.getElementById('cust_project');
   if (projSel.children.length <= 1) {
     projSel.innerHTML = '<option value="">請選擇案場</option>';
     state.projects.forEach(function(p){ var o=document.createElement('option'); o.value=p; o.textContent=p; projSel.appendChild(o); });
-   if (state.user.projectName) {
-  projSel.value = state.user.projectName; projSel.disabled = true; onCustProjectChange();
-} else if (state.projects.length === 1) {
-  projSel.value = state.projects[0]; projSel.disabled = true; onCustProjectChange();
-}
+  }
+  // 自動帶入案場（不管角色）
+  if (state.user.projectName) {
+    projSel.value = state.user.projectName; projSel.disabled = true; onCustProjectChange();
+  } else if (state.projects.length === 1) {
+    projSel.value = state.projects[0]; projSel.disabled = true; onCustProjectChange();
   }
   projSel.onchange = onCustProjectChange;
   document.getElementById('cust_visitDate').value = todayStr();
+
+  // 接待人員：業務鎖定自己，主管可選
+  var salesDisplay = document.getElementById('cust_sales_display');
+  var salesSel     = document.getElementById('cust_sales_sel');
+  if (state.user.role === 'sales') {
+    salesDisplay.value = state.user.displayName;
+    salesDisplay.classList.remove('hidden');
+    salesSel.classList.add('hidden');
+  } else {
+    salesDisplay.classList.add('hidden');
+    salesSel.classList.remove('hidden');
+  }
 
   var dc = document.getElementById('cust_distChips');
   if (!dc.children.length) {
@@ -699,15 +917,26 @@ function renderCustomerForm() {
       label.querySelector('input').addEventListener('change', function(){ document.getElementById('cust_distOtherWrap').classList.toggle('hidden', this.value!=='其他'); });
     });
   }
+
   var indSel = document.getElementById('cust_industry');
-  if (indSel.children.length<=1) state.industries.forEach(function(x){ var o=document.createElement('option'); o.value=x; o.textContent=x; indSel.appendChild(o); });
+  if (indSel.children.length <= 1) {
+    state.industries.forEach(function(x){ var o=document.createElement('option'); o.value=x; o.textContent=x; indSel.appendChild(o); });
+  }
+  indSel.onchange = function(){ document.getElementById('cust_industryOtherWrap').classList.toggle('hidden', this.value !== '其他'); };
+
   var motSel = document.getElementById('cust_motive');
-  if (motSel.children.length<=1) state.motives.forEach(function(x){ var o=document.createElement('option'); o.value=x; o.textContent=x; motSel.appendChild(o); });
+  if (motSel.children.length <= 1) {
+    state.motives.forEach(function(x){ var o=document.createElement('option'); o.value=x; o.textContent=x; motSel.appendChild(o); });
+  }
+  motSel.onchange = function(){ document.getElementById('cust_motiveOtherWrap').classList.toggle('hidden', this.value !== '其他'); };
+
+  var budSel = document.getElementById('cust_budget');
+  budSel.onchange = function(){ document.getElementById('cust_budgetOtherWrap').classList.toggle('hidden', this.value !== '其他'); };
 }
 
 function onCustProjectChange() {
   var proj = document.getElementById('cust_project').value;
-  var sel  = document.getElementById('cust_sales');
+  var sel  = document.getElementById('cust_sales_sel');
   sel.innerHTML = '<option value="">不指定</option>';
   if (!proj) return;
   if (state.salesByProject[proj]) { fillSalesSelect(sel, state.salesByProject[proj]); return; }
@@ -715,11 +944,18 @@ function onCustProjectChange() {
     if (res.ok) { state.salesByProject[proj] = res.data; fillSalesSelect(sel, res.data); }
   });
 }
+
 function fillSalesSelect(sel, list) {
   list.forEach(function(s){ var o=document.createElement('option'); o.value=s.lineUserId; o.dataset.name=s.name; o.textContent=s.name; sel.appendChild(o); });
 }
-function toggleAgain(s){ document.getElementById('cust_againDateWrap').classList.toggle('hidden',!s); }
-function toggleDeal(s) { document.getElementById('cust_dealUnitWrap').classList.toggle('hidden',!s); }
+
+function toggleOther(wrapId, show) {
+  document.getElementById(wrapId).classList.toggle('hidden', !show);
+}
+function toggleAgain(showDate) {
+  document.getElementById('cust_againDateWrap').classList.toggle('hidden', !showDate);
+  if (!showDate) document.getElementById('cust_againOtherWrap').classList.add('hidden');
+}
 
 function submitCustomer() {
   var btn = document.getElementById('cust_submit');
@@ -732,29 +968,64 @@ function submitCustomer() {
   var distEl = document.querySelector('input[name="cust_dist"]:checked');
   var dist = distEl ? distEl.value : '';
   if (dist==='其他') { var ov=document.getElementById('cust_distOther').value.trim(); dist=ov?'其他：'+ov:'其他'; }
+
+  // 職業「其他」
+  var industry = document.getElementById('cust_industry').value;
+  if (industry === '其他') { var ov2=document.getElementById('cust_industryOther').value.trim(); industry=ov2?'其他：'+ov2:'其他'; }
+
+  // 購屋動機「其他」
+  var motive = document.getElementById('cust_motive').value;
+  if (motive === '其他') { var ov3=document.getElementById('cust_motiveOther').value.trim(); motive=ov3?'其他：'+ov3:'其他'; }
+
+  // 來源管道「其他」
+  var sourceEl = document.querySelector('input[name="cust_source"]:checked');
+  var source = sourceEl ? sourceEl.value : '';
+  if (source === '其他') { var ov4=document.getElementById('cust_sourceOther').value.trim(); source=ov4?'其他：'+ov4:'其他'; }
+
+  // 預算「其他」
+  var budget = document.getElementById('cust_budget').value;
+  if (budget === '其他') { var ov5=document.getElementById('cust_budgetOther').value.trim(); budget=ov5?'其他：'+ov5:'其他'; }
+
+  // 癥結點「其他」
+  var issues = getChecks('cust_issue');
+  var issueOtherIdx = issues.indexOf('其他');
+  if (issueOtherIdx >= 0) {
+    var ov6=document.getElementById('cust_issueOther').value.trim();
+    issues[issueOtherIdx] = ov6?'其他：'+ov6:'其他';
+  }
+
+  // 再訪「其他」
   var againEl = document.querySelector('input[name="cust_again"]:checked');
   var again = againEl ? againEl.value : '';
-  if (again==='確認日期') again = document.getElementById('cust_againDate').value||'未填日期';
-  var dealEl = document.querySelector('input[name="cust_deal"]:checked');
-  var dealStatus = dealEl ? dealEl.value : '未成交';
-  var salesSel = document.getElementById('cust_sales');
-  var salesOpt = salesSel.options[salesSel.selectedIndex];
+  if (again === '確認日期') again = document.getElementById('cust_againDate').value||'未填日期';
+  else if (again === '其他') { var ov7=document.getElementById('cust_againOther').value.trim(); again=ov7?'其他：'+ov7:'其他'; }
+
+  // 接待業務
+  var salesLineUserId = '', salesName = '';
+  if (state.user.role === 'sales') {
+    salesLineUserId = state.user.lineUserId;
+    salesName = state.user.displayName;
+  } else {
+    var salesSel = document.getElementById('cust_sales_sel');
+    var salesOpt = salesSel.options[salesSel.selectedIndex];
+    salesLineUserId = salesSel.value;
+    salesName = salesOpt ? (salesOpt.dataset.name || salesOpt.textContent) : '';
+  }
 
   btn.disabled=true; btn.textContent='送 出 中…';
   gasPost('appendCustomerData', {
     lineUserId: state.user.lineUserId, project_name: project,
     visit_date: document.getElementById('cust_visitDate').value||todayStr(),
-    sales_line_user_id: salesSel.value,
-    sales_name: salesOpt?(salesOpt.dataset.name||salesOpt.textContent):'',
+    sales_line_user_id: salesLineUserId,
+    sales_name: salesName,
     visit_type: getRadio('cust_visitType'), customer_name: name, phone: phone, district: dist,
-    occupation_industry: document.getElementById('cust_industry').value,
-    purchase_motive: document.getElementById('cust_motive').value,
-    source: getRadio('cust_source'),
+    occupation_industry: industry,
+    purchase_motive: motive,
+    source: source,
     room_types: getChecks('cust_room').join('、'),
-    budget: document.getElementById('cust_budget').value,
-    issues: getChecks('cust_issue').join('、'),
-    revisit_plan: again, deal_status: dealStatus,
-    deal_unit: dealStatus==='已成交'?document.getElementById('cust_dealUnit').value.trim():'',
+    budget: budget,
+    issues: issues.join('、'),
+    revisit_plan: again,
     status_note: note
   }, function(res) {
     btn.disabled=false; btn.textContent='送 出 登 記';
@@ -764,11 +1035,15 @@ function submitCustomer() {
 }
 
 function resetCustomerForm() {
-  ['cust_name','cust_phone','cust_note','cust_distOther','cust_dealUnit','cust_againDate'].forEach(function(id){ document.getElementById(id).value=''; });
+  ['cust_name','cust_phone','cust_note','cust_distOther','cust_againDate',
+   'cust_industryOther','cust_motiveOther','cust_sourceOther','cust_budgetOther','cust_issueOther','cust_againOther'
+  ].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
   document.querySelectorAll('#viewCustomer input[type="radio"]').forEach(function(r){ r.checked=false; });
   document.querySelectorAll('#viewCustomer input[type="checkbox"]').forEach(function(c){ c.checked=false; });
   ['cust_industry','cust_motive','cust_budget'].forEach(function(id){ document.getElementById(id).value=''; });
-  ['cust_distOtherWrap','cust_dealUnitWrap','cust_againDateWrap'].forEach(function(id){ document.getElementById(id).classList.add('hidden'); });
+  ['cust_distOtherWrap','cust_againDateWrap','cust_industryOtherWrap','cust_motiveOtherWrap',
+   'cust_sourceOtherWrap','cust_budgetOtherWrap','cust_issueOtherWrap','cust_againOtherWrap'
+  ].forEach(function(id){ document.getElementById(id).classList.add('hidden'); });
 }
 
 /* ══ Task ══ */
@@ -963,7 +1238,7 @@ function doActivateUser(id) {
 /* ══ Modal ══ */
 function openModal(id) { document.getElementById(id).classList.add('show'); document.body.style.overflow='hidden'; }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); document.body.style.overflow=''; }
-['taskModal','reportModal','maintModal'].forEach(function(id){
+['taskModal','reportModal','maintModal','dealModal'].forEach(function(id){
   document.getElementById(id).addEventListener('click',function(e){ if(e.target.id===id) closeModal(id); });
 });
 
