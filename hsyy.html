@@ -364,6 +364,7 @@
           <div class="field"><div class="field-label">姓名 <span class="req">*</span></div><input class="inp" type="text" id="cust_name" placeholder="請輸入姓名"></div>
           <div class="field"><div class="field-label">電話 <span class="req">*</span></div><input class="inp" type="tel" id="cust_phone" placeholder="0912345678"></div>
         </div>
+        <div class="field"><div class="field-label">年齡區間</div><div class="chips"><label class="chip"><input type="radio" name="cust_age" value="30歲以下"><span class="chip-label">30以下</span></label><label class="chip"><input type="radio" name="cust_age" value="30-39歲"><span class="chip-label">30-39</span></label><label class="chip"><input type="radio" name="cust_age" value="40-49歲"><span class="chip-label">40-49</span></label><label class="chip"><input type="radio" name="cust_age" value="50-59歲"><span class="chip-label">50-59</span></label><label class="chip"><input type="radio" name="cust_age" value="60歲以上"><span class="chip-label">60以上</span></label></div></div>
         <div class="field"><div class="field-label">居住行政區（高雄）</div><div class="chips" id="cust_distChips"></div><div class="extra-inp hidden" id="cust_distOtherWrap"><input class="inp" type="text" id="cust_distOther" placeholder="請輸入其他地區"></div></div>
         <div class="field-row">
           <div class="field">
@@ -516,9 +517,10 @@
  * ============================================================ */
 
 // ★★★ 唯一需要你修改的地方 ★★★
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbzdvauC0lMtuq1XrzMnLKwCwwT0KApLE6KbvlbHZiMMdQS5Yjez7gmSnmOyxjyjbTBh/exec';
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbyKsPvaqXu7eVqrCAG9klB5BW-HU9QCwd_f2YZ37ChxgsnZ83nKA-1WvwFuqxTNEXw/exec';
 
 var LIFF_ID     = '2009971664-MlqtPsqc';
+var TTL_DAYS    = 30;
 var STORAGE_KEY = 'long_dorn_crm_hsyy';
 
 var state = {
@@ -833,6 +835,7 @@ function recentCustCardHTML(c) {
     : '';
   var fields = [
     c.phone            ? '📞 ' + escapeHtml(String(c.phone))              : '',
+    c.age_range        ? '🎂 ' + escapeHtml(String(c.age_range))          : '',
     c.district         ? '📍 ' + escapeHtml(String(c.district))           : '',
     c.visit_type       ? '🚶 ' + escapeHtml(String(c.visit_type))         : '',
     c.occupation_industry ? '💼 ' + escapeHtml(String(c.occupation_industry)) : '',
@@ -968,6 +971,10 @@ function submitCustomer() {
   var dist = distEl ? distEl.value : '';
   if (dist==='其他') { var ov=document.getElementById('cust_distOther').value.trim(); dist=ov?'其他：'+ov:'其他'; }
 
+  // 年齡區間
+  var ageEl = document.querySelector('input[name="cust_age"]:checked');
+  var ageRange = ageEl ? ageEl.value : '';
+
   // 職業「其他」
   var industry = document.getElementById('cust_industry').value;
   if (industry === '其他') { var ov2=document.getElementById('cust_industryOther').value.trim(); industry=ov2?'其他：'+ov2:'其他'; }
@@ -1017,7 +1024,7 @@ function submitCustomer() {
     visit_date: document.getElementById('cust_visitDate').value||todayStr(),
     sales_line_user_id: salesLineUserId,
     sales_name: salesName,
-    visit_type: getRadio('cust_visitType'), customer_name: name, phone: phone, district: dist,
+    visit_type: getRadio('cust_visitType'), customer_name: name, phone: phone, age_range: ageRange, district: dist,
     occupation_industry: industry,
     purchase_motive: motive,
     source: source,
