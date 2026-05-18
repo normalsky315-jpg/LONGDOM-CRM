@@ -17,7 +17,6 @@
   html,body{width:100%;height:100%;overflow:hidden;}
   body{background:var(--cream);font-family:'Noto Sans TC',sans-serif;font-weight:300;color:var(--ink);}
 
-  /* ── Screen 系統：fixed 全螢幕疊層 ── */
   .screen{
     position:fixed;top:0;left:0;width:100%;height:100%;
     display:none;overflow-y:auto;-webkit-overflow-scrolling:touch;
@@ -25,14 +24,12 @@
   }
   .screen.active{display:block;}
 
-  /* Loading */
   #loadingScreen{display:none;flex-direction:column;align-items:center;justify-content:center;background:var(--ink);color:#fff;}
   #loadingScreen.active{display:flex;}
   .spinner{width:32px;height:32px;border:3px solid rgba(255,255,255,0.2);border-top-color:var(--gold);border-radius:50%;animation:spin 0.7s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
   .loading-text{margin-top:16px;font-size:10px;letter-spacing:4px;color:rgba(255,255,255,0.4);}
 
-  /* Login */
   #loginScreen{background:var(--ink);display:none;flex-direction:column;padding:0 28px;padding-top:max(60px,env(safe-area-inset-top));padding-bottom:max(40px,env(safe-area-inset-bottom));min-height:100%;}
   #loginScreen.active{display:flex;}
   .login-logo{display:flex;align-items:center;gap:14px;margin-bottom:40px;}
@@ -59,7 +56,6 @@
   .login-error{font-size:13px;color:#e74c3c;min-height:20px;text-align:center;transition:opacity 0.2s;opacity:0;}
   .login-error.show{opacity:1;}
 
-  /* Pending */
   #pendingScreen{background:var(--ink);display:none;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px;text-align:center;min-height:100%;}
   #pendingScreen.active{display:flex;}
   .pending-icon{font-size:56px;margin-bottom:20px;animation:pulse 2s ease-in-out infinite;}
@@ -69,17 +65,14 @@
   .pending-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);border-radius:20px;padding:8px 18px;font-size:12px;color:var(--gold);letter-spacing:1px;}
   .pending-back{margin-top:28px;padding:12px 24px;background:transparent;border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:rgba(255,255,255,0.4);font-family:'Noto Sans TC',sans-serif;font-size:13px;cursor:pointer;}
 
-  /* App */
   #appScreen{background:var(--cream);}
   .view.hidden{display:none;}
 
-  /* Header */
   .app-header{background:var(--ink);padding:0 16px;padding-top:max(16px,env(safe-area-inset-top));}
   .header-row{display:flex;align-items:center;height:52px;gap:8px;}
   .header-back{width:36px;height:36px;border:none;background:rgba(255,255,255,0.08);border-radius:8px;color:var(--gold);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
   .header-title{font-family:'Noto Serif TC',serif;font-size:16px;font-weight:600;color:#fff;flex:1;text-align:center;}
 
-  /* Home */
   .home-hero{background:var(--ink);padding:0 20px 24px;padding-top:max(16px,env(safe-area-inset-top));}
   .home-tag{font-size:9px;letter-spacing:3px;color:var(--gold);margin-bottom:6px;padding-top:16px;}
   .home-greeting{font-family:'Noto Serif TC',serif;font-size:22px;font-weight:700;color:#fff;margin-bottom:6px;}
@@ -107,7 +100,6 @@
   .stat-label{font-size:10px;color:var(--ink-faint);letter-spacing:1px;margin-top:3px;}
   .logout-btn{width:100%;padding:14px;background:transparent;border:1px solid var(--border-strong);border-radius:10px;font-family:'Noto Sans TC',sans-serif;font-size:13px;color:var(--ink-faint);cursor:pointer;margin-top:10px;}
 
-  /* 近期客戶總表 */
   .recent-customers-wrap{margin-bottom:20px;}
   .recent-filter-bar{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;-webkit-overflow-scrolling:touch;}
   .recent-filter-bar::-webkit-scrollbar{display:none;}
@@ -126,7 +118,6 @@
   .cust-card-deal.pending{background:var(--gold-soft);color:#634e0c;}
   .deal-btn{margin-top:8px;padding:7px 14px;font-size:12px;background:var(--ink);color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:inherit;}
 
-  /* Form */
   .form-wrap{padding:16px 16px 0;}
   .section{background:var(--surface);border-radius:12px;padding:18px 16px;margin-bottom:14px;border:1px solid var(--border);box-shadow:0 1px 4px rgba(26,26,46,0.04);}
   .section-header{display:flex;align-items:center;gap:8px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);}
@@ -157,7 +148,6 @@
   .btn-primary:active{transform:scale(0.98);}
   .btn-primary:disabled{background:#aaa;cursor:not-allowed;}
 
-  /* List */
   .list-wrap{padding:14px 16px;}
   .list-tabs{display:flex;gap:0;margin-bottom:14px;background:var(--surface);border-radius:10px;border:1px solid var(--border);padding:4px;}
   .list-tab{flex:1;padding:8px;text-align:center;font-size:13px;font-weight:400;color:var(--ink-faint);border-radius:7px;cursor:pointer;transition:all 0.15s;}
@@ -189,7 +179,6 @@
   .fab{position:fixed;bottom:max(24px,env(safe-area-inset-bottom));right:20px;width:56px;height:56px;border-radius:50%;background:var(--ink);color:#fff;border:none;cursor:pointer;box-shadow:0 6px 16px rgba(26,26,46,0.3);font-size:24px;display:flex;align-items:center;justify-content:center;z-index:50;}
   .fab::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;background:var(--gold);border-radius:0 0 50% 50%;}
 
-  /* Modal */
   .modal-mask{position:fixed;inset:0;background:rgba(26,26,46,0.5);z-index:100;display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity 0.25s;}
   .modal-mask.show{opacity:1;pointer-events:all;}
   .modal{width:100%;background:var(--cream);border-radius:18px 18px 0 0;max-height:92vh;overflow-y:auto;padding:20px 18px max(30px,env(safe-area-inset-bottom));transform:translateY(100%);transition:transform 0.3s cubic-bezier(0.32,0.72,0,1);}
@@ -198,7 +187,6 @@
   .modal-title{font-family:'Noto Serif TC',serif;font-size:18px;font-weight:600;margin-bottom:4px;}
   .modal-subtitle{font-size:12px;color:var(--ink-faint);margin-bottom:18px;}
 
-  /* Summary */
   .summary-card{background:var(--ink);color:#fff;border-radius:12px;padding:18px 16px;margin-bottom:14px;}
   .summary-card-label{font-size:10px;letter-spacing:3px;color:var(--gold);margin-bottom:6px;}
   .summary-card-date{font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:14px;}
@@ -207,7 +195,6 @@
   .summary-stat-num{font-family:'Noto Serif TC',serif;font-size:22px;font-weight:700;}
   .summary-stat-label{font-size:10px;color:rgba(255,255,255,0.5);letter-spacing:1px;margin-top:2px;}
 
-  /* User Mgmt */
   .user-card{background:var(--surface);border-radius:10px;border:1px solid var(--border);padding:14px;margin-bottom:10px;}
   .user-card.pending{border-left:3px solid var(--gold);}
   .user-card-top{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
@@ -221,7 +208,6 @@
   .user-tab{flex:1;padding:8px;text-align:center;font-size:12px;color:var(--ink-faint);border-radius:7px;cursor:pointer;transition:all 0.15s;}
   .user-tab.active{background:var(--ink);color:#fff;}
 
-  /* Toast */
   .toast{position:fixed;top:max(20px,env(safe-area-inset-top));left:50%;transform:translateX(-50%) translateY(-100px);background:var(--ink);color:#fff;padding:13px 22px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;transition:transform 0.32s cubic-bezier(0.34,1.56,0.64,1);white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,0.2);max-width:calc(100vw - 40px);}
   .toast.show{transform:translateX(-50%) translateY(0);}
   .toast.success::before{content:'✓  ';color:var(--gold);}
@@ -231,13 +217,11 @@
 </head>
 <body>
 
-<!-- Loading -->
 <div class="screen active" id="loadingScreen">
   <div class="spinner"></div>
   <div class="loading-text">LOADING</div>
 </div>
 
-<!-- Login -->
 <div class="screen" id="loginScreen">
   <div class="login-logo">
     <svg viewBox="0 0 48 48" fill="none">
@@ -270,7 +254,6 @@
   <div class="login-error" id="loginErr"></div>
 </div>
 
-<!-- Pending -->
 <div class="screen" id="pendingScreen">
   <div class="pending-icon">⏳</div>
   <div class="pending-title">等待管理員審核</div>
@@ -279,10 +262,8 @@
   <button class="pending-back" onclick="location.reload()">重新確認狀態</button>
 </div>
 
-<!-- App -->
 <div class="screen" id="appScreen">
 
-  <!-- Home -->
   <div id="viewHome" class="view">
     <div class="home-hero">
       <div class="home-tag">WELCOME BACK</div>
@@ -327,7 +308,6 @@
         <div class="stat-card"><div class="stat-num" id="statRevisit">—</div><div class="stat-label">回籠</div></div>
         <div class="stat-card"><div class="stat-num" id="statDeal">—</div><div class="stat-label">成交</div></div>
       </div>
-      <!-- 近期客戶總表（主管/admin 才顯示） -->
       <div class="recent-customers-wrap hidden" id="recentCustomersSection">
         <div class="section-tag" style="margin-top:10px;">近7天客戶資料</div>
         <div class="recent-filter-bar" id="recentFilterBar">
@@ -341,7 +321,6 @@
     </div>
   </div>
 
-  <!-- Customer -->
   <div id="viewCustomer" class="view hidden">
     <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">客戶資料登記</div><div style="width:36px;"></div></div></div>
     <div class="form-wrap">
@@ -351,7 +330,6 @@
         <div class="field-row">
           <div class="field"><div class="field-label">訪客日期</div><input class="inp" type="date" id="cust_visitDate"></div>
           <div class="field"><div class="field-label">接待人員</div>
-            <!-- 業務：顯示自己名字鎖定；主管：可選 -->
             <input class="inp hidden" type="text" id="cust_sales_display" disabled>
             <select class="sel hidden" id="cust_sales_sel"><option value="">不指定</option></select>
           </div>
@@ -444,7 +422,6 @@
     </div>
   </div>
 
-  <!-- Task -->
   <div id="viewTask" class="view hidden">
     <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">任務系統</div><div style="width:36px;"></div></div></div>
     <div class="list-wrap">
@@ -454,7 +431,6 @@
     <button class="fab" onclick="openTaskModal()">+</button>
   </div>
 
-  <!-- Report -->
   <div id="viewReport" class="view hidden">
     <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">銷售日報</div><div style="width:36px;"></div></div></div>
     <div class="list-wrap">
@@ -464,7 +440,6 @@
     <button class="fab" onclick="openReportModal()">+</button>
   </div>
 
-  <!-- Maintenance -->
   <div id="viewMaint" class="view hidden">
     <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">維修通報</div><div style="width:36px;"></div></div></div>
     <div class="list-wrap">
@@ -474,7 +449,6 @@
     <button class="fab" onclick="openMaintModal()">+</button>
   </div>
 
-  <!-- Users -->
   <div id="viewUsers" class="view hidden">
     <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">使用者管理</div><div style="width:36px;"></div></div></div>
     <div class="list-wrap">
@@ -483,14 +457,10 @@
     </div>
   </div>
 
-</div><!-- /appScreen -->
-
-<!-- Modals -->
-<div class="modal-mask" id="taskModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">新增任務</div><div class="modal-subtitle">建立後可指派並追蹤完成狀態</div><div class="field"><div class="field-label">任務類型</div><select class="sel" id="task_type"><option value="sales_task">📋 銷售跟進</option><option value="site_issue">⚠️ 現場問題</option><option value="reminder">🔔 提醒</option><option value="daily_follow">👥 客戶追蹤</option><option value="maintenance">🔧 維修</option></select></div><div class="field"><div class="field-label">任務標題 <span class="req">*</span></div><input class="inp" type="text" id="task_title" placeholder="例：聯絡王先生確認再訪日期"></div><div class="field"><div class="field-label">詳細說明</div><textarea class="ta" id="task_desc" placeholder="補充資訊…"></textarea></div><div class="field-row"><div class="field"><div class="field-label">優先度</div><select class="sel" id="task_priority"><option value="normal">一般</option><option value="high">高</option><option value="urgent">緊急</option><option value="low">低</option></select></div><div class="field"><div class="field-label">截止日期</div><input class="inp" type="date" id="task_due"></div></div><div class="field"><div class="field-label">指派對象</div><select class="sel" id="task_assign"><option value="">不指定</option></select></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('taskModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitTask()">建 立 任 務</button></div></div></div>
+</div><div class="modal-mask" id="taskModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">新增任務</div><div class="modal-subtitle">建立後可指派並追蹤完成狀態</div><div class="field"><div class="field-label">任務類型</div><select class="sel" id="task_type"><option value="sales_task">📋 銷售跟進</option><option value="site_issue">⚠️ 現場問題</option><option value="reminder">🔔 提醒</option><option value="daily_follow">👥 客戶追蹤</option><option value="maintenance">🔧 維修</option></select></div><div class="field"><div class="field-label">任務標題 <span class="req">*</span></div><input class="inp" type="text" id="task_title" placeholder="例：聯絡王先生確認再訪日期"></div><div class="field"><div class="field-label">詳細說明</div><textarea class="ta" id="task_desc" placeholder="補充資訊…"></textarea></div><div class="field-row"><div class="field"><div class="field-label">優先度</div><select class="sel" id="task_priority"><option value="normal">一般</option><option value="high">高</option><option value="urgent">緊急</option><option value="low">低</option></select></div><div class="field"><div class="field-label">截止日期</div><input class="inp" type="date" id="task_due"></div></div><div class="field"><div class="field-label">指派對象</div><select class="sel" id="task_assign"><option value="">不指定</option></select></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('taskModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitTask()">建 立 任 務</button></div></div></div>
 <div class="modal-mask" id="reportModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">提交日報</div><div class="modal-subtitle">當日業績資料填寫</div><div class="field-row"><div class="field"><div class="field-label">日期</div><input class="inp" type="date" id="rep_date"></div><div class="field"><div class="field-label">業務</div><select class="sel" id="rep_sales"></select></div></div><div class="field-row"><div class="field"><div class="field-label">接待總組數</div><input class="inp" type="number" id="rep_visitor" min="0" value="0"></div><div class="field"><div class="field-label">初訪</div><input class="inp" type="number" id="rep_first" min="0" value="0"></div></div><div class="field-row"><div class="field"><div class="field-label">回籠</div><input class="inp" type="number" id="rep_revisit" min="0" value="0"></div><div class="field"><div class="field-label">電訪</div><input class="inp" type="number" id="rep_call" min="0" value="0"></div></div><div class="field-row"><div class="field"><div class="field-label">成交</div><input class="inp" type="number" id="rep_deal" min="0" value="0"></div><div class="field"><div class="field-label">成交戶別</div><input class="inp" type="text" id="rep_units" placeholder="A3-12F"></div></div><div class="field"><div class="field-label">觀看房型</div><input class="inp" type="text" id="rep_viewed" placeholder="2房、3房"></div><div class="field"><div class="field-label">備註</div><textarea class="ta" id="rep_notes" placeholder="特殊事項…"></textarea></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('reportModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitReport()">提 交 日 報</button></div></div></div>
 <div class="modal-mask" id="maintModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">維修通報</div><div class="modal-subtitle">通報後將自動推播給主管</div><div class="field"><div class="field-label">問題類型 <span class="req">*</span></div><select class="sel" id="maint_type"><option value="">請選擇</option><option>燈具/電路</option><option>水管/漏水</option><option>空調</option><option>家具/門窗</option><option>清潔</option><option>樣品屋外觀</option><option>其他</option></select></div><div class="field"><div class="field-label">位置 / 戶別</div><input class="inp" type="text" id="maint_location" placeholder="例：A棟3F樣品屋客廳"></div><div class="field"><div class="field-label">問題描述 <span class="req">*</span></div><textarea class="ta" id="maint_desc" placeholder="詳細描述狀況…"></textarea></div><div class="field"><div class="field-label">優先度</div><select class="sel" id="maint_priority"><option value="normal">一般</option><option value="high" selected>高</option><option value="urgent">緊急</option></select></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('maintModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitMaint()">送 出 通 報</button></div></div></div>
 
-<!-- 成交 Modal -->
 <div class="modal-mask" id="dealModal">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -512,12 +482,10 @@
 
 <script>
 /* ============================================================
- *  龍登 CRM v8.3 — GitHub Pages 前端
+ * 龍登 CRM v8.3 — GitHub Pages 前端 (修正通訊與連動穩定版)
  * ============================================================ */
 
-// ★★★ 唯一需要你修改的地方 ★★★
 var GAS_URL = 'https://script.google.com/macros/s/AKfycbxoE-77L-WKUprxWlKNPc2h_EaxDm_g78H0BHJRKit75bx8R9BqR3sxdPPVH7goMZM/exec';
-
 var LIFF_ID     = '2009971664-AVRlRYHb';
 var TTL_DAYS    = 30;
 var STORAGE_KEY = 'long_dorn_crm_hxtd';
@@ -609,11 +577,14 @@ function gasGet(action, params, onSuccess, onFail) {
     .catch(function(err){ console.error('gasGet', action, err); if (onFail) onFail(err); });
 }
 
-/* ══ API：POST → 改用 GET+payload 避免 CORS ══ */
+/* ══ API：POST (修正為標準安全傳輸模式，避免大文本丟失) ══ */
 function gasPost(action, payload, onSuccess, onFail) {
-  var url = GAS_URL + '?action=' + encodeURIComponent(action)
-            + '&payload=' + encodeURIComponent(JSON.stringify(payload || {}));
-  fetch(url)
+  fetch(GAS_URL, {
+    method: 'POST',
+    mode: 'cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: action, payload: payload || {} })
+  })
     .then(function(r){ return r.json(); })
     .then(function(data){ if (onSuccess) onSuccess(data); })
     .catch(function(err){ console.error('gasPost', action, err); if (onFail) onFail(err); });
@@ -659,7 +630,6 @@ function doLogin() {
   if (!pwd) { showLoginErr('請輸入密碼'); return; }
 
   btn.disabled = true; btn.textContent = '驗證中…';
-
   var selectedProject = document.getElementById('loginProjectSel').value;
 
   gasPost('verifyAccess', {
@@ -887,7 +857,6 @@ function renderCustomerForm() {
     projSel.innerHTML = '<option value="">請選擇案場</option>';
     state.projects.forEach(function(p){ var o=document.createElement('option'); o.value=p; o.textContent=p; projSel.appendChild(o); });
   }
-  // 自動帶入案場（不管角色）
   if (state.user.projectName) {
     projSel.value = state.user.projectName; projSel.disabled = true; onCustProjectChange();
   } else if (state.projects.length === 1) {
@@ -896,7 +865,6 @@ function renderCustomerForm() {
   projSel.onchange = onCustProjectChange;
   document.getElementById('cust_visitDate').value = todayStr();
 
-  // 接待人員：業務鎖定自己，主管可選
   var salesDisplay = document.getElementById('cust_sales_display');
   var salesSel     = document.getElementById('cust_sales_sel');
   if (state.user.role === 'sales') {
@@ -914,7 +882,7 @@ function renderCustomerForm() {
       var label = document.createElement('label'); label.className = 'chip';
       label.innerHTML = '<input type="radio" name="cust_dist" value="' + d + '"><span class="chip-label">' + (d==='其他'?'其他':d.replace('區','')) + '</span>';
       dc.appendChild(label);
-      label.querySelector('input').addEventListener('change', function(){ document.getElementById('cust_distOtherWrap').classList.toggle('hidden', this.value!=='其他'); });
+      label.querySelector('input').addEventListener('change', function(){ document.getElementById('cust_distOtherWrap').classList.toggle('hidden', this.value!=='環境區' && this.value!=='其他'); });
     });
   }
 
@@ -936,7 +904,7 @@ function renderCustomerForm() {
 
 function onCustProjectChange() {
   var proj = document.getElementById('cust_project').value;
-  var sel  = document.getElementById('cust_sales_sel');
+  var sel  = document.getElementById('cust_sales_sel'); // 修正：這裡正確改為連動 cust_sales_sel
   sel.innerHTML = '<option value="">不指定</option>';
   if (!proj) return;
   if (state.salesByProject[proj]) { fillSalesSelect(sel, state.salesByProject[proj]); return; }
@@ -965,28 +933,21 @@ function submitCustomer() {
   var note    = document.getElementById('cust_note').value.trim();
   if (!project||!name||!phone||!note) { showToast('請填寫案場、姓名、電話及接待狀況','error'); return; }
 
-  var distEl = document.querySelector('input[name="cust_dist"]:checked');
-  var dist = distEl ? distEl.value : '';
+  var dist = getRadio('cust_dist');
   if (dist==='其他') { var ov=document.getElementById('cust_distOther').value.trim(); dist=ov?'其他：'+ov:'其他'; }
 
-  // 職業「其他」
   var industry = document.getElementById('cust_industry').value;
   if (industry === '其他') { var ov2=document.getElementById('cust_industryOther').value.trim(); industry=ov2?'其他：'+ov2:'其他'; }
 
-  // 購屋動機「其他」
   var motive = document.getElementById('cust_motive').value;
   if (motive === '其他') { var ov3=document.getElementById('cust_motiveOther').value.trim(); motive=ov3?'其他：'+ov3:'其他'; }
 
-  // 來源管道「其他」
-  var sourceEl = document.querySelector('input[name="cust_source"]:checked');
-  var source = sourceEl ? sourceEl.value : '';
+  var source = getRadio('cust_source');
   if (source === '其他') { var ov4=document.getElementById('cust_sourceOther').value.trim(); source=ov4?'其他：'+ov4:'其他'; }
 
-  // 預算「其他」
   var budget = document.getElementById('cust_budget').value;
   if (budget === '其他') { var ov5=document.getElementById('cust_budgetOther').value.trim(); budget=ov5?'其他：'+ov5:'其他'; }
 
-  // 癥結點「其他」
   var issues = getChecks('cust_issue');
   var issueOtherIdx = issues.indexOf('其他');
   if (issueOtherIdx >= 0) {
@@ -994,13 +955,10 @@ function submitCustomer() {
     issues[issueOtherIdx] = ov6?'其他：'+ov6:'其他';
   }
 
-  // 再訪「其他」
-  var againEl = document.querySelector('input[name="cust_again"]:checked');
-  var again = againEl ? againEl.value : '';
+  var again = getRadio('cust_again');
   if (again === '確認日期') again = document.getElementById('cust_againDate').value||'未填日期';
   else if (again === '其他') { var ov7=document.getElementById('cust_againOther').value.trim(); again=ov7?'其他：'+ov7:'其他'; }
 
-  // 接待業務
   var salesLineUserId = '', salesName = '';
   if (state.user.role === 'sales') {
     salesLineUserId = state.user.lineUserId;
