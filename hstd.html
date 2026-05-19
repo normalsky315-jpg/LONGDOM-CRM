@@ -948,6 +948,7 @@ function onCustProjectChange() {
 }
 
 function fillSalesSelect(sel, list) {
+  sel.innerHTML = '<option value="">不指定</option>';
   list.forEach(function(s){ var o=document.createElement('option'); o.value=s.lineUserId; o.dataset.name=s.name; o.textContent=s.name; sel.appendChild(o); });
 }
 
