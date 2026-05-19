@@ -517,7 +517,7 @@
  * ============================================================ */
 
 // ★★★ 唯一需要你修改的地方 ★★★
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbyKsPvaqXu7eVqrCAG9klB5BW-HU9QCwd_f2YZ37ChxgsnZ83nKA-1WvwFuqxTNEXw/exec';
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbyEfQCyTBKJpSVifYO_HRN0w96FPmoGQHXQxPtGfma7wgN7QklunefibPAgcZTqCzvA/exec';
 
 var LIFF_ID     = '2009971664-MlqtPsqc';
 var TTL_DAYS    = 30;
@@ -1090,6 +1090,9 @@ function openTaskModal() {
 function submitTask() {
   var title=document.getElementById('task_title').value.trim();
   if (!title) { showToast('請填寫任務標題','error'); return; }
+  var btn=document.querySelector('#taskModal .btn-mini.primary');
+  if (btn.disabled) return;
+  btn.disabled=true; btn.textContent='送 出 中…';
   var assignSel=document.getElementById('task_assign');
   var assignOpt=assignSel.options[assignSel.selectedIndex];
   gasPost('appendTask', {
@@ -1100,9 +1103,10 @@ function submitTask() {
     assigned_to_line_user_id: assignSel.value,
     assigned_to: assignOpt?(assignOpt.dataset.name||assignOpt.textContent):''
   }, function(res) {
+    btn.disabled=false; btn.textContent='建 立 任 務';
     if (res.ok) { showToast('任務已建立','success'); closeModal('taskModal'); ['task_title','task_desc','task_due'].forEach(function(id){ document.getElementById(id).value=''; }); renderTaskList(); }
     else { showToast(res.error,'error'); }
-  });
+  }, function(){ btn.disabled=false; btn.textContent='建 立 任 務'; showToast('連線失敗','error'); });
 }
 
 /* ══ Daily Report ══ */
@@ -1133,6 +1137,9 @@ function openReportModal() {
   openModal('reportModal');
 }
 function submitReport() {
+  var btn=document.querySelector('#reportModal .btn-mini.primary');
+  if (btn.disabled) return;
+  btn.disabled=true; btn.textContent='送 出 中…';
   var salesSel=document.getElementById('rep_sales'); var salesOpt=salesSel.options[salesSel.selectedIndex];
   gasPost('appendDailyReport',{
     lineUserId:state.user.lineUserId, report_date:document.getElementById('rep_date').value,
@@ -1144,9 +1151,10 @@ function submitReport() {
     viewed_units:document.getElementById('rep_viewed').value.trim(),
     notes:document.getElementById('rep_notes').value.trim()
   },function(res){
+    btn.disabled=false; btn.textContent='提 交 日 報';
     if (res.ok) { showToast('日報已提交','success'); closeModal('reportModal'); ['rep_units','rep_viewed','rep_notes'].forEach(function(id){ document.getElementById(id).value=''; }); ['rep_visitor','rep_first','rep_revisit','rep_call','rep_deal'].forEach(function(id){ document.getElementById(id).value='0'; }); renderReport(); }
     else { showToast(res.error,'error'); }
-  });
+  }, function(){ btn.disabled=false; btn.textContent='提 交 日 報'; showToast('連線失敗','error'); });
 }
 
 /* ══ Maintenance ══ */
@@ -1179,14 +1187,18 @@ function submitMaint() {
   var type=document.getElementById('maint_type').value;
   var desc=document.getElementById('maint_desc').value.trim();
   if (!type||!desc) { showToast('請填寫問題類型與描述','error'); return; }
+  var btn=document.querySelector('#maintModal .btn-mini.primary');
+  if (btn.disabled) return;
+  btn.disabled=true; btn.textContent='送 出 中…';
   gasPost('appendMaintenance',{
     lineUserId:state.user.lineUserId, issue_type:type,
     location:document.getElementById('maint_location').value.trim(),
     description:desc, priority:document.getElementById('maint_priority').value
   },function(res){
+    btn.disabled=false; btn.textContent='送 出 通 報';
     if (res.ok) { showToast('維修通報已送出','success'); closeModal('maintModal'); ['maint_location','maint_desc'].forEach(function(id){ document.getElementById(id).value=''; }); document.getElementById('maint_type').value=''; renderMaintList(); }
     else { showToast(res.error,'error'); }
-  });
+  }, function(){ btn.disabled=false; btn.textContent='送 出 通 報'; showToast('連線失敗','error'); });
 }
 
 /* ══ User Management ══ */
