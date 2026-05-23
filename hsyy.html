@@ -221,6 +221,18 @@
   .user-tab{flex:1;padding:8px;text-align:center;font-size:12px;color:var(--ink-faint);border-radius:7px;cursor:pointer;transition:all 0.15s;}
   .user-tab.active{background:var(--ink);color:#fff;}
 
+  /* Change Log */
+  .change-log-item{background:var(--surface);border-radius:8px;border:1px solid var(--border);padding:12px;margin-bottom:8px;}
+  .change-log-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .change-log-by{font-size:12px;font-weight:500;color:var(--teal);}
+  .change-log-time{font-size:11px;color:var(--ink-faint);}
+  .change-log-field{display:flex;align-items:flex-start;gap:6px;font-size:12px;margin-bottom:4px;padding:4px 0;border-bottom:1px solid var(--border);}
+  .change-log-field:last-child{border-bottom:none;margin-bottom:0;}
+  .change-log-fname{color:var(--ink-faint);min-width:70px;flex-shrink:0;}
+  .change-log-before{color:var(--rust);text-decoration:line-through;flex:1;}
+  .change-log-after{color:var(--teal);flex:1;}
+  .change-log-arrow{color:var(--ink-faint);flex-shrink:0;}
+
   /* Toast */
   .toast{position:fixed;top:max(20px,env(safe-area-inset-top));left:50%;transform:translateX(-50%) translateY(-100px);background:var(--ink);color:#fff;padding:13px 22px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;transition:transform 0.32s cubic-bezier(0.34,1.56,0.64,1);white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,0.2);max-width:calc(100vw - 40px);}
   .toast.show{transform:translateX(-50%) translateY(0);}
@@ -296,6 +308,11 @@
           <div class="feature-card-icon">👤</div>
           <div class="feature-card-title">客戶登記</div>
           <div class="feature-card-desc">新增訪客資料</div>
+        </div>
+        <div class="feature-card" onclick="route('#/mycustomers')" style="border-top:2px solid var(--teal);">
+          <div class="feature-card-icon">📁</div>
+          <div class="feature-card-title">我的客戶</div>
+          <div class="feature-card-desc" id="myCustomerDesc">全部歷史紀錄</div>
         </div>
         <div class="feature-card task" onclick="route('#/task')">
           <div class="feature-card-icon">📋</div>
@@ -475,6 +492,14 @@
     <button class="fab" onclick="openMaintModal()">+</button>
   </div>
 
+  <!-- My Customers -->
+  <div id="viewMyCustomers" class="view hidden">
+    <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">我的客戶</div><div style="width:36px;"></div></div></div>
+    <div class="list-wrap">
+      <div id="myCustomerList"></div>
+    </div>
+  </div>
+
   <!-- Users -->
   <div id="viewUsers" class="view hidden">
     <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">使用者管理</div><div style="width:36px;"></div></div></div>
@@ -509,6 +534,58 @@
   </div>
 </div>
 
+<!-- 修改客戶資料 Modal -->
+<div class="modal-mask" id="editCustModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">修改客戶資料</div>
+    <div class="modal-subtitle" id="editCustSubtitle"></div>
+    <input type="hidden" id="edit_custId">
+    <div class="field-row">
+      <div class="field"><div class="field-label">訪客日期</div><input class="inp" type="date" id="edit_visitDate"></div>
+      <div class="field"><div class="field-label">訪客類別</div><select class="sel" id="edit_visitType"><option value="">請選擇</option><option>初訪</option><option>回籠</option></select></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">姓名</div><input class="inp" type="text" id="edit_name"></div>
+      <div class="field"><div class="field-label">電話</div><input class="inp" type="tel" id="edit_phone"></div>
+    </div>
+    <div class="field"><div class="field-label">年齡區間</div><select class="sel" id="edit_age"><option value="">請選擇</option><option>30歲以下</option><option>30-39歲</option><option>40-49歲</option><option>50-59歲</option><option>60歲以上</option></select></div>
+    <div class="field"><div class="field-label">居住行政區</div><input class="inp" type="text" id="edit_district" placeholder="例：左營區"></div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">客戶職業</div><input class="inp" type="text" id="edit_industry"></div>
+      <div class="field"><div class="field-label">購屋動機</div><input class="inp" type="text" id="edit_motive"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">來源管道</div><input class="inp" type="text" id="edit_source"></div>
+      <div class="field"><div class="field-label">需求房型</div><input class="inp" type="text" id="edit_rooms"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">購屋預算</div><input class="inp" type="text" id="edit_budget"></div>
+      <div class="field"><div class="field-label">預計再訪</div><input class="inp" type="text" id="edit_revisit"></div>
+    </div>
+    <div class="field"><div class="field-label">客戶癥結點</div><input class="inp" type="text" id="edit_issues"></div>
+    <div class="field"><div class="field-label">接待狀況</div><textarea class="ta" id="edit_note" style="min-height:80px;"></textarea></div>
+    <div class="field"><div class="field-label">備註</div><textarea class="ta" id="edit_extra" style="min-height:60px;"></textarea></div>
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('editCustModal')">取消</button>
+      <button class="btn-mini primary" id="editCustSubmitBtn" style="flex:2;padding:14px;font-weight:600;" onclick="submitEditCustomer()">儲 存 修 改</button>
+    </div>
+  </div>
+</div>
+
+<!-- 修改紀錄 Modal -->
+<div class="modal-mask" id="changeLogModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">修改紀錄</div>
+    <div class="modal-subtitle" id="changeLogSubtitle"></div>
+    <div id="changeLogList"></div>
+    <div style="margin-top:18px;">
+      <button class="btn-mini" style="width:100%;padding:14px;" onclick="closeModal('changeLogModal')">關閉</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -517,7 +594,7 @@
  * ============================================================ */
 
 // ★★★ 唯一需要你修改的地方 ★★★
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbxrfHosYHpLbXoIZhYY_N-zppbqiEH_RpkrJgOsfoo2KGyhrGUxm44IwZLj_Gxb0p8W/exec';
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbyEfQCyTBKJpSVifYO_HRN0w96FPmoGQHXQxPtGfma7wgN7QklunefibPAgcZTqCzvA/exec';
 
 var LIFF_ID     = '2009971664-MlqtPsqc';
 var TTL_DAYS    = 30;
@@ -739,6 +816,7 @@ function route(hash) {
   switch(hash) {
     case '#/home':     document.getElementById('viewHome').classList.remove('hidden');     renderHome(); break;
     case '#/customer': document.getElementById('viewCustomer').classList.remove('hidden'); renderCustomerForm(); break;
+    case '#/mycustomers': document.getElementById('viewMyCustomers').classList.remove('hidden'); renderMyCustomers(); break;
     case '#/task':     document.getElementById('viewTask').classList.remove('hidden');     renderTaskList(); break;
     case '#/report':
       if (state.user.role === 'sales') { route('#/home'); return; }
@@ -794,7 +872,152 @@ function renderHome() {
   });
 }
 
-/* ══ 近期客戶總表 ══ */
+/* ══ 我的客戶 ══ */
+var FIELD_LABELS = {
+  visit_date:'訪客日期', visit_type:'訪客類別', customer_name:'姓名', phone:'電話',
+  age_range:'年齡區間', district:'居住區域', occupation_industry:'職業',
+  purchase_motive:'購屋動機', source:'來源管道', room_types:'需求房型',
+  budget:'購屋預算', issues:'癥結點', revisit_plan:'預計再訪',
+  status_note:'接待狀況', note:'備註'
+};
+
+function renderMyCustomers() {
+  var box = document.getElementById('myCustomerList');
+  box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div>';
+  gasGet('getMyCustomers', { lineUserId: state.user.lineUserId }, function(res) {
+    if (!res.ok) { box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">' + escapeHtml(res.error) + '</div></div>'; return; }
+    if (!res.data.length) { box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📁</div><div class="empty-state-text">尚無客戶資料</div></div>'; return; }
+    box.innerHTML = res.data.map(function(c){ return myCustomerCardHTML(c); }).join('');
+  });
+}
+
+function myCustomerCardHTML(c) {
+  var now = new Date();
+  var createdAt = new Date(c.created_at);
+  var diffDays = (now - createdAt) / (1000 * 60 * 60 * 24);
+  var canEdit = diffDays <= 14;
+  var isDone = c.deal_status === '已成交';
+
+  var dealBadge = '<span class="cust-card-deal ' + (isDone?'done':'pending') + '">' + (isDone?'✓ 已成交':'未成交') + (c.deal_unit?' — '+escapeHtml(c.deal_unit):'') + '</span>';
+
+  var fields = [
+    c.phone        ? '📞 ' + escapeHtml(String(c.phone))       : '',
+    c.age_range    ? '🎂 ' + escapeHtml(String(c.age_range))   : '',
+    c.district     ? '📍 ' + escapeHtml(String(c.district))    : '',
+    c.visit_type   ? '🚶 ' + escapeHtml(String(c.visit_type))  : '',
+    c.occupation_industry ? '💼 ' + escapeHtml(String(c.occupation_industry)) : '',
+    c.purchase_motive ? '🏠 ' + escapeHtml(String(c.purchase_motive)) : '',
+    c.source       ? '📣 ' + escapeHtml(String(c.source))      : '',
+    c.room_types   ? '🛏 ' + escapeHtml(String(c.room_types))  : '',
+    c.budget       ? '💰 ' + escapeHtml(String(c.budget))      : '',
+    c.issues       ? '⚠️ ' + escapeHtml(String(c.issues))      : '',
+    c.revisit_plan ? '📅 再訪：' + escapeHtml(String(c.revisit_plan)) : ''
+  ].filter(Boolean);
+
+  var editBtn = canEdit
+    ? '<button class="deal-btn" style="background:var(--teal);" onclick="openEditCustModal(' + JSON.stringify(c).replace(/"/g,'&quot;') + ')">✏️ 修改</button>'
+    : '<span style="font-size:11px;color:var(--ink-faint);">已超過14天，無法修改</span>';
+
+  var logBtn = '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openChangeLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">📋 修改紀錄</button>';
+
+  return '<div class="cust-card">' +
+    '<div class="cust-card-head">' +
+      '<div class="cust-card-name">' + escapeHtml(c.customer_name||'') + '</div>' +
+      '<div class="cust-card-date">' + String(c.visit_date||'').substring(0,10) + '</div>' +
+    '</div>' +
+    '<div class="cust-card-body">' + fields.map(function(f){ return '<span>'+f+'</span>'; }).join('') + '</div>' +
+    (c.status_note ? '<div class="cust-card-note">📝 ' + escapeHtml(String(c.status_note)) + '</div>' : '') +
+    dealBadge +
+    '<div style="margin-top:8px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">' + editBtn + logBtn + '</div>' +
+  '</div>';
+}
+
+function openEditCustModal(c) {
+  document.getElementById('edit_custId').value = c.customer_id;
+  document.getElementById('editCustSubtitle').textContent = c.customer_name + '  ·  ' + String(c.visit_date||'').substring(0,10);
+  document.getElementById('edit_visitDate').value = String(c.visit_date||'').substring(0,10);
+  document.getElementById('edit_visitType').value = c.visit_type || '';
+  document.getElementById('edit_name').value = c.customer_name || '';
+  document.getElementById('edit_phone').value = c.phone || '';
+  document.getElementById('edit_age').value = c.age_range || '';
+  document.getElementById('edit_district').value = c.district || '';
+  document.getElementById('edit_industry').value = c.occupation_industry || '';
+  document.getElementById('edit_motive').value = c.purchase_motive || '';
+  document.getElementById('edit_source').value = c.source || '';
+  document.getElementById('edit_rooms').value = c.room_types || '';
+  document.getElementById('edit_budget').value = c.budget || '';
+  document.getElementById('edit_revisit').value = c.revisit_plan || '';
+  document.getElementById('edit_issues').value = c.issues || '';
+  document.getElementById('edit_note').value = c.status_note || '';
+  document.getElementById('edit_extra').value = c.note || '';
+  openModal('editCustModal');
+}
+
+function submitEditCustomer() {
+  var btn = document.getElementById('editCustSubmitBtn');
+  if (btn.disabled) return;
+  btn.disabled = true; btn.textContent = '儲 存 中…';
+
+  gasPost('updateCustomerData', {
+    lineUserId:          state.user.lineUserId,
+    customer_id:         document.getElementById('edit_custId').value,
+    visit_date:          document.getElementById('edit_visitDate').value,
+    visit_type:          document.getElementById('edit_visitType').value,
+    customer_name:       document.getElementById('edit_name').value.trim(),
+    phone:               document.getElementById('edit_phone').value.trim(),
+    age_range:           document.getElementById('edit_age').value,
+    district:            document.getElementById('edit_district').value.trim(),
+    occupation_industry: document.getElementById('edit_industry').value.trim(),
+    purchase_motive:     document.getElementById('edit_motive').value.trim(),
+    source:              document.getElementById('edit_source').value.trim(),
+    room_types:          document.getElementById('edit_rooms').value.trim(),
+    budget:              document.getElementById('edit_budget').value.trim(),
+    revisit_plan:        document.getElementById('edit_revisit').value.trim(),
+    issues:              document.getElementById('edit_issues').value.trim(),
+    status_note:         document.getElementById('edit_note').value.trim(),
+    note:                document.getElementById('edit_extra').value.trim()
+  }, function(res) {
+    btn.disabled = false; btn.textContent = '儲 存 修 改';
+    if (res.ok) {
+      showToast('資料已更新','success');
+      closeModal('editCustModal');
+      renderMyCustomers();
+    } else { showToast(res.error,'error'); }
+  }, function(){ btn.disabled = false; btn.textContent = '儲 存 修 改'; showToast('連線失敗','error'); });
+}
+
+function openChangeLogModal(custId, custName) {
+  document.getElementById('changeLogSubtitle').textContent = custName;
+  var box = document.getElementById('changeLogList');
+  box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div>';
+  openModal('changeLogModal');
+
+  gasGet('getCustomerChangeLogs', { lineUserId: state.user.lineUserId, customer_id: custId }, function(res) {
+    if (!res.ok) { box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">' + escapeHtml(res.error) + '</div></div>'; return; }
+    if (!res.data.length) { box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-text">尚無修改紀錄</div></div>'; return; }
+    box.innerHTML = res.data.map(function(log) {
+      var changes = [];
+      try { changes = JSON.parse(log.changes_json || '[]'); } catch(e){}
+      var fieldsHTML = changes.map(function(ch) {
+        return '<div class="change-log-field">' +
+          '<span class="change-log-fname">' + escapeHtml(FIELD_LABELS[ch.field]||ch.field) + '</span>' +
+          '<span class="change-log-before">' + escapeHtml(ch.before||'（空）') + '</span>' +
+          '<span class="change-log-arrow">→</span>' +
+          '<span class="change-log-after">' + escapeHtml(ch.after||'（空）') + '</span>' +
+        '</div>';
+      }).join('');
+      return '<div class="change-log-item">' +
+        '<div class="change-log-header">' +
+          '<span class="change-log-by">👤 ' + escapeHtml(log.changed_by_name||'') + '</span>' +
+          '<span class="change-log-time">' + String(log.changed_at||'').substring(0,16).replace('T',' ') + '</span>' +
+        '</div>' +
+        fieldsHTML +
+      '</div>';
+    }).join('');
+  });
+}
+
+/* ══ 近期客戶總表（主管）也加上修改紀錄按鈕 ══ */
 function loadRecentCustomers() {
   var box = document.getElementById('recentCustomerList');
   box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div>';
@@ -843,6 +1066,9 @@ function recentCustCardHTML(c) {
   var dealBtn = !isDone && state.user.role !== 'sales'
     ? '<button class="deal-btn" onclick="openDealModal(\'' + escapeHtml(c.customer_id) + '\')">標記成交</button>'
     : '';
+  var logBtn = state.user.role !== 'sales'
+    ? '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openChangeLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">📋 紀錄</button>'
+    : '';
   var fields = [
     c.phone            ? '📞 ' + escapeHtml(String(c.phone))              : '',
     c.age_range        ? '🎂 ' + escapeHtml(String(c.age_range))          : '',
@@ -865,7 +1091,7 @@ function recentCustCardHTML(c) {
     '<div class="cust-card-sales">👤 ' + escapeHtml(c.sales_name||c.created_by_name||'') + '</div>' +
     '<div class="cust-card-body">' + fields.map(function(f){ return '<span>'+f+'</span>'; }).join('') + '</div>' +
     (c.status_note ? '<div class="cust-card-note">📝 ' + escapeHtml(String(c.status_note)) + '</div>' : '') +
-    dealBadge + dealBtn +
+    dealBadge + dealBtn + logBtn +
   '</div>';
 }
 
@@ -1266,7 +1492,7 @@ function doActivateUser(id) {
 /* ══ Modal ══ */
 function openModal(id) { document.getElementById(id).classList.add('show'); document.body.style.overflow='hidden'; }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); document.body.style.overflow=''; }
-['taskModal','reportModal','maintModal','dealModal'].forEach(function(id){
+['taskModal','reportModal','maintModal','dealModal','editCustModal','changeLogModal'].forEach(function(id) {
   document.getElementById(id).addEventListener('click',function(e){ if(e.target.id===id) closeModal(id); });
 });
 
