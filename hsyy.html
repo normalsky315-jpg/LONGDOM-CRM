@@ -546,21 +546,31 @@ window.addEventListener('DOMContentLoaded', function(){ initApp(); });
 async function initApp() {
   var saved = loadSession();
   if (saved && saved.lineUserId && saved.userData) {
-    liff.init({ liffId: LIFF_ID }).then(function() {
-      if (!liff.isLoggedIn()) return;
-      liff.getProfile().then(function(p){ state.liffProfile = p; }).catch(function(){});
-    }).catch(function(){});
+    try {
+      liff.init({ liffId: LIFF_ID }).then(function() {
+        if (liff.isLoggedIn()) liff.getProfile().then(function(p){ state.liffProfile = p; }).catch(function(){});
+      }).catch(function(){});
+    } catch(e){}
     onLoginSuccess(saved.userData);
     return;
   }
+
   try {
-    await liff.init({ liffId: LIFF_ID });
-    if (!liff.isLoggedIn()) { liff.login(); return; }
-    state.liffProfile = await liff.getProfile();
+    await Promise.race([
+      liff.init({ liffId: LIFF_ID }),
+      new Promise(function(_, reject){ setTimeout(function(){ reject(new Error('timeout')); }, 6000); })
+    ]);
+    if (liff.isLoggedIn()) {
+      try { state.liffProfile = await liff.getProfile(); } catch(e){}
+    } else {
+      liff.login();
+      return;
+    }
   } catch(err) {
-    console.warn('LIFF init failed:', err.message);
+    console.warn('LIFF init failed or timeout:', err.message);
     state.liffProfile = { userId: '', displayName: '' };
   }
+
   proceedAfterProfile();
 }
 
