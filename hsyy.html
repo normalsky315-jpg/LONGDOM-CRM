@@ -628,9 +628,11 @@ function showScreen(id) {
   });
   var el = document.getElementById(id);
   el.classList.add('active');
-  el.style.display = '';
-  el.scrollTop = 0;
+  // loadingScreen 用 flex，其他用 block
+  el.style.display = (id === 'loadingScreen') ? 'flex' : 'block';
+  if (id !== 'loadingScreen') el.scrollTop = 0;
 }
+
 
 /* ══ Login ══ */
 function showLogin() {
