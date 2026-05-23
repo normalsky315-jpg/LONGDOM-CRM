@@ -513,7 +513,7 @@
 
 <!-- Modals -->
 <div class="modal-mask" id="taskModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">新增任務</div><div class="modal-subtitle">建立後可指派並追蹤完成狀態</div><div class="field"><div class="field-label">任務類型</div><select class="sel" id="task_type"><option value="sales_task">📋 銷售跟進</option><option value="site_issue">⚠️ 現場問題</option><option value="reminder">🔔 提醒</option><option value="daily_follow">👥 客戶追蹤</option><option value="maintenance">🔧 維修</option></select></div><div class="field"><div class="field-label">任務標題 <span class="req">*</span></div><input class="inp" type="text" id="task_title" placeholder="例：聯絡王先生確認再訪日期"></div><div class="field"><div class="field-label">詳細說明</div><textarea class="ta" id="task_desc" placeholder="補充資訊…"></textarea></div><div class="field-row"><div class="field"><div class="field-label">優先度</div><select class="sel" id="task_priority"><option value="normal">一般</option><option value="high">高</option><option value="urgent">緊急</option><option value="low">低</option></select></div><div class="field"><div class="field-label">截止日期</div><input class="inp" type="date" id="task_due"></div></div><div class="field"><div class="field-label">指派對象</div><select class="sel" id="task_assign"><option value="">不指定</option></select></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('taskModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitTask()">建 立 任 務</button></div></div></div>
-<div class="modal-mask" id="reportModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">提交日報</div><div class="modal-subtitle">當日業績資料填寫</div><div class="field-row"><div class="field"><div class="field-label">日期</div><input class="inp" type="date" id="rep_date"></div><div class="field"><div class="field-label">業務</div><select class="sel" id="rep_sales"></select></div></div><div class="field-row"><div class="field"><div class="field-label">接待總組數</div><input class="inp" type="number" id="rep_visitor" min="0" value="0"></div><div class="field"><div class="field-label">初訪</div><input class="inp" type="number" id="rep_first" min="0" value="0"></div></div><div class="field-row"><div class="field"><div class="field-label">回籠</div><input class="inp" type="number" id="rep_revisit" min="0" value="0"></div><div class="field"><div class="field-label">電訪</div><input class="inp" type="number" id="rep_call" min="0" value="0"></div></div><div class="field-row"><div class="field"><div class="field-label">成交</div><input class="inp" type="number" id="rep_deal" min="0" value="0"></div><div class="field"><div class="field-label">成交戶別</div><input class="inp" type="text" id="rep_units" placeholder="A3-12F"></div></div><div class="field"><div class="field-label">觀看房型</div><input class="inp" type="text" id="rep_viewed" placeholder="2房、3房"></div><div class="field"><div class="field-label">備註</div><textarea class="ta" id="rep_notes" placeholder="特殊事項…"></textarea></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('reportModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitReport()">提 交 日 報</button></div></div></div>
+<div class="modal-mask" id="reportModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">提交日報</div><div class="modal-subtitle">當日業績資料填寫</div><div class="field"><div class="field-label">日期</div><input class="inp" type="date" id="rep_date"></div><div class="field-row"><div class="field"><div class="field-label">接待總組數</div><input class="inp" type="number" id="rep_visitor" min="0" value="0"></div><div class="field"><div class="field-label">初訪</div><input class="inp" type="number" id="rep_first" min="0" value="0"></div></div><div class="field-row"><div class="field"><div class="field-label">回籠</div><input class="inp" type="number" id="rep_revisit" min="0" value="0"></div><div class="field"><div class="field-label">電訪</div><input class="inp" type="number" id="rep_call" min="0" value="0"></div></div><div class="field-row"><div class="field"><div class="field-label">成交</div><input class="inp" type="number" id="rep_deal" min="0" value="0"></div><div class="field"><div class="field-label">成交戶別</div><input class="inp" type="text" id="rep_units" placeholder="A3-12F"></div></div><div class="field"><div class="field-label">備註</div><textarea class="ta" id="rep_notes" placeholder="特殊事項…"></textarea></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('reportModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitReport()">提 交 日 報</button></div></div></div>
 <div class="modal-mask" id="maintModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">維修通報</div><div class="modal-subtitle">通報後將自動推播給主管</div><div class="field"><div class="field-label">問題類型 <span class="req">*</span></div><select class="sel" id="maint_type"><option value="">請選擇</option><option>燈具/電路</option><option>水管/漏水</option><option>空調</option><option>家具/門窗</option><option>清潔</option><option>樣品屋外觀</option><option>其他</option></select></div><div class="field"><div class="field-label">位置 / 戶別</div><input class="inp" type="text" id="maint_location" placeholder="例：A棟3F樣品屋客廳"></div><div class="field"><div class="field-label">問題描述 <span class="req">*</span></div><textarea class="ta" id="maint_desc" placeholder="詳細描述狀況…"></textarea></div><div class="field"><div class="field-label">優先度</div><select class="sel" id="maint_priority"><option value="normal">一般</option><option value="high" selected>高</option><option value="urgent">緊急</option></select></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('maintModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitMaint()">送 出 通 報</button></div></div></div>
 
 <!-- 成交 Modal -->
@@ -594,7 +594,7 @@
  * ============================================================ */
 
 // ★★★ 唯一需要你修改的地方 ★★★
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbz1Jlz9hKpUpNPOJbcYRCELK25XZPY5HgO94OyVxe66urZhST7kE95VdcMHCKPV3WwB/exec';
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbxPSAo7u80pXO9fVWzVrxIPeZFuaBn-8vxt8NdtiHf42kAMN7lT6S1NP8AeOXMGzHM5/exec';
 
 var LIFF_ID     = '2009971664-AVRlRYHb';
 var TTL_DAYS    = 30;
@@ -1363,32 +1363,26 @@ function renderReport() {
   });
 }
 function openReportModal() {
-  var sel=document.getElementById('rep_sales'); sel.innerHTML='<option value="">請選擇</option>';
-  var proj=state.user.projectName;
-  if (proj) {
-    var load=function(list){ list.forEach(function(s){ var o=document.createElement('option'); o.value=s.lineUserId; o.dataset.name=s.name; o.textContent=s.name; sel.appendChild(o); }); };
-    if (state.salesByProject[proj]) load(state.salesByProject[proj]);
-    else gasGet('getSalesByProject',{project:proj},function(res){ if(res.ok){state.salesByProject[proj]=res.data;load(res.data);} });
-  }
+  document.getElementById('rep_date').value = todayStr();
   openModal('reportModal');
 }
 function submitReport() {
   var btn=document.querySelector('#reportModal .btn-mini.primary');
   if (btn.disabled) return;
   btn.disabled=true; btn.textContent='送 出 中…';
-  var salesSel=document.getElementById('rep_sales'); var salesOpt=salesSel.options[salesSel.selectedIndex];
   gasPost('appendDailyReport',{
-    lineUserId:state.user.lineUserId, report_date:document.getElementById('rep_date').value,
-    sales_line_user_id:salesSel.value, salesperson:salesOpt?(salesOpt.dataset.name||salesOpt.textContent):'',
-    visitor_count:+document.getElementById('rep_visitor').value||0, first_visit_count:+document.getElementById('rep_first').value||0,
-    revisit_count:+document.getElementById('rep_revisit').value||0, call_count:+document.getElementById('rep_call').value||0,
+    lineUserId:state.user.lineUserId,
+    report_date:document.getElementById('rep_date').value,
+    visitor_count:+document.getElementById('rep_visitor').value||0,
+    first_visit_count:+document.getElementById('rep_first').value||0,
+    revisit_count:+document.getElementById('rep_revisit').value||0,
+    call_count:+document.getElementById('rep_call').value||0,
     deal_count:+document.getElementById('rep_deal').value||0,
     transaction_units:document.getElementById('rep_units').value.trim(),
-    viewed_units:document.getElementById('rep_viewed').value.trim(),
     notes:document.getElementById('rep_notes').value.trim()
   },function(res){
     btn.disabled=false; btn.textContent='提 交 日 報';
-    if (res.ok) { showToast('日報已提交','success'); closeModal('reportModal'); ['rep_units','rep_viewed','rep_notes'].forEach(function(id){ document.getElementById(id).value=''; }); ['rep_visitor','rep_first','rep_revisit','rep_call','rep_deal'].forEach(function(id){ document.getElementById(id).value='0'; }); renderReport(); }
+    if (res.ok) { showToast('日報已提交','success'); closeModal('reportModal'); ['rep_units','rep_notes'].forEach(function(id){ document.getElementById(id).value=''; }); ['rep_visitor','rep_first','rep_revisit','rep_call','rep_deal'].forEach(function(id){ document.getElementById(id).value='0'; }); renderReport(); }
     else { showToast(res.error,'error'); }
   }, function(){ btn.disabled=false; btn.textContent='提 交 日 報'; showToast('連線失敗','error'); });
 }
