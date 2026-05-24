@@ -337,6 +337,11 @@
           <div class="feature-card-title">使用者管理</div>
           <div class="feature-card-desc" id="pendingCountDesc">審核新成員</div>
         </div>
+        <div class="feature-card" onclick="route('#/leave')" style="border-top:2px solid var(--gold);grid-column:1/-1;">
+          <div class="feature-card-icon">📅</div>
+          <div class="feature-card-title">假表排班</div>
+          <div class="feature-card-desc" id="todayLeaveDesc">今日休假：載入中…</div>
+        </div>
       </div>
       <div class="section-tag">本月概況</div>
       <div class="stat-grid">
@@ -509,12 +514,51 @@
     </div>
   </div>
 
+  <!-- Leave Schedule -->
+  <div id="viewLeave" class="view hidden">
+    <div class="app-header">
+      <div class="header-row">
+        <button class="header-back" onclick="route('#/home')">‹</button>
+        <div class="header-title">假表排班</div>
+        <div style="width:36px;"></div>
+      </div>
+    </div>
+    <div class="list-wrap">
+      <!-- 月份導航 + 本月配額 -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px;">
+        <button id="leavePrevWeek" onclick="leaveWeekNav(-1)" style="width:36px;height:36px;border:none;background:var(--border);border-radius:8px;font-size:18px;cursor:pointer;color:var(--ink);">‹</button>
+        <div style="text-align:center;">
+          <div id="leaveWeekLabel" style="font-family:'Noto Serif TC',serif;font-size:15px;font-weight:700;color:var(--ink);"></div>
+          <div id="leaveQuotaLabel" style="font-size:11px;color:var(--ink-faint);margin-top:2px;"></div>
+        </div>
+        <button id="leaveNextWeek" onclick="leaveWeekNav(1)" style="width:36px;height:36px;border:none;background:var(--border);border-radius:8px;font-size:18px;cursor:pointer;color:var(--ink);">›</button>
+      </div>
+      <!-- 月曆格子 -->
+      <div id="leaveCalGrid" style="padding:0 12px 12px;"></div>
+      <!-- 送出按鈕 -->
+      <div id="leaveSubmitWrap" style="padding:0 16px 16px;display:none;">
+        <button id="leaveSubmitBtn" onclick="submitLeaveSelection()" style="width:100%;padding:14px;background:var(--gold);border:none;border-radius:10px;font-family:'Noto Serif TC',serif;font-size:15px;font-weight:700;color:var(--ink);letter-spacing:2px;cursor:pointer;">確 認 送 出</button>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /appScreen -->
 
 <!-- Modals -->
 <div class="modal-mask" id="taskModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">新增任務</div><div class="modal-subtitle">建立後可指派並追蹤完成狀態</div><div class="field"><div class="field-label">任務類型</div><select class="sel" id="task_type"><option value="sales_task">📋 銷售跟進</option><option value="site_issue">⚠️ 現場問題</option><option value="reminder">🔔 提醒</option><option value="daily_follow">👥 客戶追蹤</option><option value="maintenance">🔧 維修</option></select></div><div class="field"><div class="field-label">任務標題 <span class="req">*</span></div><input class="inp" type="text" id="task_title" placeholder="例：聯絡王先生確認再訪日期"></div><div class="field"><div class="field-label">詳細說明</div><textarea class="ta" id="task_desc" placeholder="補充資訊…"></textarea></div><div class="field-row"><div class="field"><div class="field-label">優先度</div><select class="sel" id="task_priority"><option value="normal">一般</option><option value="high">高</option><option value="urgent">緊急</option><option value="low">低</option></select></div><div class="field"><div class="field-label">截止日期</div><input class="inp" type="date" id="task_due"></div></div><div class="field"><div class="field-label">指派對象</div><select class="sel" id="task_assign"><option value="">不指定</option></select></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('taskModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitTask()">建 立 任 務</button></div></div></div>
 <div class="modal-mask" id="reportModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">提交日報</div><div class="modal-subtitle">當日業績資料填寫</div><div class="field"><div class="field-label">日期</div><input class="inp" type="date" id="rep_date"></div><div class="field-row"><div class="field"><div class="field-label">接待總組數</div><input class="inp" type="number" id="rep_visitor" min="0" value="0"></div><div class="field"><div class="field-label">初訪</div><input class="inp" type="number" id="rep_first" min="0" value="0"></div></div><div class="field-row"><div class="field"><div class="field-label">回籠</div><input class="inp" type="number" id="rep_revisit" min="0" value="0"></div><div class="field"><div class="field-label">電訪</div><input class="inp" type="number" id="rep_call" min="0" value="0"></div></div><div class="field-row"><div class="field"><div class="field-label">成交</div><input class="inp" type="number" id="rep_deal" min="0" value="0"></div><div class="field"><div class="field-label">成交戶別</div><input class="inp" type="text" id="rep_units" placeholder="A3-12F"></div></div><div class="field"><div class="field-label">備註</div><textarea class="ta" id="rep_notes" placeholder="特殊事項…"></textarea></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('reportModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitReport()">提 交 日 報</button></div></div></div>
 <div class="modal-mask" id="maintModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">維修通報</div><div class="modal-subtitle">通報後將自動推播給主管</div><div class="field"><div class="field-label">問題類型 <span class="req">*</span></div><select class="sel" id="maint_type"><option value="">請選擇</option><option>燈具/電路</option><option>水管/漏水</option><option>空調</option><option>家具/門窗</option><option>清潔</option><option>樣品屋外觀</option><option>其他</option></select></div><div class="field"><div class="field-label">位置 / 戶別</div><input class="inp" type="text" id="maint_location" placeholder="例：A棟3F樣品屋客廳"></div><div class="field"><div class="field-label">問題描述 <span class="req">*</span></div><textarea class="ta" id="maint_desc" placeholder="詳細描述狀況…"></textarea></div><div class="field"><div class="field-label">優先度</div><select class="sel" id="maint_priority"><option value="normal">一般</option><option value="high" selected>高</option><option value="urgent">緊急</option></select></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('maintModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitMaint()">送 出 通 報</button></div></div></div>
+
+<!-- 主管排假 Modal -->
+<div class="modal-mask" id="leaveAssignModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">排假 / 取消假</div>
+    <div class="modal-subtitle" id="leaveAssignDateLabel"></div>
+    <div id="leaveAssignUserList" style="max-height:260px;overflow-y:auto;margin:10px 0 4px;"></div>
+    <button class="btn-mini" style="width:100%;padding:13px;margin-top:8px;" onclick="closeModal('leaveAssignModal')">關 閉</button>
+  </div>
+</div>
 
 <!-- 成交 Modal -->
 <div class="modal-mask" id="dealModal">
@@ -594,7 +638,7 @@
  * ============================================================ */
 
 // ★★★ 唯一需要你修改的地方 ★★★
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbyA40BvhLSVv78lDLiO6jWmycU3yfACFILxhcd_GDpn7IpUKdn_Ac-e-Dw-IKpq3IrT/exec';
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbyIs7cg02Ghlp3E5B-lumpVIwpuN8E9CEMPSkde1iuS-fwyJOhQ1LpXiluaR8ueHeCS/exec';
 
 var LIFF_ID     = '2009971664-MlqtPsqc';
 var TTL_DAYS    = 30;
@@ -825,6 +869,8 @@ function route(hash) {
     case '#/users':
       if (state.user.role === 'sales') { route('#/home'); return; }
       document.getElementById('viewUsers').classList.remove('hidden'); renderUserList(); break;
+    case '#/leave':
+      document.getElementById('viewLeave').classList.remove('hidden'); renderLeave(); break;
     default: route('#/home');
   }
 }
@@ -869,6 +915,17 @@ function renderHome() {
     document.getElementById('statVisitor').textContent = rows.length;
     document.getElementById('statRevisit').textContent = rows.filter(function(r){ return r.visit_type==='回籠'; }).length;
     document.getElementById('statDeal').textContent    = rows.filter(function(r){ return r.deal_status==='已成交'; }).length;
+  });
+
+  // 今日休假人員
+  gasGet('getTodayLeave', {}, function(res) {
+    var el = document.getElementById('todayLeaveDesc');
+    if (!el) return;
+    if (res.ok && res.data && res.data.length > 0) {
+      el.textContent = '今日休假：' + res.data.join('、');
+    } else {
+      el.textContent = '今日全員出勤 ✓';
+    }
   });
 }
 
@@ -1496,6 +1553,425 @@ function todayStr(){ return new Date().toISOString().split('T')[0]; }
 function getRadio(name){ var el=document.querySelector('input[name="'+name+'"]:checked'); return el?el.value:''; }
 function getChecks(name){ return Array.from(document.querySelectorAll('input[name="'+name+'"]:checked')).map(function(e){ return e.value; }); }
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+/* ══ Leave Schedule ══ */
+var leaveState = {
+  weekOffset: 0,
+  allLeaves:  [],
+  // 新增選取：{ 'yyyy-MM-dd': { uid, name } }
+  selected:   {},
+  // 取消選取：{ leave_id: true }
+  toDelete:   {},
+  // 主管用：當前操作對象（null = 自己）
+  targetUser: null,
+  // 全員清單（主管/admin 用）
+  userList:   []
+};
+
+function getWeekDates(offset) {
+  var now = new Date();
+  var dow = now.getDay() === 0 ? 6 : now.getDay() - 1;
+  var mon = new Date(now);
+  mon.setDate(now.getDate() - dow + offset * 7);
+  mon.setHours(0,0,0,0);
+  var days = [];
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(mon);
+    d.setDate(mon.getDate() + i);
+    days.push(d);
+  }
+  return days;
+}
+
+function dateToStr(d) {
+  return d.getFullYear() + '-' +
+    String(d.getMonth()+1).padStart(2,'0') + '-' +
+    String(d.getDate()).padStart(2,'0');
+}
+
+function renderLeave() {
+  leaveState.weekOffset = 0;
+  leaveState.selected   = {};
+  leaveState.toDelete   = {};
+  leaveState.targetUser = null;
+  leaveState.userList   = [];
+  // 主管/admin 預載人員清單
+  if (state.user.role === 'manager' || state.user.role === 'admin') {
+    gasGet('getUserList', { lineUserId: state.user.lineUserId }, function(res) {
+      if (res.ok) {
+        leaveState.userList = res.data.filter(function(u) {
+          return u.status === 'active';
+        }).map(function(u) {
+          return { uid: u.line_user_id, name: u.display_name };
+        });
+      }
+      loadLeaveData();
+    }, function() { loadLeaveData(); });
+  } else {
+    loadLeaveData();
+  }
+}
+
+function leaveWeekNav(dir) {
+  leaveState.weekOffset += dir;
+  leaveState.selected = {};
+  leaveState.toDelete = {};
+  renderLeaveGrid();
+}
+
+function loadLeaveData() {
+  var days  = getWeekDates(leaveState.weekOffset);
+  var start = dateToStr(new Date(days[0].getFullYear(), days[0].getMonth() - 1, 1));
+  var end   = dateToStr(new Date(days[6].getFullYear(), days[6].getMonth() + 2, 0));
+  document.getElementById('leaveCalGrid').innerHTML =
+    '<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div>';
+  gasGet('getLeaveSchedule', {
+    lineUserId: state.user.lineUserId, startDate: start, endDate: end
+  }, function(res) {
+    if (!res.ok) {
+      document.getElementById('leaveCalGrid').innerHTML =
+        '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">' + escapeHtml(res.error) + '</div></div>';
+      return;
+    }
+    leaveState.allLeaves = res.data || [];
+    renderLeaveGrid();
+  }, function() {
+    document.getElementById('leaveCalGrid').innerHTML =
+      '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">連線失敗</div></div>';
+  });
+}
+
+function renderLeaveGrid() {
+  var days    = getWeekDates(leaveState.weekOffset);
+  var myUid   = state.user.lineUserId;
+  var isAdmin = state.user.role === 'manager' || state.user.role === 'admin';
+
+  // 週標籤
+  var wd = ['一','二','三','四','五','六','日'];
+  var m1 = (days[0].getMonth()+1), m2 = (days[6].getMonth()+1);
+  var weekLabel = m1 === m2
+    ? m1 + ' 月 ' + days[0].getDate() + ' 日 — ' + days[6].getDate() + ' 日'
+    : m1 + '/' + days[0].getDate() + ' — ' + m2 + '/' + days[6].getDate();
+  document.getElementById('leaveWeekLabel').textContent = weekLabel;
+
+  // 本月配額顯示（自己的）
+  var curMonth  = dateToStr(days[0]).substring(0,7);
+  var myUsed    = leaveState.allLeaves.filter(function(r) {
+    return String(r.line_user_id) === String(myUid) &&
+           String(r.leave_date).substring(0,7) === curMonth;
+  }).length;
+  var myPending = Object.keys(leaveState.selected).filter(function(d) {
+    var sel = leaveState.selected[d];
+    return sel && sel.uid === myUid && d.substring(0,7) === curMonth;
+  }).length;
+  document.getElementById('leaveQuotaLabel').textContent =
+    '本月已休 ' + (myUsed + myPending) + ' / 8 天';
+
+  // 月曆格子
+  var html = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;">';
+  days.forEach(function(d, i) {
+    var ds       = dateToStr(d);
+    var isToday  = ds === todayStr();
+    var isPast   = ds < todayStr();
+    var isWeekend= i >= 5;
+
+    var dayLeaves = leaveState.allLeaves.filter(function(r) {
+      return String(r.leave_date).substring(0,10) === ds;
+    });
+
+    // 這一天有沒有「待送出的新增」
+    var pendingAdd = leaveState.selected[ds]; // { uid, name } or undefined
+
+    // 這一天有沒有「待送出的取消」
+    var pendingDel = dayLeaves.filter(function(lv) {
+      return !!leaveState.toDelete[lv.leave_id];
+    });
+
+    var hasMyLeave   = dayLeaves.some(function(r) { return String(r.line_user_id) === String(myUid); });
+    var hasPendingMe = pendingAdd && pendingAdd.uid === myUid;
+
+    var cellBorder = hasPendingMe
+      ? '2px solid var(--gold)'
+      : (pendingDel.length ? '2px solid var(--rust)' :
+        (hasMyLeave ? '2px solid var(--teal)' : '1.5px solid var(--border)'));
+    var cellBg = isToday ? 'var(--gold-soft)' : (isWeekend ? '#f0f0f5' : 'var(--surface)');
+
+    html += '<div onclick="leaveCellClick('' + ds + '')" style="' +
+      'background:' + cellBg + ';border:' + cellBorder + ';' +
+      'border-radius:10px;padding:8px 4px 6px;text-align:center;' +
+      'cursor:' + (isPast ? 'default' : 'pointer') + ';' +
+      'min-height:90px;position:relative;user-select:none;">' +
+      '<div style="font-size:10px;color:' + (isWeekend?'var(--rust)':'var(--ink-faint)') + ';margin-bottom:2px;">週' + wd[i] + '</div>' +
+      '<div style="font-size:14px;font-weight:600;color:' + (isToday?'var(--gold)':'var(--ink)') + ';margin-bottom:5px;">' + d.getDate() + '</div>';
+
+    // 已登記的人員 tag
+    dayLeaves.forEach(function(lv) {
+      var isMine = String(lv.line_user_id) === String(myUid);
+      var isDel  = !!leaveState.toDelete[lv.leave_id];
+      var tagBg    = isDel ? 'var(--rust-soft)' : (isMine ? 'var(--teal-soft)' : 'var(--gold-soft)');
+      var tagColor = isDel ? 'var(--rust)'      : (isMine ? 'var(--teal)'      : '#7a6020');
+      html += '<div style="background:' + tagBg + ';color:' + tagColor + ';' +
+        'font-size:10px;border-radius:4px;padding:2px 4px;margin:1px 0;line-height:1.4;">' +
+        (isDel ? '✕ ' : '') + escapeHtml(lv.display_name) + '</div>';
+    });
+
+    // 待送出的新增 tag
+    if (pendingAdd) {
+      html += '<div style="background:rgba(201,168,76,0.15);color:var(--gold);' +
+        'font-size:10px;border-radius:4px;padding:2px 4px;margin:1px 0;line-height:1.4;">＋' +
+        escapeHtml(pendingAdd.name) + '</div>';
+    }
+
+    html += '</div>';
+  });
+  html += '</div>';
+
+  document.getElementById('leaveCalGrid').innerHTML = html;
+  updateLeaveSubmitBtn();
+}
+
+/* ── 點擊格子 ── */
+function leaveCellClick(ds) {
+  var myUid   = state.user.lineUserId;
+  var myName  = state.user.displayName;
+  var isAdmin = state.user.role === 'manager' || state.user.role === 'admin';
+  var isPast  = ds < todayStr();
+  if (isPast) return;
+
+  if (isAdmin) {
+    // 主管：判斷這一天有沒有已登記紀錄
+    var dayLeaves = leaveState.allLeaves.filter(function(r) {
+      return String(r.leave_date).substring(0,10) === ds;
+    });
+    var pendingAdd = leaveState.selected[ds];
+    var myLeave    = dayLeaves.find(function(r) { return String(r.line_user_id) === String(myUid); });
+
+    // 如果已有「待新增」選取，直接取消它
+    if (pendingAdd) {
+      delete leaveState.selected[ds];
+      renderLeaveGrid();
+      return;
+    }
+
+    // 如果自己已登記，允許直接切換取消
+    if (myLeave) {
+      if (leaveState.toDelete[myLeave.leave_id]) {
+        delete leaveState.toDelete[myLeave.leave_id];
+      } else {
+        leaveState.toDelete[myLeave.leave_id] = true;
+      }
+      renderLeaveGrid();
+      return;
+    }
+
+    // 否則彈出「幫誰排假」modal
+    openLeaveAssignModal(ds, dayLeaves);
+  } else {
+    // 業務：只能操作自己
+    var myLeave = leaveState.allLeaves.find(function(r) {
+      return String(r.leave_date).substring(0,10) === ds &&
+             String(r.line_user_id) === String(myUid);
+    });
+    if (myLeave) {
+      if (leaveState.toDelete[myLeave.leave_id]) {
+        delete leaveState.toDelete[myLeave.leave_id];
+      } else {
+        leaveState.toDelete[myLeave.leave_id] = true;
+      }
+    } else {
+      var curMonth  = ds.substring(0,7);
+      var usedCount = leaveState.allLeaves.filter(function(r) {
+        return String(r.line_user_id) === String(myUid) &&
+               String(r.leave_date).substring(0,7) === curMonth;
+      }).length;
+      var addCount = Object.keys(leaveState.selected).filter(function(d) {
+        return leaveState.selected[d] && leaveState.selected[d].uid === myUid &&
+               d.substring(0,7) === curMonth;
+      }).length;
+      if (leaveState.selected[ds]) {
+        delete leaveState.selected[ds];
+      } else {
+        if (usedCount + addCount >= 8) { showToast('本月已達休假上限（8 天）', 'error'); return; }
+        leaveState.selected[ds] = { uid: myUid, name: myName };
+      }
+    }
+    renderLeaveGrid();
+  }
+}
+
+/* ── 主管排假 Modal ── */
+function openLeaveAssignModal(ds, dayLeaves) {
+  leaveState._assignDate = ds;
+
+  // 日期標題
+  var d = new Date(ds + 'T00:00:00');
+  var wd = ['日','一','二','三','四','五','六'];
+  document.getElementById('leaveAssignDateLabel').textContent =
+    (d.getMonth()+1) + ' 月 ' + d.getDate() + ' 日（週' + wd[d.getDay()] + '）';
+
+  // 渲染人員選項
+  var ul = document.getElementById('leaveAssignUserList');
+  ul.innerHTML = '';
+
+  var allUsers = leaveState.userList.length
+    ? leaveState.userList
+    : [{ uid: state.user.lineUserId, name: state.user.displayName }];
+
+  allUsers.forEach(function(u) {
+    var alreadyOn = dayLeaves.some(function(lv) { return String(lv.line_user_id) === String(u.uid); });
+    // 已登記的人：顯示為可取消
+    var existLv = dayLeaves.find(function(lv) { return String(lv.line_user_id) === String(u.uid); });
+
+    var li = document.createElement('div');
+    li.style.cssText = 'display:flex;align-items:center;justify-content:space-between;' +
+      'padding:12px 0;border-bottom:1px solid var(--border);';
+
+    var nameSpan = document.createElement('div');
+    nameSpan.style.cssText = 'font-size:14px;color:var(--ink);font-weight:' + (alreadyOn?'500':'300') + ';';
+    nameSpan.textContent = u.name + (alreadyOn ? ' ✓' : '');
+
+    var btn = document.createElement('button');
+    btn.style.cssText = 'padding:6px 16px;border:none;border-radius:8px;font-family:inherit;' +
+      'font-size:12px;cursor:pointer;font-weight:600;' +
+      (alreadyOn
+        ? 'background:var(--rust-soft);color:var(--rust);'
+        : 'background:var(--teal-soft);color:var(--teal);');
+    btn.textContent = alreadyOn ? '取消休假' : '排休假';
+    btn.onclick = function() {
+      closeModal('leaveAssignModal');
+      if (alreadyOn && existLv) {
+        // 標記取消
+        leaveState.toDelete[existLv.leave_id] = true;
+      } else {
+        // 標記新增（配額檢查）
+        var curMonth  = ds.substring(0,7);
+        var usedCount = leaveState.allLeaves.filter(function(r) {
+          return String(r.line_user_id) === String(u.uid) &&
+                 String(r.leave_date).substring(0,7) === curMonth;
+        }).length;
+        var addCount = Object.keys(leaveState.selected).filter(function(d) {
+          return leaveState.selected[d] && leaveState.selected[d].uid === u.uid &&
+                 d.substring(0,7) === curMonth;
+        }).length;
+        if (usedCount + addCount >= 8) {
+          showToast(u.name + ' 本月已達休假上限', 'error');
+          return;
+        }
+        leaveState.selected[ds] = { uid: u.uid, name: u.name };
+      }
+      renderLeaveGrid();
+    };
+
+    li.appendChild(nameSpan);
+    li.appendChild(btn);
+    ul.appendChild(li);
+  });
+
+  openModal('leaveAssignModal');
+}
+
+/* ── 送出按鈕文字更新 ── */
+function updateLeaveSubmitBtn() {
+  var addEntries = Object.keys(leaveState.selected).filter(function(d) { return leaveState.selected[d]; });
+  var delIds     = Object.keys(leaveState.toDelete).filter(function(id) { return leaveState.toDelete[id]; });
+  var wrap = document.getElementById('leaveSubmitWrap');
+  var btn  = document.getElementById('leaveSubmitBtn');
+  if (!wrap || !btn) return;
+
+  if (addEntries.length + delIds.length === 0) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+
+  var parts = [];
+  if (addEntries.length) {
+    var addSummary = addEntries.sort().map(function(d) {
+      var sel = leaveState.selected[d];
+      return sel.name + ' ' + d;
+    });
+    parts.push('排休：' + addSummary.join('、'));
+  }
+  if (delIds.length) {
+    var delSummary = delIds.map(function(id) {
+      var lv = leaveState.allLeaves.find(function(r) { return r.leave_id === id; });
+      return lv ? lv.display_name + ' ' + String(lv.leave_date).substring(0,10) : id;
+    });
+    parts.push('取消：' + delSummary.sort().join('、'));
+  }
+  btn.textContent = parts.join('｜');
+}
+
+/* ── 確認送出 ── */
+function submitLeaveSelection() {
+  var addEntries = Object.keys(leaveState.selected).filter(function(d) { return leaveState.selected[d]; });
+  var delIds     = Object.keys(leaveState.toDelete).filter(function(id) { return leaveState.toDelete[id]; });
+  if (addEntries.length + delIds.length === 0) return;
+
+  var msgLines = [];
+  if (addEntries.length) {
+    addEntries.sort().forEach(function(d) {
+      var sel = leaveState.selected[d];
+      msgLines.push('＋ ' + sel.name + '  ' + d);
+    });
+  }
+  if (delIds.length) {
+    delIds.forEach(function(id) {
+      var lv = leaveState.allLeaves.find(function(r) { return r.leave_id === id; });
+      msgLines.push('✕ ' + (lv ? lv.display_name + '  ' + String(lv.leave_date).substring(0,10) : id));
+    });
+  }
+  if (!confirm('確認以下變更？
+
+' + msgLines.join('
+') + '
+
+送出後無法撤銷。')) return;
+
+  var btn = document.getElementById('leaveSubmitBtn');
+  btn.disabled = true; btn.textContent = '送出中…';
+
+  // 按目標人員分組批次送出
+  var groupedAdd = {};
+  addEntries.forEach(function(d) {
+    var sel = leaveState.selected[d];
+    var key = sel.uid + '||' + sel.name;
+    if (!groupedAdd[key]) groupedAdd[key] = { uid: sel.uid, name: sel.name, dates: [] };
+    groupedAdd[key].dates.push(d);
+  });
+
+  var tasks = [];
+  Object.keys(groupedAdd).forEach(function(key) {
+    var g = groupedAdd[key];
+    tasks.push(new Promise(function(resolve) {
+      gasPost('appendLeave', {
+        lineUserId:          state.user.lineUserId,
+        targetLineUserId:    g.uid,
+        targetDisplayName:   g.name,
+        dates:               g.dates
+      }, function(res) {
+        if (!res.ok) showToast('新增失敗（' + g.name + '）：' + res.error, 'error');
+        resolve();
+      }, function() { showToast('連線失敗', 'error'); resolve(); });
+    }));
+  });
+
+  delIds.forEach(function(id) {
+    tasks.push(new Promise(function(resolve) {
+      gasPost('deleteLeave', {
+        lineUserId: state.user.lineUserId, leave_id: id
+      }, function(res) {
+        if (!res.ok) showToast('取消失敗：' + res.error, 'error');
+        resolve();
+      }, function() { showToast('連線失敗', 'error'); resolve(); });
+    }));
+  });
+
+  Promise.all(tasks).then(function() {
+    showToast('假表已更新', 'success');
+    btn.disabled = false;
+    leaveState.selected = {};
+    leaveState.toDelete = {};
+    loadLeaveData();
+  });
+}
+
 </script>
 </body>
 </html>
