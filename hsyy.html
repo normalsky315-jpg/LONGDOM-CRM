@@ -1722,7 +1722,7 @@ function renderLeaveGrid() {
         (hasMyLeave ? '2px solid var(--teal)' : '1.5px solid var(--border)'));
     var cellBg = isToday ? 'var(--gold-soft)' : (isWeekend ? '#f0f0f5' : 'var(--surface)');
 
-    html += '<div onclick="leaveCellClick('' + ds + '')" style="' +
+    html += '<div onclick="leaveCellClick(\'' + ds + '\')" style="' +
       'background:' + cellBg + ';border:' + cellBorder + ';' +
       'border-radius:10px;padding:8px 4px 6px;text-align:center;' +
       'cursor:' + (isPast ? 'default' : 'pointer') + ';' +
