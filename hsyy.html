@@ -665,31 +665,39 @@ var DISTRICTS = ['楠梓區','左營區','鼓山區','三民區','苓雅區','�
 window.addEventListener('DOMContentLoaded', function(){ initApp(); });
 
 async function initApp() {
+  // ── 快速路徑：有完整 session 直接進 app，LIFF init 完全跳過 ──
   var saved = loadSession();
   if (saved && saved.lineUserId && saved.userData) {
-    try {
-      liff.init({ liffId: LIFF_ID }).then(function() {
-        if (liff.isLoggedIn()) liff.getProfile().then(function(p){ state.liffProfile = p; }).catch(function(){});
-      }).catch(function(){});
-    } catch(e){}
+    state.liffProfile = { userId: saved.lineUserId, displayName: saved.userData.displayName || '' };
     onLoginSuccess(saved.userData);
     return;
   }
 
+  // ── 正常路徑：需要 LIFF 取得 userId ──
+  var liffOk = false;
   try {
     await Promise.race([
       liff.init({ liffId: LIFF_ID }),
-      new Promise(function(_, reject){ setTimeout(function(){ reject(new Error('timeout')); }, 6000); })
+      new Promise(function(_, reject){
+        setTimeout(function(){ reject(new Error('liff_timeout')); }, 8000);
+      })
     ]);
-    if (liff.isLoggedIn()) {
-      try { state.liffProfile = await liff.getProfile(); } catch(e){}
-    } else {
-      liff.login();
-      return;
-    }
+    liffOk = true;
   } catch(err) {
     console.warn('LIFF init failed or timeout:', err.message);
+    // 降級：沒有 lineUserId，讓使用者用密碼登入
     state.liffProfile = { userId: '', displayName: '' };
+  }
+
+  if (liffOk) {
+    if (!liff.isLoggedIn()) {
+      // 只有在明確「沒登入」才跳 LINE 登入，避免重複跳轉
+      try { liff.login(); } catch(e){ showLogin(); }
+      return;
+    }
+    try { state.liffProfile = await liff.getProfile(); } catch(e){
+      state.liffProfile = { userId: '', displayName: '' };
+    }
   }
 
   proceedAfterProfile();
@@ -698,13 +706,32 @@ async function initApp() {
 function proceedAfterProfile() {
   var saved = loadSession();
   if (saved && saved.lineUserId) {
+    // checkAutoLogin 加逾時保護：GAS 沒回應 10 秒就清 session 跳登入
+    var settled = false;
+    var fallback = setTimeout(function() {
+      if (settled) return;
+      settled = true;
+      console.warn('checkAutoLogin timeout, falling back to login');
+      clearSession();
+      showLogin();
+    }, 10000);
+
     gasGet('checkAutoLogin', { lineUserId: saved.lineUserId }, function(res) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(fallback);
       if (res.ok) {
         if (res.data.status === 'pending') { showScreen('pendingScreen'); return; }
         saveSession(saved.lineUserId, res.data);
         onLoginSuccess(res.data);
       } else { clearSession(); showLogin(); }
-    }, function() { clearSession(); showLogin(); });
+    }, function() {
+      if (settled) return;
+      settled = true;
+      clearTimeout(fallback);
+      clearSession();
+      showLogin();
+    });
   } else { showLogin(); }
 }
 
