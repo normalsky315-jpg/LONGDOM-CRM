@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>華雄音樂匯 CRM</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700&family=Noto+Sans+TC:wght@300;400;500&display=swap" rel="stylesheet">
-<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js" defer></script>
 <style>
   :root {
     --cream:#FAF8F4; --ink:#1A1A2E; --ink-light:#4A4A6A; --ink-faint:#8A8AA0;
@@ -248,6 +248,21 @@
   <div class="spinner"></div>
   <div class="loading-text">LOADING</div>
 </div>
+
+<!-- 緊急保險：3 秒後若仍停在 loading，強制跳登入 -->
+<script>
+(function(){
+  var _t = setTimeout(function(){
+    var ls = document.getElementById('loadingScreen');
+    if (!ls || !ls.classList.contains('active')) return;
+    document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); s.style.display='none'; });
+    var login = document.getElementById('loginScreen');
+    if (login){ login.classList.add('active'); login.style.display='flex'; }
+    setTimeout(function(){ if(typeof showLogin==='function') showLogin(); }, 100);
+  }, 3000);
+  window._emergencyTimer = _t;
+})();
+</script>
 
 <!-- Login -->
 <div class="screen" id="loginScreen">
@@ -638,7 +653,7 @@
  * ============================================================ */
 
 // ★★★ 唯一需要你修改的地方 ★★★
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbwxYyDKdK7TWUbFowQXCH0GQz9eKV618cycWmQbhb9vTiU5TIcU9az6JuJ6vDpanUDl/exec';
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbztLETAhpo3707Kzfvhg33aMqd959eI0whFrktt7i1g6Idau1oX0f9wnaZcKR_h4S57/exec';
 
 var LIFF_ID     = '2009971664-MlqtPsqc';
 var TTL_DAYS    = 30;
@@ -665,17 +680,29 @@ var DISTRICTS = ['楠梓區','左營區','鼓山區','三民區','苓雅區','�
 window.addEventListener('DOMContentLoaded', function(){ initApp(); });
 
 async function initApp() {
-  // ── 快速路徑：有完整 session 直接進 app，LIFF init 完全跳過 ──
-  var saved = loadSession();
-  if (saved && saved.lineUserId && saved.userData) {
-    state.liffProfile = { userId: saved.lineUserId, displayName: saved.userData.displayName || '' };
-    onLoginSuccess(saved.userData);
+  // ★ 修正：移除 userData 快取直接進 app 的路徑
+  // role 每次都重新從 GAS 抓，確保角色變更即時生效
+
+  // ── 非 LINE App 環境（一般瀏覽器）直接跳過 LIFF，用密碼登入 ──
+  var isInLine = /Line\//i.test(navigator.userAgent);
+  if (!isInLine) {
+    clearTimeout(window._emergencyTimer);
+    state.liffProfile = { userId: '', displayName: '' };
+    proceedAfterProfile();
     return;
   }
 
-  // ── 正常路徑：需要 LIFF 取得 userId ──
+  // ── LINE App 環境：正常走 LIFF 流程 ──
   var liffOk = false;
   try {
+    // defer 載入時等待 liff 物件就緒（最多 5 秒）
+    var liffWait = 0;
+    while (typeof liff === 'undefined' && liffWait < 5000) {
+      await new Promise(function(r){ setTimeout(r, 200); });
+      liffWait += 200;
+    }
+    if (typeof liff === 'undefined') throw new Error('liff_not_loaded');
+
     await Promise.race([
       liff.init({ liffId: LIFF_ID }),
       new Promise(function(_, reject){
@@ -685,14 +712,13 @@ async function initApp() {
     liffOk = true;
   } catch(err) {
     console.warn('LIFF init failed or timeout:', err.message);
-    // 降級：沒有 lineUserId，讓使用者用密碼登入
     state.liffProfile = { userId: '', displayName: '' };
   }
 
   if (liffOk) {
     if (!liff.isLoggedIn()) {
-      // 只有在明確「沒登入」才跳 LINE 登入，避免重複跳轉
-      try { liff.login(); } catch(e){ showLogin(); }
+      try { liff.login(); } catch(e){ clearTimeout(window._emergencyTimer); showLogin(); return; }
+      setTimeout(function(){ clearTimeout(window._emergencyTimer); showLogin(); }, 5000);
       return;
     }
     try { state.liffProfile = await liff.getProfile(); } catch(e){
@@ -700,6 +726,7 @@ async function initApp() {
     }
   }
 
+  clearTimeout(window._emergencyTimer);
   proceedAfterProfile();
 }
 
@@ -736,10 +763,10 @@ function proceedAfterProfile() {
 }
 
 /* ══ Session ══ */
+// ★ 修正：只存 lineUserId，不存 userData/role，避免 role 快取問題
 function saveSession(userId, userData) {
   try {
     var obj = { lineUserId: userId, expiresAt: Date.now() + TTL_DAYS*24*3600*1000 };
-    if (userData) obj.userData = userData;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
   } catch(e){}
 }
