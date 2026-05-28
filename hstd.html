@@ -594,7 +594,7 @@
  * ============================================================ */
 
 // ★★★ 唯一需要你修改的地方 ★★★
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbwGEjYrC1GHBOU7kp7oeaS5UboDuW-1z3nUT4IkfBhJCaRr2pcFSuOPLyy3YVFmkp-H/exec';
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbzwe1nvLEk3-BkVWktQFDiv-NKzL-kZ8Exv64dk-Li0RDhUa7_ZHg58iz98dB-6jsmr/exec';
 
 var LIFF_ID     = '2009971664-AVRlRYHb';
 var TTL_DAYS    = 30;
@@ -621,16 +621,8 @@ var DISTRICTS = ['楠梓區','左營區','鼓山區','三民區','苓雅區','�
 window.addEventListener('DOMContentLoaded', function(){ initApp(); });
 
 async function initApp() {
-  var saved = loadSession();
-  if (saved && saved.lineUserId && saved.userData) {
-    try {
-      liff.init({ liffId: LIFF_ID }).then(function() {
-        if (liff.isLoggedIn()) liff.getProfile().then(function(p){ state.liffProfile = p; }).catch(function(){});
-      }).catch(function(){});
-    } catch(e){}
-    onLoginSuccess(saved.userData);
-    return;
-  }
+  // ★ 修正：不再從 localStorage 讀取 userData 直接登入
+  // 每次開啟都必須向 GAS 驗證 role，確保角色變更即時生效
 
   try {
     await Promise.race([
@@ -645,6 +637,7 @@ async function initApp() {
     }
   } catch(err) {
     console.warn('LIFF init failed or timeout:', err.message);
+    // LIFF 失敗時，嘗試用 localStorage 的 lineUserId 繼續
     state.liffProfile = { userId: '', displayName: '' };
   }
 
@@ -654,21 +647,39 @@ async function initApp() {
 function proceedAfterProfile() {
   var saved = loadSession();
   if (saved && saved.lineUserId) {
+    // ★ 加上 timeout 保護：GAS 超過 8 秒沒回應就跳登入畫面，不卡 loading
+    var timedOut = false;
+    var timer = setTimeout(function() {
+      timedOut = true;
+      console.warn('checkAutoLogin timeout, fallback to login');
+      clearSession();
+      showLogin();
+    }, 8000);
+
     gasGet('checkAutoLogin', { lineUserId: saved.lineUserId }, function(res) {
+      if (timedOut) return;
+      clearTimeout(timer);
       if (res.ok) {
         if (res.data.status === 'pending') { showScreen('pendingScreen'); return; }
         saveSession(saved.lineUserId, res.data);
         onLoginSuccess(res.data);
       } else { clearSession(); showLogin(); }
-    }, function() { clearSession(); showLogin(); });
+    }, function() {
+      if (timedOut) return;
+      clearTimeout(timer);
+      clearSession();
+      showLogin();
+    });
   } else { showLogin(); }
 }
 
 /* ══ Session ══ */
+// ★ 修正：只存 lineUserId，不存 userData/role
+// role 每次登入都從 GAS 重新抓，確保角色變更即時生效
 function saveSession(userId, userData) {
   try {
     var obj = { lineUserId: userId, expiresAt: Date.now() + TTL_DAYS*24*3600*1000 };
-    if (userData) obj.userData = userData;
+    // 故意不儲存 userData，避免 role 快取問題
     localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
   } catch(e){}
 }
