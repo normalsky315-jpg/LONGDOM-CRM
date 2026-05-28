@@ -248,8 +248,7 @@
   <div class="spinner"></div>
   <div class="loading-text">LOADING</div>
 </div>
-
-<!-- 緊急保險：3 秒後若仍停在 loading，強制跳登入 -->
+<!-- 緊急保險：2 秒後若仍停在 loading，強制跳登入 -->
 <script>
 (function(){
   var _t = setTimeout(function(){
@@ -258,8 +257,9 @@
     document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); s.style.display='none'; });
     var login = document.getElementById('loginScreen');
     if (login){ login.classList.add('active'); login.style.display='flex'; }
+    // 補載入專案列表（gasGet 可能尚未定義，延遲執行）
     setTimeout(function(){ if(typeof showLogin==='function') showLogin(); }, 100);
-  }, 3000);
+  }, 2000);
   window._emergencyTimer = _t;
 })();
 </script>
@@ -653,7 +653,7 @@
  * ============================================================ */
 
 // ★★★ 唯一需要你修改的地方 ★★★
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbztLETAhpo3707Kzfvhg33aMqd959eI0whFrktt7i1g6Idau1oX0f9wnaZcKR_h4S57/exec';
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbxIeI8D_4l_bXloYDTjSqF1lyAqGW9J9CzdAP-zn_b0DvNh88MWqJAdyzCkcjjPuBqG/exec';
 
 var LIFF_ID     = '2009971664-MlqtPsqc';
 var TTL_DAYS    = 30;
@@ -680,10 +680,16 @@ var DISTRICTS = ['楠梓區','左營區','鼓山區','三民區','苓雅區','�
 window.addEventListener('DOMContentLoaded', function(){ initApp(); });
 
 async function initApp() {
-  // ★ 修正：移除 userData 快取直接進 app 的路徑
-  // role 每次都重新從 GAS 抓，確保角色變更即時生效
+  // ── 快速路徑：有完整 session 直接進 app ──
+  var saved = loadSession();
+  if (saved && saved.lineUserId && saved.userData) {
+    clearTimeout(window._emergencyTimer);
+    state.liffProfile = { userId: saved.lineUserId, displayName: saved.userData.displayName || '' };
+    onLoginSuccess(saved.userData);
+    return;
+  }
 
-  // ── 非 LINE App 環境（一般瀏覽器）直接跳過 LIFF，用密碼登入 ──
+  // ── 非 LINE App 環境（一般瀏覽器）直接跳密碼登入 ──
   var isInLine = /Line\//i.test(navigator.userAgent);
   if (!isInLine) {
     clearTimeout(window._emergencyTimer);
@@ -692,10 +698,10 @@ async function initApp() {
     return;
   }
 
-  // ── LINE App 環境：正常走 LIFF 流程 ──
+  // ── LINE App 環境：走 LIFF 流程 ──
   var liffOk = false;
   try {
-    // defer 載入時等待 liff 物件就緒（最多 5 秒）
+    // 等 liff 物件真正存在（defer 載入時可能還沒好）
     var liffWait = 0;
     while (typeof liff === 'undefined' && liffWait < 5000) {
       await new Promise(function(r){ setTimeout(r, 200); });
@@ -763,10 +769,10 @@ function proceedAfterProfile() {
 }
 
 /* ══ Session ══ */
-// ★ 修正：只存 lineUserId，不存 userData/role，避免 role 快取問題
 function saveSession(userId, userData) {
   try {
     var obj = { lineUserId: userId, expiresAt: Date.now() + TTL_DAYS*24*3600*1000 };
+    if (userData) obj.userData = userData;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
   } catch(e){}
 }
@@ -782,6 +788,24 @@ function loadSession() {
 function clearSession() { try { localStorage.removeItem(STORAGE_KEY); } catch(e){} }
 
 /* ══ API：GET ══ */
+function gasFetch(url, onSuccess, onFail) {
+  var controller = new AbortController();
+  var timer = setTimeout(function(){ controller.abort(); }, 10000); // 10 秒 timeout
+  fetch(url, { signal: controller.signal })
+    .then(function(r){
+      clearTimeout(timer);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(data){ if (onSuccess) onSuccess(data); })
+    .catch(function(err){
+      clearTimeout(timer);
+      console.error('gasFetch', url, err);
+      if (onFail) onFail(err);
+      else console.warn('gasFetch uncaught error:', err);
+    });
+}
+
 function gasGet(action, params, onSuccess, onFail) {
   var url = GAS_URL + '?action=' + encodeURIComponent(action);
   if (params) {
@@ -789,20 +813,14 @@ function gasGet(action, params, onSuccess, onFail) {
       if (params[k] != null) url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
     });
   }
-  fetch(url)
-    .then(function(r){ return r.json(); })
-    .then(function(data){ if (onSuccess) onSuccess(data); })
-    .catch(function(err){ console.error('gasGet', action, err); if (onFail) onFail(err); });
+  gasFetch(url, onSuccess, onFail);
 }
 
 /* ══ API：POST → 改用 GET+payload 避免 CORS ══ */
 function gasPost(action, payload, onSuccess, onFail) {
   var url = GAS_URL + '?action=' + encodeURIComponent(action)
             + '&payload=' + encodeURIComponent(JSON.stringify(payload || {}));
-  fetch(url)
-    .then(function(r){ return r.json(); })
-    .then(function(data){ if (onSuccess) onSuccess(data); })
-    .catch(function(err){ console.error('gasPost', action, err); if (onFail) onFail(err); });
+  gasFetch(url, onSuccess, onFail);
 }
 
 /* ══ Screen 切換 ══ */
@@ -839,14 +857,15 @@ function showLogin() {
 }
 
 function doLogin() {
-  var pwd = document.getElementById('loginPwd').value;
+  var pwd = document.getElementById('loginPwd').value.trim();
   var btn = document.getElementById('loginBtn');
-  document.getElementById('loginErr').classList.remove('show');
+  var errEl = document.getElementById('loginErr');
+  if (errEl) errEl.classList.remove('show');
   if (!pwd) { showLoginErr('請輸入密碼'); return; }
 
   btn.disabled = true; btn.textContent = '驗證中…';
 
-  var selectedProject = document.getElementById('loginProjectSel').value;
+  var selectedProject = document.getElementById('loginProjectSel') ? document.getElementById('loginProjectSel').value : '';
 
   gasPost('verifyAccess', {
     lineUserId: state.liffProfile ? state.liffProfile.userId : '',
@@ -855,12 +874,13 @@ function doLogin() {
     selectedProject: selectedProject
   }, function(res) {
     btn.disabled = false; btn.textContent = '進 入 系 統';
-    if (!res.ok) { showLoginErr(res.error || '驗證失敗'); return; }
+    if (!res || !res.ok) { showLoginErr((res && res.error) ? res.error : '驗證失敗，請確認密碼'); return; }
 
     var d = res.data;
     if (d.status === 'pending') {
       if (!selectedProject) {
-        document.getElementById('loginProjectWrap').classList.remove('hidden');
+        var wrap = document.getElementById('loginProjectWrap');
+        if (wrap) wrap.classList.remove('hidden');
         showLoginErr('請選擇您所屬的案場，再按一次進入');
         return;
       }
@@ -871,9 +891,12 @@ function doLogin() {
 
     saveSession(d.lineUserId || (state.liffProfile && state.liffProfile.userId) || '', d);
     onLoginSuccess(d);
-  }, function() {
+  }, function(err) {
     btn.disabled = false; btn.textContent = '進 入 系 統';
-    showLoginErr('連線失敗，請確認網路後再試');
+    var msg = '連線失敗';
+    if (err && err.name === 'AbortError') msg = '連線逾時（10秒），請確認網路後再試';
+    else if (err && err.message) msg = '連線失敗：' + err.message;
+    showLoginErr(msg);
   });
 }
 
