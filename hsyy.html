@@ -1997,12 +1997,7 @@ function submitLeaveSelection() {
       msgLines.push('✕ ' + (lv ? lv.display_name + '  ' + String(lv.leave_date).substring(0,10) : id));
     });
   }
-  if (!confirm('確認以下變更？
-
-' + msgLines.join('
-') + '
-
-送出後無法撤銷。')) return;
+  if (!confirm('確認以下變更？\n\n' + msgLines.join('\n') + '\n\n送出後無法撤銷。')) return;
 
   var btn = document.getElementById('leaveSubmitBtn');
   btn.disabled = true; btn.textContent = '送出中…';
