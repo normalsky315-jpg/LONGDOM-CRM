@@ -660,7 +660,7 @@ var TTL_DAYS    = 30;
 var STORAGE_KEY = 'long_dorn_crm_hsyy';
 
 var state = {
-  liffProfile: null,
+  liffProfile: { userId: '', displayName: '' },
   user: null,
   projects: [],
   industries: [],
@@ -769,10 +769,10 @@ function proceedAfterProfile() {
 }
 
 /* ══ Session ══ */
+// ★ 修正：只存 lineUserId，不存 userData/role，避免 role 快取問題
 function saveSession(userId, userData) {
   try {
     var obj = { lineUserId: userId, expiresAt: Date.now() + TTL_DAYS*24*3600*1000 };
-    if (userData) obj.userData = userData;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
   } catch(e){}
 }
