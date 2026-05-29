@@ -907,8 +907,11 @@ function showLoginErr(msg) {
 
 function onLoginSuccess(user) {
   state.user = user;
+  clearTimeout(window._emergencyTimer);
   showScreen('appScreen');
-  loadGlobalData(function(){ route(location.hash || '#/home'); });
+  route(location.hash || '#/home');
+  loadGlobalData(function(){});
+  showToast((user.displayName || '您') + ' 登入成功 ✓', 'success');
 }
 
 function logout() {
