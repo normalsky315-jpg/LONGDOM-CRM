@@ -789,16 +789,31 @@ function clearSession() { try { localStorage.removeItem(STORAGE_KEY); } catch(e)
 
 /* ══ API：GET ══ */
 function gasFetch(url, onSuccess, onFail) {
-  var controller = new AbortController();
-  var timer = setTimeout(function(){ controller.abort(); }, 10000); // 10 秒 timeout
-  fetch(url, { signal: controller.signal })
+  var done = false;
+  var timer = setTimeout(function(){
+    if (done) return;
+    done = true;
+    var err = new Error('連線逾時（10秒）');
+    err.name = 'AbortError';
+    if (onFail) onFail(err);
+    else console.warn('gasFetch timeout:', url);
+  }, 10000);
+
+  fetch(url)
     .then(function(r){
-      clearTimeout(timer);
+      if (done) return;
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
     })
-    .then(function(data){ if (onSuccess) onSuccess(data); })
+    .then(function(data){
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      if (onSuccess) onSuccess(data);
+    })
     .catch(function(err){
+      if (done) return;
+      done = true;
       clearTimeout(timer);
       console.error('gasFetch', url, err);
       if (onFail) onFail(err);
