@@ -6,5 +6,4 @@ if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
   exit 0
 fi
 
-echo "LONGDOM-CRM: pure HTML project, no dependencies to install."
-echo "Environment ready."
+echo "LONGDOM-CRM 雲端環境就緒：純 HTML 專案，無需安裝套件。"
