@@ -261,6 +261,8 @@ function doGet(e) {
         return jsonResponse(addCalendarNote(payload));
       case 'deleteCalendarNote':
         return jsonResponse(deleteCalendarNote(payload));
+      case 'generateWeeklyLeaveReport':
+        return jsonResponse(generateWeeklyLeaveReport(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
       default:
         return jsonResponse({ ok: false, error: '未知 action: ' + action });
     }
@@ -1172,6 +1174,61 @@ function deleteCalendarNote(payload) {
       return ok({ note_id: payload.note_id });
     }
     return fail('找不到該筆事項');
+  } catch (err) { return fail(err.message); }
+}
+
+// ★ 產生下週休假通報（排除 SKY 陳昭文），並推播給案場管理員
+function generateWeeklyLeaveReport(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx && payload && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
+    if (!ctx) return fail('未授權');
+    if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限');
+
+    var EXCLUDE_NAME = 'SKY 陳昭文';
+
+    // 計算下週一~下週日
+    var now = new Date();
+    var dow = now.getDay() === 0 ? 6 : now.getDay() - 1;
+    var thisMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow);
+    var nextMonday = new Date(thisMonday.getFullYear(), thisMonday.getMonth(), thisMonday.getDate() + 7);
+
+    var days = [];
+    for (var i = 0; i < 7; i++) {
+      days.push(new Date(nextMonday.getFullYear(), nextMonday.getMonth(), nextMonday.getDate() + i));
+    }
+
+    var rows = readSheetAsObjects(CONFIG.SHEETS.LEAVE_SCHEDULE).filter(function(r) {
+      return String(r.display_name) !== EXCLUDE_NAME;
+    });
+
+    var wd = ['日','一','二','三','四','五','六'];
+    var lines = [];
+    days.forEach(function(d, idx) {
+      var ds = Utilities.formatDate(d, CONFIG.TIMEZONE, 'yyyy-MM-dd');
+      var isWeekend = idx >= 5;
+      var names = rows.filter(function(r) {
+        return String(r.leave_date).substring(0, 10) === ds;
+      }).map(function(r) { return r.display_name; });
+
+      if (isWeekend && !names.length) return;
+
+      var label = d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate() + '(' + wd[d.getDay()] + ')';
+      lines.push(label + '　休假人員　' + (names.length ? names.join(' ') : '無'));
+    });
+
+    var rangeLabel = Utilities.formatDate(days[0], CONFIG.TIMEZONE, 'yyyy/M/d') + '~' + Utilities.formatDate(days[6], CONFIG.TIMEZONE, 'yyyy/M/d');
+    var msg = '📋 下週休假通報（' + rangeLabel + '）' +
+      (ctx.projectName ? '\n案場：' + ctx.projectName : '') +
+      '\n\n' + lines.join('\n');
+
+    var pushTarget = getProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET);
+    var pushed = false;
+    if (pushTarget) { sendLinePush(pushTarget, msg); pushed = true; }
+
+    writeAuditLog(ctx.lineUserId, 'CREATE', 'WeeklyLeaveReport', rangeLabel, ctx.displayName + ' 產生下週休假通報');
+
+    return ok({ message: msg, pushed: pushed });
   } catch (err) { return fail(err.message); }
 }
 
