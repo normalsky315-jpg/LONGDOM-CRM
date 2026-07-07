@@ -1,7 +1,7 @@
 /**
  * ============================================================
- *  龍登 CRM — 華雄音樂匯專用版 v9.0
- *  ★ 從這一版開始，hstd 跟 hsyy 版本號會同步一起升，方便比對兩邊
+ *  龍登 CRM — 華雄音樂匯專用版 v9.1
+ *  ★ 從 v9.0 開始，hstd 跟 hsyy 版本號會同步一起升，方便比對兩邊
  *    是不是都更新到最新版。
  *  這是從你貼給我的 v8.3 原始碼，比照 hstd 補齊功能後的完整版：
  *  1. 修正 appendObjectToSheet／updateRowById 純日期欄位時區位移
@@ -24,6 +24,23 @@
  *     fixLeadingZeroPhones() 一次性修復工具，可以掃描 Customer_Data
  *     裡已經壞掉的舊資料並補回開頭的 0（只處理 9 碼、9 開頭的純數字）
  *  以上全部已接上 doGet 路由。
+ *  v9.1 變更：修正客戶資料的時間跟「標準時間」對不上的問題。
+ *    根本原因：created_at／updated_at 這類「日期+時間」欄位，之前
+ *    只有純日期欄位（visit_date 等）有做文字保護，這兩個欄位沒有
+ *    保護，會被 Sheets 自動吃成 Date 型別。存成 Date 之後，API
+ *    回傳資料時會被轉成 UTC（世界標準時間）字串，跟台北時間差
+ *    8 小時 —— 尤其是凌晨 0 點~7 點多輸入的資料，換算成 UTC 後
+ *    日期會整個往前跳一天，看起來「時間不對」。
+ *    修正：
+ *    1. appendObjectToSheet／updateRowById 現在也會把 created_at／
+ *       updated_at／last_login_at／completed_at／changed_at／
+ *       timestamp 這些時間戳欄位強制存成文字，防止被自動轉型
+ *       （跟電話號碼用同一招）
+ *    2. readSheetAsObjects 新增保險：不管哪個欄位，只要讀到的還是
+ *       Date 型別（例如這次修正上線前就已經存進去的舊資料），一律
+ *       當場換算回台北時間文字再回傳，從根本擋掉 UTC 位移
+ *    3. 新增 fixDateTimeFormats()：一次性修復工具，掃描所有分頁，
+ *       把已經被轉成 Date 型別的舊資料換算回台北時間文字寫回去
  * ============================================================
  *  首次部署（全新帳號才需要）：
  *  1. 試算表 → 擴充功能 → Apps Script → 貼入此檔
@@ -248,6 +265,12 @@ function genId(prefix) {
 function getProp(key) { return PropertiesService.getScriptProperties().getProperty(key); }
 function setProp(key, val) { PropertiesService.getScriptProperties().setProperty(key, val); }
 
+// 純日期欄位（yyyy-MM-dd）／時間戳欄位（yyyy-MM-dd HH:mm:ss）／強制文字欄位
+// 統一在這裡維護，讀取與寫入共用，避免各處各自維護一份漏掉欄位
+var DATE_ONLY_FIELDS  = ['visit_date','leave_date','report_date','due_date','note_date'];
+var DATETIME_FIELDS   = ['created_at','updated_at','last_login_at','completed_at','changed_at','timestamp'];
+var TEXT_FORCE_FIELDS = ['phone'];
+
 function readSheetAsObjects(sheetName) {
   var sh = getSheet(sheetName);
   if (!sh) return [];
@@ -256,7 +279,17 @@ function readSheetAsObjects(sheetName) {
   var headers = data[0];
   return data.slice(1).map(function(row) {
     var obj = {};
-    headers.forEach(function(h, i) { obj[h] = row[i]; });
+    headers.forEach(function(h, i) {
+      var v = row[i];
+      // 保險：不管是哪個欄位，只要 Sheets 把它存成了 Date 型別（沒被文字保護擋下來，
+      // 或是舊資料在保護機制上線前就已經被自動轉掉），一律換算回台北時間文字再輸出。
+      // 直接把 Date 物件丟給 JSON.stringify 會被轉成 UTC 字串，跟實際輸入時間差 8 小時。
+      if (v instanceof Date) {
+        var fmt = DATE_ONLY_FIELDS.indexOf(h) >= 0 ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm:ss';
+        v = Utilities.formatDate(v, CONFIG.TIMEZONE, fmt);
+      }
+      obj[h] = v;
+    });
     return obj;
   });
 }
@@ -265,16 +298,15 @@ function appendObjectToSheet(sheetName, obj) {
   var sh = getSheet(sheetName);
   if (!sh) throw new Error('Sheet not found: ' + sheetName);
   var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-  var DATE_ONLY_FIELDS = ['visit_date','leave_date','report_date','due_date','note_date'];
-  var TEXT_FORCE_FIELDS = ['phone'];
   var row = headers.map(function(h) { return obj[h] != null ? obj[h] : ''; });
   var lastRow = sh.getLastRow() + 1;
   sh.appendRow(row);
-  // 修正純日期欄位／電話號碼格式，防止 Sheets 自動轉換造成時區位移或開頭 0 遺失
+  // 修正日期／時間戳／電話號碼格式，防止 Sheets 自動轉換造成時區位移或開頭 0 遺失
   headers.forEach(function(h, i) {
     var isDateField = DATE_ONLY_FIELDS.indexOf(h) >= 0 && obj[h] && /^\d{4}-\d{2}-\d{2}$/.test(String(obj[h]));
+    var isDatetimeField = DATETIME_FIELDS.indexOf(h) >= 0 && obj[h] && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(String(obj[h]));
     var isTextField = TEXT_FORCE_FIELDS.indexOf(h) >= 0 && obj[h] != null && obj[h] !== '';
-    if (isDateField || isTextField) {
+    if (isDateField || isDatetimeField || isTextField) {
       var cell = sh.getRange(lastRow, i + 1);
       cell.setNumberFormat('@STRING@');
       cell.setValue(String(obj[h]));
@@ -289,9 +321,6 @@ function updateRowById(sheetName, idField, idValue, updates) {
   var headers = data[0];
   var idCol = headers.indexOf(idField);
   if (idCol < 0) return false;
-  // 純日期欄位（yyyy-MM-dd），強制以文字存入避免 Sheets 時區轉換
-  var DATE_ONLY_FIELDS = ['visit_date','leave_date','report_date','due_date','note_date'];
-  var TEXT_FORCE_FIELDS = ['phone'];
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][idCol]) === String(idValue)) {
       Object.keys(updates).forEach(function(k) {
@@ -299,8 +328,9 @@ function updateRowById(sheetName, idField, idValue, updates) {
         if (c < 0) return;
         var val = updates[k];
         var isDateField = DATE_ONLY_FIELDS.indexOf(k) >= 0 && val && /^\d{4}-\d{2}-\d{2}$/.test(String(val));
+        var isDatetimeField = DATETIME_FIELDS.indexOf(k) >= 0 && val && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(String(val));
         var isTextField = TEXT_FORCE_FIELDS.indexOf(k) >= 0 && val != null && val !== '';
-        if (isDateField || isTextField) {
+        if (isDateField || isDatetimeField || isTextField) {
           var cell = sh.getRange(i + 1, c + 1);
           cell.setNumberFormat('@STRING@');
           cell.setValue(String(val));
@@ -1344,6 +1374,37 @@ function fixLeadingZeroPhones() {
     }
   }
   Logger.log('✓ 已修復 ' + fixed + ' 筆手機號碼（補回開頭的 0）');
+}
+
+// ★ 一次性修復用：掃描所有分頁的日期／時間戳欄位，把已經被 Sheets 自動轉成
+// Date 型別的儲存格（在文字保護機制上線前寫入的舊資料）換算回台北時間文字後
+// 重新寫回去，避免舊資料在試算表裡打開來看時跟 API 讀出來的時間對不上。
+// 不影響其他資料，執行一次即可。
+function fixDateTimeFormats() {
+  var fixed = 0;
+  Object.keys(CONFIG.SHEETS).forEach(function(key) {
+    var sh = getSheet(CONFIG.SHEETS[key]);
+    if (!sh) return;
+    var data = sh.getDataRange().getValues();
+    if (data.length < 2) return;
+    var headers = data[0];
+    headers.forEach(function(h, col) {
+      var isDateField = DATE_ONLY_FIELDS.indexOf(h) >= 0;
+      var isDatetimeField = DATETIME_FIELDS.indexOf(h) >= 0;
+      if (!isDateField && !isDatetimeField) return;
+      var fmt = isDateField ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm:ss';
+      for (var i = 1; i < data.length; i++) {
+        var val = data[i][col];
+        if (val instanceof Date) {
+          var cell = sh.getRange(i + 1, col + 1);
+          cell.setNumberFormat('@STRING@');
+          cell.setValue(Utilities.formatDate(val, CONFIG.TIMEZONE, fmt));
+          fixed++;
+        }
+      }
+    });
+  });
+  Logger.log('✓ 已修復 ' + fixed + ' 個日期／時間欄位（換算回台北時間文字）');
 }
 
 function setCompanyPassword(pwd) { setProp(CONFIG.PROP_KEYS.COMPANY_PASSWORD, pwd); Logger.log('✓ 密碼已設定'); }

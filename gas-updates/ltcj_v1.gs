@@ -80,6 +80,12 @@ function jsonResponse(data) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+// 純日期欄位（yyyy-MM-dd）／時間戳欄位（yyyy-MM-dd HH:mm:ss）／強制文字欄位
+// 統一在這裡維護，讀取與寫入共用，避免各處各自維護一份漏掉欄位
+var DATE_ONLY_FIELDS  = ['visit_date','leave_date','report_date','due_date','note_date'];
+var DATETIME_FIELDS   = ['created_at','updated_at','last_login_at','completed_at','changed_at','timestamp'];
+var TEXT_FORCE_FIELDS = ['phone'];
+
 function readSheetAsObjects(sheetName) {
   var sh = getSheet(sheetName);
   if (!sh) return [];
@@ -88,7 +94,17 @@ function readSheetAsObjects(sheetName) {
   var headers = data[0];
   return data.slice(1).map(function(row) {
     var obj = {};
-    headers.forEach(function(h, i) { obj[h] = row[i]; });
+    headers.forEach(function(h, i) {
+      var v = row[i];
+      // 保險：不管是哪個欄位，只要 Sheets 把它存成了 Date 型別（沒被文字保護擋下來，
+      // 或是舊資料在保護機制上線前就已經被自動轉掉），一律換算回台北時間文字再輸出。
+      // 直接把 Date 物件丟給 JSON.stringify 會被轉成 UTC 字串，跟實際輸入時間差 8 小時。
+      if (v instanceof Date) {
+        var fmt = DATE_ONLY_FIELDS.indexOf(h) >= 0 ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm:ss';
+        v = Utilities.formatDate(v, CONFIG.TIMEZONE, fmt);
+      }
+      obj[h] = v;
+    });
     return obj;
   });
 }
@@ -97,16 +113,15 @@ function appendObjectToSheet(sheetName, obj) {
   var sh = getSheet(sheetName);
   if (!sh) throw new Error('Sheet not found: ' + sheetName);
   var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-  var DATE_ONLY_FIELDS = ['visit_date','leave_date','report_date','due_date','note_date'];
-  var TEXT_FORCE_FIELDS = ['phone'];
   var row = headers.map(function(h) { return obj[h] != null ? obj[h] : ''; });
   var lastRow = sh.getLastRow() + 1;
   sh.appendRow(row);
-  // 修正純日期欄位／電話號碼格式，防止 Sheets 自動轉換造成時區位移或開頭 0 遺失
+  // 修正日期／時間戳／電話號碼格式，防止 Sheets 自動轉換造成時區位移或開頭 0 遺失
   headers.forEach(function(h, i) {
     var isDateField = DATE_ONLY_FIELDS.indexOf(h) >= 0 && obj[h] && /^\d{4}-\d{2}-\d{2}$/.test(String(obj[h]));
+    var isDatetimeField = DATETIME_FIELDS.indexOf(h) >= 0 && obj[h] && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(String(obj[h]));
     var isTextField = TEXT_FORCE_FIELDS.indexOf(h) >= 0 && obj[h] != null && obj[h] !== '';
-    if (isDateField || isTextField) {
+    if (isDateField || isDatetimeField || isTextField) {
       var cell = sh.getRange(lastRow, i + 1);
       cell.setNumberFormat('@STRING@');
       cell.setValue(String(obj[h]));
@@ -121,9 +136,6 @@ function updateRowById(sheetName, idField, idValue, updates) {
   var headers = data[0];
   var idCol = headers.indexOf(idField);
   if (idCol < 0) return false;
-  // 純日期欄位（yyyy-MM-dd），強制以文字存入避免 Sheets 時區轉換
-  var DATE_ONLY_FIELDS = ['visit_date','leave_date','report_date','due_date','note_date'];
-  var TEXT_FORCE_FIELDS = ['phone'];
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][idCol]) === String(idValue)) {
       Object.keys(updates).forEach(function(k) {
@@ -131,9 +143,9 @@ function updateRowById(sheetName, idField, idValue, updates) {
         if (c < 0) return;
         var val = updates[k];
         var isDateField = DATE_ONLY_FIELDS.indexOf(k) >= 0 && val && /^\d{4}-\d{2}-\d{2}$/.test(String(val));
+        var isDatetimeField = DATETIME_FIELDS.indexOf(k) >= 0 && val && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(String(val));
         var isTextField = TEXT_FORCE_FIELDS.indexOf(k) >= 0 && val != null && val !== '';
-        if (isDateField || isTextField) {
-          // 用 setNumberFormat('@') 強制文字格式再寫入，防止日期位移
+        if (isDateField || isDatetimeField || isTextField) {
           var cell = sh.getRange(i + 1, c + 1);
           cell.setNumberFormat('@STRING@');
           cell.setValue(String(val));
@@ -1465,6 +1477,37 @@ function fixLeadingZeroPhones() {
     }
   }
   Logger.log('✓ 已修復 ' + fixed + ' 筆手機號碼（補回開頭的 0）');
+}
+
+// ★ 一次性修復用：掃描所有分頁的日期／時間戳欄位，把已經被 Sheets 自動轉成
+// Date 型別的儲存格（在文字保護機制上線前寫入的舊資料）換算回台北時間文字後
+// 重新寫回去，避免舊資料在試算表裡打開來看時跟 API 讀出來的時間對不上。
+// 不影響其他資料，執行一次即可。
+function fixDateTimeFormats() {
+  var fixed = 0;
+  Object.keys(CONFIG.SHEETS).forEach(function(key) {
+    var sh = getSheet(CONFIG.SHEETS[key]);
+    if (!sh) return;
+    var data = sh.getDataRange().getValues();
+    if (data.length < 2) return;
+    var headers = data[0];
+    headers.forEach(function(h, col) {
+      var isDateField = DATE_ONLY_FIELDS.indexOf(h) >= 0;
+      var isDatetimeField = DATETIME_FIELDS.indexOf(h) >= 0;
+      if (!isDateField && !isDatetimeField) return;
+      var fmt = isDateField ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm:ss';
+      for (var i = 1; i < data.length; i++) {
+        var val = data[i][col];
+        if (val instanceof Date) {
+          var cell = sh.getRange(i + 1, col + 1);
+          cell.setNumberFormat('@STRING@');
+          cell.setValue(Utilities.formatDate(val, CONFIG.TIMEZONE, fmt));
+          fixed++;
+        }
+      }
+    });
+  });
+  Logger.log('✓ 已修復 ' + fixed + ' 個日期／時間欄位（換算回台北時間文字）');
 }
 
 function setCompanyPassword(pwd) { setProp(CONFIG.PROP_KEYS.COMPANY_PASSWORD, pwd); Logger.log('✓ 密碼已設定'); }
