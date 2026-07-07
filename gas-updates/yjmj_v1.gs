@@ -8,17 +8,16 @@
 //  2. 試算表 → 擴充功能 → Apps Script → 貼入此檔全部內容
 //  3. 把下面 CONFIG.SPREADSHEET_ID 換成這張新試算表的 ID
 //     （網址列 https://docs.google.com/spreadsheets/d/【這一段】/edit）
-//  4. 執行 setCompanyPassword('你要設定的密碼') 設定登入密碼
-//  5. 執行 firstTimeSetup() 建立所有工作表
-//  6. 部署 → 新增部署 → Web App（執行身分=我, 存取=任何人）
-//  7. 複製 exec 網址 → 貼到 yjmj.html 的 GAS_URL
-//  8. 到 LINE Developers Console 建立新的 LIFF App，
+//  4. 執行 firstTimeSetup()（預設密碼 075500888，跟其他案場一樣，建議上線前自行更換）
+//  5. 部署 → 新增部署 → Web App（執行身分=我, 存取=任何人）
+//  6. 複製 exec 網址 → 貼到 yjmj.html 的 GAS_URL
+//  7. 到 LINE Developers Console 建立新的 LIFF App，
 //     Endpoint URL 填 GitHub Pages 上 yjmj.html 的網址，
 //     取得 LIFF ID → 貼到 yjmj.html 的 LIFF_ID
-//  9. 上傳 yjmj.html 到 GitHub Pages
-//  10.（要推播才需要）執行 setLineToken(...)／setLinePushTarget(...)／
+//  8. 上傳 yjmj.html 到 GitHub Pages
+//  9.（要推播才需要）執行 setLineToken(...)／setLinePushTarget(...)／
 //      setLineChannelSecret(...)，填這個案場自己 LINE 官方帳號的憑證
-//  11. 執行 addUser('你的userId','你的名字','admin','遠見沐景') 加入第一位管理員
+//  10. 執行 addUser('你的userId','你的名字','admin','遠見沐景') 加入第一位管理員
 // ============================================================
 
 // ==================== CONFIG ====================
@@ -1284,17 +1283,18 @@ function setLineToken(token)     { setProp(CONFIG.PROP_KEYS.LINE_TOKEN, token); 
 function setLinePushTarget(id)   { setProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET, id);  Logger.log('✓ 推播目標設定完成'); }
 function setLineChannelSecret(s) { setProp(CONFIG.PROP_KEYS.LINE_CHANNEL_SECRET, s); Logger.log('✓ Channel Secret 設定完成'); }
 
-// ★ 第一次設定：先設密碼，再執行這個
+// ★ 第一次設定執行這個就好（預設密碼 075500888，建議上線前自行更換）
 function firstTimeSetup() {
+  setCompanyPassword('075500888');
   initAllSheets();
   Logger.log('✓ 完成！遠見沐景專用版已初始化。');
   Logger.log('下一步：');
-  Logger.log('1. 若還沒設密碼，執行 setCompanyPassword(你要的密碼)');
-  Logger.log('2. 部署 Web App，把 exec 網址貼到 yjmj.html 的 GAS_URL');
-  Logger.log('3. 到 LINE Developers Console 建立新 LIFF App，網址貼到 yjmj.html 的 LIFF_ID');
-  Logger.log('4. 執行 setLineToken(你的Token) 設定推播（需要這個案場自己的 LINE 官方帳號 Token）');
-  Logger.log('5. 執行 setLinePushTarget(你的userId) 設定推播目標');
-  Logger.log('6. 執行 addUser(你的userId,你的名字,admin,遠見沐景) 加入第一位管理員');
+  Logger.log('1. 部署 Web App，把 exec 網址貼到 yjmj.html 的 GAS_URL');
+  Logger.log('2. 到 LINE Developers Console 建立新 LIFF App，網址貼到 yjmj.html 的 LIFF_ID');
+  Logger.log('3. 執行 setLineToken(你的Token) 設定推播（需要這個案場自己的 LINE 官方帳號 Token）');
+  Logger.log('4. 執行 setLinePushTarget(你的userId) 設定推播目標');
+  Logger.log('5. 執行 addUser(你的userId,你的名字,admin,遠見沐景) 加入第一位管理員');
+  Logger.log('6. 若要換密碼，執行 setCompanyPassword(你要的新密碼)');
 }
 
 function testCheckProps() {
