@@ -1,6 +1,6 @@
 // ============================================================
 //  龍登 CRM — 吉隆天曜專用版 v1.0
-//  全新案場，從 hstd v8.5 完整版複製而來（含排班模組、
+//  全新案場，從 hstd v8.6 完整版複製而來（含排班模組、月曆重要事項、
 //  getDailyReportRange 銷售日報歷史功能，doGet 路由已接好）
 // ============================================================
 //  首次部署：
@@ -8,17 +8,16 @@
 //  2. 試算表 → 擴充功能 → Apps Script → 貼入此檔全部內容
 //  3. 把下面 CONFIG.SPREADSHEET_ID 換成這張新試算表的 ID
 //     （網址列 https://docs.google.com/spreadsheets/d/【這一段】/edit）
-//  4. 執行 setCompanyPassword('你要設定的密碼') 設定登入密碼
-//  5. 執行 firstTimeSetup() 建立所有工作表
-//  6. 部署 → 新增部署 → Web App（執行身分=我, 存取=任何人）
-//  7. 複製 exec 網址 → 貼到 jltx.html 的 GAS_URL
-//  8. 到 LINE Developers Console 建立新的 LIFF App，
+//  4. 執行 firstTimeSetup()（預設密碼 075500888，跟其他案場一樣，建議上線前自行更換）
+//  5. 部署 → 新增部署 → Web App（執行身分=我, 存取=任何人）
+//  6. 複製 exec 網址 → 貼到 jltx.html 的 GAS_URL
+//  7. 到 LINE Developers Console 建立新的 LIFF App，
 //     Endpoint URL 填 GitHub Pages 上 jltx.html 的網址，
 //     取得 LIFF ID → 貼到 jltx.html 的 LIFF_ID
-//  9. 上傳 jltx.html 到 GitHub Pages
-//  10.（要推播才需要）執行 setLineToken(...)／setLinePushTarget(...)／
+//  8. 上傳 jltx.html 到 GitHub Pages
+//  9.（要推播才需要）執行 setLineToken(...)／setLinePushTarget(...)／
 //      setLineChannelSecret(...)，填這個案場自己 LINE 官方帳號的憑證
-//  11. 執行 addUser('你的userId','你的名字','admin','吉隆天曜') 加入第一位管理員
+//  10. 執行 addUser('你的userId','你的名字','admin','吉隆天曜') 加入第一位管理員
 // ============================================================
 
 // ==================== CONFIG ====================
@@ -41,7 +40,8 @@ const CONFIG = {
     MAINTENANCE:    'Maintenance_Report',
     AUDIT_LOG:      'Audit_Log',
     CHANGE_LOG:     'Customer_Change_Log',
-    LEAVE_SCHEDULE: 'Leave_Schedule'
+    LEAVE_SCHEDULE: 'Leave_Schedule',
+    CALENDAR_NOTES: 'Calendar_Notes'
   },
 
   ROLES:  { SALES: 'sales', MANAGER: 'manager', ADMIN: 'admin' },
@@ -251,6 +251,16 @@ function doGet(e) {
         return jsonResponse(appendLeave(payload));
       case 'deleteLeave':
         return jsonResponse(deleteLeave(payload));
+      case 'getCalendarNotes':
+        return jsonResponse(getCalendarNotes(payload.lineUserId ? payload : {
+          lineUserId: e.parameter.lineUserId,
+          startDate:  e.parameter.startDate,
+          endDate:    e.parameter.endDate
+        }));
+      case 'addCalendarNote':
+        return jsonResponse(addCalendarNote(payload));
+      case 'deleteCalendarNote':
+        return jsonResponse(deleteCalendarNote(payload));
       default:
         return jsonResponse({ ok: false, error: '未知 action: ' + action });
     }
@@ -1083,6 +1093,87 @@ function deleteLeave(payload) {
   } catch (err) { return fail(err.message); }
 }
 
+// ==================== Calendar Notes（行事曆重要事項） ====================
+function getCalendarNotes(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx && payload && payload.lineUserId === 'DEV') {
+      ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
+    }
+    if (!ctx) return fail('未授權');
+
+    var startDate = String(payload.startDate || '').substring(0, 10);
+    var endDate   = String(payload.endDate   || '').substring(0, 10);
+
+    var rows = readSheetAsObjects(CONFIG.SHEETS.CALENDAR_NOTES).filter(function(r) {
+      var d = String(r.note_date).substring(0, 10);
+      if (startDate && d < startDate) return false;
+      if (endDate   && d > endDate)   return false;
+      if (ctx.role === CONFIG.ROLES.ADMIN) return true;
+      return r.project_name === ctx.projectName;
+    });
+
+    rows.sort(function(a, b) { return String(a.note_date).localeCompare(String(b.note_date)); });
+    return ok(rows);
+  } catch (err) { return fail(err.message); }
+}
+
+function addCalendarNote(payload) {
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx && payload.lineUserId === 'DEV') {
+      ctx = { lineUserId: 'DEV', displayName: '測試', role: 'admin', projectName: '', status: 'active' };
+    }
+    if (!ctx) return fail('未授權');
+    if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限，需主管以上');
+    if (!payload.note_date) return fail('note_date 必填');
+    if (!payload.content)   return fail('內容必填');
+
+    var projectName = ctx.role === CONFIG.ROLES.ADMIN
+      ? (payload.project_name || ctx.projectName || '') : ctx.projectName;
+
+    var noteId = genId('NOTE');
+    appendObjectToSheet(CONFIG.SHEETS.CALENDAR_NOTES, {
+      note_id: noteId,
+      project_name: projectName,
+      note_date: String(payload.note_date).substring(0, 10),
+      content: payload.content,
+      created_by_line_user_id: ctx.lineUserId,
+      created_by_name: ctx.displayName,
+      created_at: nowTW()
+    });
+    writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.CALENDAR_NOTES, noteId,
+      ctx.displayName + ' 新增重要事項: ' + payload.content);
+    return ok({ note_id: noteId });
+  } catch (err) { return fail(err.message); }
+}
+
+function deleteCalendarNote(payload) {
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx && payload.lineUserId === 'DEV') {
+      ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
+    }
+    if (!ctx) return fail('未授權');
+    if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限');
+    if (!payload.note_id) return fail('note_id 必填');
+
+    var sh      = getSheet(CONFIG.SHEETS.CALENDAR_NOTES);
+    var data    = sh.getDataRange().getValues();
+    var headers = data[0];
+    var idCol   = headers.indexOf('note_id');
+
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][idCol]) !== String(payload.note_id)) continue;
+      sh.deleteRow(i + 1);
+      writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.CALENDAR_NOTES,
+        payload.note_id, ctx.displayName + ' 刪除重要事項');
+      return ok({ note_id: payload.note_id });
+    }
+    return fail('找不到該筆事項');
+  } catch (err) { return fail(err.message); }
+}
+
 // ==================== Audit Log ====================
 function writeAuditLog(lineUserId, action, targetSheet, targetId, detail) {
   try {
@@ -1217,6 +1308,7 @@ function initAllSheets() {
   schemas[CONFIG.SHEETS.AUDIT_LOG]    = ['log_id','timestamp','line_user_id','display_name','action','target_sheet','target_id','detail'];
   schemas[CONFIG.SHEETS.CHANGE_LOG]   = ['log_id','customer_id','customer_name','changed_by_line_user_id','changed_by_name','changed_at','changes_json'];
   schemas[CONFIG.SHEETS.LEAVE_SCHEDULE] = ['leave_id','line_user_id','display_name','project_name','leave_date','created_by_line_user_id','created_at'];
+  schemas[CONFIG.SHEETS.CALENDAR_NOTES]  = ['note_id','project_name','note_date','content','created_by_line_user_id','created_by_name','created_at'];
 
   Object.keys(schemas).forEach(function(name) {
     var sh = ss.getSheetByName(name);
@@ -1284,17 +1376,18 @@ function setLineToken(token)     { setProp(CONFIG.PROP_KEYS.LINE_TOKEN, token); 
 function setLinePushTarget(id)   { setProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET, id);  Logger.log('✓ 推播目標設定完成'); }
 function setLineChannelSecret(s) { setProp(CONFIG.PROP_KEYS.LINE_CHANNEL_SECRET, s); Logger.log('✓ Channel Secret 設定完成'); }
 
-// ★ 第一次設定：先設密碼，再執行這個
+// ★ 第一次設定執行這個就好（預設密碼 075500888，建議上線前自行更換）
 function firstTimeSetup() {
+  setCompanyPassword('075500888');
   initAllSheets();
   Logger.log('✓ 完成！吉隆天曜專用版已初始化。');
   Logger.log('下一步：');
-  Logger.log('1. 若還沒設密碼，執行 setCompanyPassword(你要的密碼)');
-  Logger.log('2. 部署 Web App，把 exec 網址貼到 jltx.html 的 GAS_URL');
-  Logger.log('3. 到 LINE Developers Console 建立新 LIFF App，網址貼到 jltx.html 的 LIFF_ID');
-  Logger.log('4. 執行 setLineToken(你的Token) 設定推播（需要這個案場自己的 LINE 官方帳號 Token）');
-  Logger.log('5. 執行 setLinePushTarget(你的userId) 設定推播目標');
-  Logger.log('6. 執行 addUser(你的userId,你的名字,admin,吉隆天曜) 加入第一位管理員');
+  Logger.log('1. 部署 Web App，把 exec 網址貼到 jltx.html 的 GAS_URL');
+  Logger.log('2. 到 LINE Developers Console 建立新 LIFF App，網址貼到 jltx.html 的 LIFF_ID');
+  Logger.log('3. 執行 setLineToken(你的Token) 設定推播（需要這個案場自己的 LINE 官方帳號 Token）');
+  Logger.log('4. 執行 setLinePushTarget(你的userId) 設定推播目標');
+  Logger.log('5. 執行 addUser(你的userId,你的名字,admin,吉隆天曜) 加入第一位管理員');
+  Logger.log('6. 若要換密碼，執行 setCompanyPassword(你要的新密碼)');
 }
 
 function testCheckProps() {
