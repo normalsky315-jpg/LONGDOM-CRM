@@ -27,11 +27,11 @@
   .screen.active{display:block;}
 
   /* Loading */
-  #loadingScreen{display:none;flex-direction:column;align-items:center;justify-content:center;background:var(--ink);color:#fff;}
+  #loadingScreen{display:none;flex-direction:column;align-items:center;justify-content:center;background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;color:#4A3A24;}
   #loadingScreen.active{display:flex;}
-  .spinner{width:32px;height:32px;border:3px solid rgba(255,255,255,0.2);border-top-color:var(--gold);border-radius:50%;animation:spin 0.7s linear infinite;}
+  .spinner{width:32px;height:32px;border:3px solid rgba(139,110,66,0.2);border-top-color:#8A6D3F;border-radius:50%;animation:spin 0.7s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
-  .loading-text{margin-top:16px;font-size:10px;letter-spacing:4px;color:rgba(255,255,255,0.4);}
+  .loading-text{margin-top:16px;font-size:10px;letter-spacing:4px;color:rgba(74,58,36,0.5);}
 
   /* Login */
   #loginScreen{background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;display:none;flex-direction:column;padding:0 28px;padding-top:max(60px,env(safe-area-inset-top));padding-bottom:max(40px,env(safe-area-inset-bottom));min-height:100%;position:relative;}
@@ -64,32 +64,36 @@
   .login-error.show{opacity:1;}
 
   /* Pending */
-  #pendingScreen{background:var(--ink);display:none;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px;text-align:center;min-height:100%;}
+  #pendingScreen{background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;display:none;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px;text-align:center;min-height:100%;}
   #pendingScreen.active{display:flex;}
   .pending-icon{font-size:56px;margin-bottom:20px;animation:pulse 2s ease-in-out infinite;}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
-  .pending-title{font-family:'Noto Serif TC',serif;font-size:22px;font-weight:700;color:#fff;margin-bottom:10px;}
-  .pending-sub{font-size:13px;color:rgba(255,255,255,0.45);line-height:1.8;margin-bottom:32px;}
-  .pending-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);border-radius:20px;padding:8px 18px;font-size:12px;color:var(--gold);letter-spacing:1px;}
-  .pending-back{margin-top:28px;padding:12px 24px;background:transparent;border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:rgba(255,255,255,0.4);font-family:'Noto Sans TC',sans-serif;font-size:13px;cursor:pointer;}
+  .pending-title{font-family:'Noto Serif TC',serif;font-size:22px;font-weight:700;color:#4A3A24;margin-bottom:10px;}
+  .pending-sub{font-size:13px;color:rgba(74,58,36,0.55);line-height:1.8;margin-bottom:32px;}
+  .pending-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(139,110,66,0.1);border:1px solid rgba(139,110,66,0.3);border-radius:20px;padding:8px 18px;font-size:12px;color:#8A6D3F;letter-spacing:1px;}
+  .pending-back{margin-top:28px;padding:12px 24px;background:transparent;border:1px solid rgba(74,58,36,0.2);border-radius:8px;color:rgba(74,58,36,0.5);font-family:'Noto Sans TC',sans-serif;font-size:13px;cursor:pointer;}
 
   /* App */
   #appScreen{background:var(--cream);}
   .view.hidden{display:none;}
 
   /* Header */
-  .app-header{background:var(--ink);padding:0 16px;padding-top:max(16px,env(safe-area-inset-top));}
-  .header-row{display:flex;align-items:center;height:52px;gap:8px;}
-  .header-back{width:36px;height:36px;border:none;background:rgba(255,255,255,0.08);border-radius:8px;color:var(--gold);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-  .header-title{font-family:'Noto Serif TC',serif;font-size:16px;font-weight:600;color:#fff;flex:1;text-align:center;}
+  .app-header{background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;position:relative;padding:0 16px;padding-top:max(16px,env(safe-area-inset-top));}
+  .app-header::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.6),rgba(255,255,255,0.25));pointer-events:none;}
+  .header-row{position:relative;z-index:1;display:flex;align-items:center;height:52px;gap:8px;}
+  .header-back{width:36px;height:36px;border:none;background:rgba(139,110,66,0.12);border-radius:8px;color:#8A6D3F;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .header-title{font-family:'Noto Serif TC',serif;font-size:16px;font-weight:600;color:#4A3A24;flex:1;text-align:center;}
 
   /* Home */
-  .home-hero{background:var(--ink);padding:0 20px 24px;padding-top:max(16px,env(safe-area-inset-top));}
-  .home-tag{font-size:9px;letter-spacing:3px;color:var(--gold);margin-bottom:6px;padding-top:16px;}
-  .home-greeting{font-family:'Noto Serif TC',serif;font-size:22px;font-weight:700;color:#fff;margin-bottom:6px;}
-  .home-context{display:flex;align-items:center;gap:8px;font-size:12px;color:rgba(255,255,255,0.5);}
+  .home-hero{background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;position:relative;padding:0 20px 26px;padding-top:max(16px,env(safe-area-inset-top));}
+  .home-hero::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.5),rgba(255,255,255,0.2) 60%,rgba(255,255,255,0.55));pointer-events:none;}
+  .home-hero>*{position:relative;z-index:1;}
+  .home-tag{font-size:9px;letter-spacing:3px;color:#A8875A;margin-bottom:8px;padding-top:16px;display:flex;align-items:center;gap:8px;}
+  .home-tag img{width:22px;height:22px;object-fit:contain;}
+  .home-greeting{font-family:'Noto Serif TC',serif;font-size:22px;font-weight:700;color:#4A3A24;margin-bottom:6px;}
+  .home-context{display:flex;align-items:center;gap:8px;font-size:12px;color:rgba(74,58,36,0.55);}
   .role-badge{display:inline-block;padding:2px 9px;border-radius:10px;font-size:10px;font-weight:500;letter-spacing:0.5px;}
-  .role-badge.sales{background:rgba(201,168,76,0.2);color:var(--gold);}
+  .role-badge.sales{background:rgba(139,110,66,0.18);color:#8A6D3F;}
   .role-badge.manager{background:rgba(29,158,117,0.2);color:var(--teal);}
   .role-badge.admin{background:rgba(192,57,43,0.2);color:#e74c3c;}
   .home-content{padding:16px;}
@@ -294,7 +298,7 @@
   <!-- Home -->
   <div id="viewHome" class="view">
     <div class="home-hero">
-      <div class="home-tag">WELCOME BACK</div>
+      <div class="home-tag"><img src="assets/logo.png" alt="龍登國際廣告">WELCOME BACK</div>
       <div class="home-greeting" id="homeGreeting">您好</div>
       <div class="home-context" id="homeContext"></div>
     </div>
