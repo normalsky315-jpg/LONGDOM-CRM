@@ -1,23 +1,33 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v1.0
-//  全新案場，從 hstd v8.6 完整版複製而來（含排班模組、月曆重要事項、
-//  getDailyReportRange 銷售日報歷史功能，doGet 路由已接好）
+//  龍登 CRM — 華雄天地專用版 v8.7
+//  v8.5 變更：新增 getDailyReportRange（銷售日報 3~6 個月歷史／
+//             週比較／月比較 用），已接上 doGet 路由
+//  v8.6 變更：新增 Calendar_Notes 分頁與 getCalendarNotes／
+//             addCalendarNote／deleteCalendarNote（排班頁面月曆
+//             重要事項提示用），已接上 doGet 路由。
+//  v8.7 變更：使用者管理支援「職稱」（job_title）欄位，
+//             updateUserRole／approveUser 現在會存 jobTitle，
+//             getSalesByProject 回傳時也會帶 jobTitle，讓任務
+//             指派下拉選單能顯示「王小明（專案經理）」這種格式。
+//             ★★ 這是既有帳號，千萬不要執行 initAllSheets()，
+//             它會清空所有分頁的既有資料！貼完這份程式碼後，
+//             改執行 ensureCalendarNotesSheet()（只會新增
+//             Calendar_Notes 這一個分頁，不會動到其他資料）
 // ============================================================
 //  首次部署：
-//  1. 建立新的 Google 試算表（空白即可，不用先建欄位）
-//  2. 試算表 → 擴充功能 → Apps Script → 貼入此檔全部內容
-//  3. 把下面 CONFIG.SPREADSHEET_ID 換成這張新試算表的 ID
-//     （網址列 https://docs.google.com/spreadsheets/d/【這一段】/edit）
-//  4. 執行 firstTimeSetup()（預設密碼 075500888，跟其他案場一樣，建議上線前自行更換）
-//  5. 部署 → 新增部署 → Web App（執行身分=我, 存取=任何人）
-//  6. 複製 exec 網址 → 貼到 jltx.html 的 GAS_URL
-//  7. 到 LINE Developers Console 建立新的 LIFF App，
-//     Endpoint URL 填 GitHub Pages 上 jltx.html 的網址，
-//     取得 LIFF ID → 貼到 jltx.html 的 LIFF_ID
-//  8. 上傳 jltx.html 到 GitHub Pages
-//  9.（要推播才需要）執行 setLineToken(...)／setLinePushTarget(...)／
-//      setLineChannelSecret(...)，填這個案場自己 LINE 官方帳號的憑證
-//  10. 執行 addUser('你的userId','你的名字','admin','吉隆天曜') 加入第一位管理員
+//  1. 試算表 → 擴充功能 → Apps Script → 貼入此檔
+//  2. 執行 firstTimeSetup()
+//  3. 部署 Web App（執行身分=我, 存取=任何人）
+//  4. 複製 exec 網址 → 貼到 hstd.html 的 GAS_URL
+//  5. 上傳 hstd.html 到 GitHub Pages
+//  6. LIFF Endpoint URL 填 GitHub Pages 網址
+//
+//  ★ 這次更新的部署方式（既有專案，不是第一次）：
+//  1. 把這個檔案的全部內容「整份覆蓋」貼進你現有的 Apps Script 專案
+//     （這份是完整版，包含原本所有 function，貼這份不會漏東西）
+//  2. 部署 → 管理部署 → 編輯（鉛筆）→ 版本選「新版本」→ 部署
+//     ★ 用「編輯現有部署」，不要「新增部署」，這樣 exec 網址不會變，
+//       hstd.html 的 GAS_URL 不用再改
 // ============================================================
 
 // ==================== CONFIG ====================
@@ -54,11 +64,11 @@ const CONFIG = {
   PURCHASE_MOTIVES: ['首購','投資置產','換屋升級','自住改善','子女購置','退休養老','其他'],
 
   INITIAL_PROJECTS: [
-    { name: '吉隆天曜', code: 'JLTX' }
+    { name: '華雄天地', code: 'HXTD' }
   ],
 
-  PROJECT_NAME:   '吉隆天曜',
-  SPREADSHEET_ID: '請貼上吉隆天曜試算表的_SPREADSHEET_ID'
+  PROJECT_NAME:   '華雄天地',
+  SPREADSHEET_ID: '16Rz6s_nj0BkP4dBDtoIUdgtvsFnlNQY8BvlZutDhoHM'
 };
 
 // ==================== Helpers ====================
@@ -1095,6 +1105,20 @@ function deleteLeave(payload) {
 }
 
 // ==================== Calendar Notes（行事曆重要事項） ====================
+// ★ 既有帳號升級用：只新增 Calendar_Notes 分頁，不會動到其他分頁的資料
+function ensureCalendarNotesSheet() {
+  var ss = getCrmSS();
+  var name = CONFIG.SHEETS.CALENDAR_NOTES;
+  var sh = ss.getSheetByName(name);
+  if (sh) { Logger.log('Calendar_Notes 已存在，不需要重建'); return; }
+  sh = ss.insertSheet(name);
+  var headers = ['note_id','project_name','note_date','content','created_by_line_user_id','created_by_name','created_at'];
+  sh.getRange(1,1,1,headers.length).setValues([headers]);
+  sh.getRange(1,1,1,headers.length).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
+  sh.setFrozenRows(1);
+  Logger.log('✓ Calendar_Notes 分頁已建立');
+}
+
 function getCalendarNotes(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
@@ -1377,18 +1401,16 @@ function setLineToken(token)     { setProp(CONFIG.PROP_KEYS.LINE_TOKEN, token); 
 function setLinePushTarget(id)   { setProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET, id);  Logger.log('✓ 推播目標設定完成'); }
 function setLineChannelSecret(s) { setProp(CONFIG.PROP_KEYS.LINE_CHANNEL_SECRET, s); Logger.log('✓ Channel Secret 設定完成'); }
 
-// ★ 第一次設定執行這個就好（預設密碼 075500888，建議上線前自行更換）
+// ★ 第一次設定執行這個就好
 function firstTimeSetup() {
   setCompanyPassword('075500888');
   initAllSheets();
-  Logger.log('✓ 完成！吉隆天曜專用版已初始化。');
+  Logger.log('✓ 完成！華雄天地專用版已初始化。');
   Logger.log('下一步：');
-  Logger.log('1. 部署 Web App，把 exec 網址貼到 jltx.html 的 GAS_URL');
-  Logger.log('2. 到 LINE Developers Console 建立新 LIFF App，網址貼到 jltx.html 的 LIFF_ID');
-  Logger.log('3. 執行 setLineToken(你的Token) 設定推播（需要這個案場自己的 LINE 官方帳號 Token）');
-  Logger.log('4. 執行 setLinePushTarget(你的userId) 設定推播目標');
-  Logger.log('5. 執行 addUser(你的userId,你的名字,admin,吉隆天曜) 加入第一位管理員');
-  Logger.log('6. 若要換密碼，執行 setCompanyPassword(你要的新密碼)');
+  Logger.log('1. 部署 Web App，把 exec 網址貼到 hstd.html 的 GAS_URL');
+  Logger.log('2. 執行 setLineToken(你的Token) 設定推播');
+  Logger.log('3. 執行 setLinePushTarget(你的userId) 設定推播目標');
+  Logger.log('4. 執行 addUser(你的userId,你的名字,admin,華雄天地) 加入第一位管理員');
 }
 
 function testCheckProps() {
@@ -1398,11 +1420,12 @@ function testCheckProps() {
   });
 }
 
-// ★ 這個案場自己的 LINE 官方帳號設定，執行完後建議從程式碼中刪除，避免 Token 外洩
-// setLineToken('請貼上吉隆天曜的LINE_CHANNEL_ACCESS_TOKEN');
-// setLinePushTarget('請貼上要接收推播的LINE_userId');
-// setLineChannelSecret('請貼上吉隆天曜的LINE_CHANNEL_SECRET');
-
+// ★ 以下執行完後建議從程式碼中刪除，避免 Token 外洩
+function setupLine() {
+  setLineToken('QcAjXh7Yu8jtbHUcgcii9+bCBE0ZbfTrxLXSDJ0W7KQydHtAfthh7uISDAoxA1yPTZby4GQMlbb701rDnLzCPAI+mlurWeOogR3cf7YKEfq0Ew+9jOKtMXJw9pPxJEX26rRFc24CKuAriwQcIZTLwdB04t891Ow1cDnyilFU=');
+  setLinePushTarget('U4bf4bf6035e402e4d5a17a01915812bc');
+}
+function setupSecret() { setLineChannelSecret('9456425e307c7419f2f0571e1f0199ec'); }
 function addMyself() {
-  addUser('請貼上你的LINE_userId', '請填你的名字', 'admin', '吉隆天曜');
+  addUser('U4bf4bf6035e402e4d5a17a01915812bc', 'SKY 陳昭文', 'admin', '華雄天地');
 }
