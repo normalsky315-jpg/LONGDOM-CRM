@@ -999,8 +999,7 @@ function getLeaveSchedule(payload) {
       var d = String(r.leave_date).substring(0, 10);
       if (startDate && d < startDate) return false;
       if (endDate   && d > endDate)   return false;
-      if (ctx.role === CONFIG.ROLES.ADMIN) return true;
-      return r.project_name === ctx.projectName;
+      return true;
     });
 
     rows.sort(function(a, b) {
@@ -1038,8 +1037,15 @@ function appendLeave(payload) {
       return fail('業務只能排自己的假');
     }
 
-    var projectName = ctx.role === CONFIG.ROLES.ADMIN
-      ? (payload.project_name || ctx.projectName || '') : ctx.projectName;
+    // 案場一律以「被排假的人」自己的案場為準，不要用操作者（可能是不綁案場的
+    // admin）自己的案場，否則寫進去的紀錄會因為案場對不上而在當事人自己的
+    // 行事曆上完全不顯示
+    var projectName = ctx.projectName;
+    if (targetUid !== ctx.lineUserId) {
+      var targetCtxForProject = getUserContext(targetUid);
+      if (targetCtxForProject) projectName = targetCtxForProject.projectName || projectName;
+    }
+    projectName = projectName || payload.project_name || '';
 
     // 防重複：同一人同一天只能有一筆
     var existing = readSheetAsObjects(CONFIG.SHEETS.LEAVE_SCHEDULE).filter(function(r) {

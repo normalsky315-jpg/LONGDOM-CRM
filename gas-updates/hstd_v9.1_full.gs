@@ -1,7 +1,9 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.0
-//  ★ 從這一版開始，hstd 跟 hsyy 版本號會同步一起升，方便比對兩邊
-//    是不是都更新到最新版。
+//  龍登 CRM — 華雄天地專用版 v9.1
+//  ★ 從 v9.0 開始，hstd 跟 hsyy 版本號會同步一起升，方便比對兩邊
+//    是不是都更新到最新版。這次 v9.1 是 hstd 專屬的修正，
+//    hsyy 沒有這個 bug（Leave_Schedule 結構不同），不用跟著更新，
+//    版本號這次會暫時不同步，下次兩邊都有改動時會再對齊。
 //  v8.5 變更：新增 getDailyReportRange（銷售日報 3~6 個月歷史／
 //             週比較／月比較 用），已接上 doGet 路由
 //  v8.6 變更：新增 Calendar_Notes 分頁與 getCalendarNotes／
@@ -29,6 +31,16 @@
 //       Customer_Data 裡已經被轉成數字、開頭 0 不見的手機號碼並補回來
 //       （只處理 9 碼、9 開頭的純數字），要修復舊資料時手動執行一次即可
 //    4. 補上 hstd 原本漏掉的 note_date 日期保護（Calendar_Notes 用）
+//  v9.1 變更：修正主管/admin 幫別人排假時，案場欄位寫成自己（admin
+//             常常沒綁案場）的空白案場，導致當事人自己打開行事曆時
+//             因為案場對不上而完全看不到那筆紀錄，但後端判斷「是否
+//             重複」又不看案場，所以再選同一天會被當成已存在而悄悄
+//             跳過、送出後畫面上卻沒有東西。現在改成：
+//             1. getLeaveSchedule 不再依案場過濾（跟 getTodayLeave
+//                的邏輯一致），修好後舊的「隱形」紀錄也會直接顯示
+//                出來，不需要手動修資料
+//             2. appendLeave 幫別人排假時，案場改成以「被排假的人」
+//                自己的案場為準，不會再寫成空白
 //             ★★ 這是既有帳號，千萬不要執行 initAllSheets()，
 //             它會清空所有分頁的既有資料！貼完這份程式碼後，
 //             改執行 ensureCalendarNotesSheet()（只會新增
@@ -1029,8 +1041,7 @@ function getLeaveSchedule(payload) {
       var d = String(r.leave_date).substring(0, 10);
       if (startDate && d < startDate) return false;
       if (endDate   && d > endDate)   return false;
-      if (ctx.role === CONFIG.ROLES.ADMIN) return true;
-      return r.project_name === ctx.projectName;
+      return true;
     });
 
     rows.sort(function(a, b) {
@@ -1068,8 +1079,15 @@ function appendLeave(payload) {
       return fail('業務只能排自己的假');
     }
 
-    var projectName = ctx.role === CONFIG.ROLES.ADMIN
-      ? (payload.project_name || ctx.projectName || '') : ctx.projectName;
+    // 案場一律以「被排假的人」自己的案場為準，不要用操作者（可能是不綁案場的
+    // admin）自己的案場，否則寫進去的紀錄會因為案場對不上而在當事人自己的
+    // 行事曆上完全不顯示
+    var projectName = ctx.projectName;
+    if (targetUid !== ctx.lineUserId) {
+      var targetCtxForProject = getUserContext(targetUid);
+      if (targetCtxForProject) projectName = targetCtxForProject.projectName || projectName;
+    }
+    projectName = projectName || payload.project_name || '';
 
     // 防重複：同一人同一天只能有一筆
     var existing = readSheetAsObjects(CONFIG.SHEETS.LEAVE_SCHEDULE).filter(function(r) {
