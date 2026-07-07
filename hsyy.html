@@ -496,25 +496,20 @@
   <div id="viewReport" class="view hidden">
     <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">銷售日報</div><div style="width:36px;"></div></div></div>
     <div class="list-wrap">
-      <div class="summary-card"><div class="summary-card-label">TODAY SUMMARY</div><div class="summary-card-date" id="reportDate">—</div><div class="summary-stats"><div class="summary-stat"><div class="summary-stat-num" id="sumVisitor">0</div><div class="summary-stat-label">接待</div></div><div class="summary-stat"><div class="summary-stat-num" id="sumFirst">0</div><div class="summary-stat-label">初訪</div></div><div class="summary-stat"><div class="summary-stat-num" id="sumRevisit">0</div><div class="summary-stat-label">回籠</div></div><div class="summary-stat"><div class="summary-stat-num" id="sumDeal">0</div><div class="summary-stat-label">成交</div></div></div></div>
+      <div class="field" style="margin-bottom:14px;">
+        <div class="field-label">查詢日期</div>
+        <input class="inp" type="date" id="reportViewDate" onchange="loadReportForDate()">
+      </div>
+      <div class="summary-card"><div class="summary-card-label">DAILY SUMMARY</div><div class="summary-card-date" id="reportDate">—</div><div class="summary-stats"><div class="summary-stat"><div class="summary-stat-num" id="sumVisitor">0</div><div class="summary-stat-label">接待</div></div><div class="summary-stat"><div class="summary-stat-num" id="sumFirst">0</div><div class="summary-stat-label">初訪</div></div><div class="summary-stat"><div class="summary-stat-num" id="sumRevisit">0</div><div class="summary-stat-label">回籠</div></div><div class="summary-stat"><div class="summary-stat-num" id="sumDeal">0</div><div class="summary-stat-label">成交</div></div></div></div>
       <div id="reportList"></div>
 
-      <div class="section-tag" style="margin-top:18px;">歷史報表區間</div>
-      <div class="recent-filter-bar" id="reportRangeBar">
-        <div class="filter-chip active" data-months="3" onclick="switchReportRange(this)">近 3 個月</div>
-        <div class="filter-chip" data-months="6" onclick="switchReportRange(this)">近 6 個月</div>
-      </div>
+      <div class="section-tag" style="margin-top:18px;">本週累計</div>
       <div class="summary-card" id="weekCompareCard">
-        <div class="summary-card-label">本週 vs 上週</div>
+        <div class="summary-card-label">WEEK TOTAL</div>
         <div class="summary-card-date" id="weekCompareRange">—</div>
         <div class="summary-stats" id="weekCompareStats"></div>
       </div>
-      <div class="summary-card" id="monthCompareCard">
-        <div class="summary-card-label">本月 vs 上月</div>
-        <div class="summary-card-date" id="monthCompareRange">—</div>
-        <div class="summary-stats" id="monthCompareStats"></div>
-      </div>
-      <div class="section-tag" style="margin-top:14px;">每日歷史紀錄</div>
+      <div class="section-tag" style="margin-top:14px;">每日報表（近1個月）</div>
       <div id="reportHistoryList"><div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div></div>
     </div>
     <button class="fab" onclick="openReportModal()">+</button>
@@ -690,7 +685,6 @@ var state = {
   allUsers: [],
   recentCustomers: [],
   recentFilterSales: 'all',
-  reportRangeMonths: 3,
   reportHistoryRaw: []
 };
 
@@ -1531,8 +1525,16 @@ function submitTask() {
 
 /* ══ Daily Report ══ */
 function renderReport() {
-  document.getElementById('rep_date').value=todayStr();
-  gasGet('getDailyReportSummary',{lineUserId:state.user.lineUserId,date:todayStr()},function(res){
+  document.getElementById('rep_date').value = todayStr();
+  var viewDate = document.getElementById('reportViewDate');
+  if (!viewDate.value) viewDate.value = todayStr();
+  loadReportForDate();
+  loadReportHistory();
+}
+
+function loadReportForDate() {
+  var date = document.getElementById('reportViewDate').value || todayStr();
+  gasGet('getDailyReportSummary',{lineUserId:state.user.lineUserId,date:date},function(res){
     if (!res.ok) return;
     var d=res.data;
     document.getElementById('reportDate').textContent=d.report_date;
@@ -1543,27 +1545,18 @@ function renderReport() {
     var box=document.getElementById('reportList');
     box.innerHTML=d.reports.length?d.reports.map(function(r){
       return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">'+escapeHtml(r.salesperson||r.created_by)+'</div><span class="list-item-meta">'+r.report_date+'</span></div><div class="list-item-meta"><span>接待 '+(r.visitor_count||0)+'</span><span>初訪 '+(r.first_visit_count||0)+'</span><span>回籠 '+(r.revisit_count||0)+'</span><span>成交 '+(r.deal_count||0)+'</span></div>'+(r.notes?'<div class="list-item-desc">'+escapeHtml(r.notes)+'</div>':'')+'</div>';
-    }).join(''):'<div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-text">今日尚未有日報提交</div></div>';
+    }).join(''):'<div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-text">當日尚未有日報提交</div></div>';
   });
-  loadReportHistory();
 }
 
-/* ══ Daily Report History（3~6個月／週月比較） ══ */
-function switchReportRange(el) {
-  document.querySelectorAll('#reportRangeBar .filter-chip').forEach(function(c){ c.classList.remove('active'); });
-  el.classList.add('active');
-  state.reportRangeMonths = +el.dataset.months;
-  loadReportHistory();
-}
-
+/* ══ Daily Report History（本週累計／近1個月每日報表） ══ */
 function loadReportHistory() {
   var box = document.getElementById('reportHistoryList');
   box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div>';
-  gasGet('getDailyReportRange', { lineUserId: state.user.lineUserId, months: state.reportRangeMonths }, function(res) {
+  gasGet('getDailyReportRange', { lineUserId: state.user.lineUserId, months: 1 }, function(res) {
     if (!res.ok) { box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">' + escapeHtml(res.error) + '</div></div>'; return; }
     state.reportHistoryRaw = res.data || [];
-    renderWeekCompare();
-    renderMonthCompare();
+    renderWeekTotal();
     renderReportHistoryList();
   }, function() {
     box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">連線失敗</div></div>';
@@ -1589,65 +1582,42 @@ function filterReportsByRange(rows, start, end) {
   });
 }
 
-function filterReportsByMonth(rows, ym) {
-  return rows.filter(function(r) { return String(r.report_date || '').substring(0,7) === ym; });
-}
-
-function reportDeltaHTML(curVal, prevVal) {
-  var diff = curVal - prevVal;
-  var color = diff > 0 ? 'var(--teal)' : (diff < 0 ? 'var(--rust)' : 'rgba(255,255,255,0.5)');
-  var arrow = diff > 0 ? '▲' : (diff < 0 ? '▼' : '—');
-  return '<span style="font-size:10px;color:' + color + ';display:block;margin-top:2px;">' + arrow + ' ' + Math.abs(diff) + '</span>';
-}
-
-function reportCompareStatsHTML(cur, prev) {
+function reportStatsHTML(cur) {
   var labels = [['visitor','接待'],['first','初訪'],['revisit','回籠'],['deal','成交']];
   return labels.map(function(l) {
-    return '<div class="summary-stat"><div class="summary-stat-num">' + cur[l[0]] + '</div><div class="summary-stat-label">' + l[1] + '</div>' + reportDeltaHTML(cur[l[0]], prev[l[0]]) + '</div>';
+    return '<div class="summary-stat"><div class="summary-stat-num">' + cur[l[0]] + '</div><div class="summary-stat-label">' + l[1] + '</div></div>';
   }).join('');
 }
 
-function renderWeekCompare() {
+function renderWeekTotal() {
   var rows = state.reportHistoryRaw;
-  var curDays = getWeekDates(0), prevDays = getWeekDates(-1);
-  var curStart = dateToStr(curDays[0]), curEnd = dateToStr(curDays[6]);
-  var prevStart = dateToStr(prevDays[0]), prevEnd = dateToStr(prevDays[6]);
-  var cur = sumReportFields(filterReportsByRange(rows, curStart, curEnd));
-  var prev = sumReportFields(filterReportsByRange(rows, prevStart, prevEnd));
-  document.getElementById('weekCompareRange').textContent = curStart + ' ~ ' + curEnd + '（上週 ' + prevStart + ' ~ ' + prevEnd + '）';
-  document.getElementById('weekCompareStats').innerHTML = reportCompareStatsHTML(cur, prev);
-}
-
-function renderMonthCompare() {
-  var rows = state.reportHistoryRaw;
-  var now = new Date();
-  var curYm = now.toISOString().substring(0,7);
-  var prevD = new Date(now.getFullYear(), now.getMonth()-1, 1);
-  var prevYm = prevD.toISOString().substring(0,7);
-  var cur = sumReportFields(filterReportsByMonth(rows, curYm));
-  var prev = sumReportFields(filterReportsByMonth(rows, prevYm));
-  document.getElementById('monthCompareRange').textContent = curYm + '（上月 ' + prevYm + '）';
-  document.getElementById('monthCompareStats').innerHTML = reportCompareStatsHTML(cur, prev);
+  var curDays = getWeekDates(0);
+  var curStart = dateToStr(curDays[0]);
+  var cur = sumReportFields(filterReportsByRange(rows, curStart, todayStr()));
+  document.getElementById('weekCompareRange').textContent = curStart + ' ~ ' + todayStr();
+  document.getElementById('weekCompareStats').innerHTML = reportStatsHTML(cur);
 }
 
 function renderReportHistoryList() {
   var box = document.getElementById('reportHistoryList');
   var rows = state.reportHistoryRaw;
-  if (!rows.length) {
-    box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-text">此區間尚無日報資料</div></div>';
-    return;
-  }
   var byDate = {};
   rows.forEach(function(r) {
     var d = String(r.report_date || '').substring(0,10);
     (byDate[d] = byDate[d] || []).push(r);
   });
-  var dates = Object.keys(byDate).sort().reverse();
-  box.innerHTML = dates.map(function(d) {
-    var list = byDate[d];
-    var tot = sumReportFields(list);
-    var people = list.map(function(r) { return escapeHtml(r.salesperson || r.created_by || ''); }).join('、');
-    return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">' + d + '</div><span class="list-item-meta">' + people + '</span></div><div class="list-item-meta"><span>接待 ' + tot.visitor + '</span><span>初訪 ' + tot.first + '</span><span>回籠 ' + tot.revisit + '</span><span>成交 ' + tot.deal + '</span></div></div>';
+
+  // 近1個月完整日期清單（沒有資料的日子顯示 0，由新到舊排列）
+  var days = [];
+  var cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - 1);
+  for (var d = new Date(); d >= cutoff; d.setDate(d.getDate() - 1)) {
+    days.push(dateToStr(d));
+  }
+
+  box.innerHTML = days.map(function(ds) {
+    var tot = sumReportFields(byDate[ds] || []);
+    return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">' + ds + '</div></div><div class="list-item-meta"><span>初訪 ' + tot.first + '</span><span>回籠 ' + tot.revisit + '</span><span>成交 ' + tot.deal + '</span></div></div>';
   }).join('');
 }
 function openReportModal() {
