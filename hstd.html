@@ -938,7 +938,9 @@ function renderHome() {
   document.getElementById('homeGreeting').textContent = (u.displayName || '您') + ' 您好';
   var rl = { sales:'業務', manager:'主管', admin:'Admin' }[u.role] || u.role;
   document.getElementById('homeContext').innerHTML =
-    '<span class="role-badge ' + u.role + '">' + rl + '</span><span>' + (u.projectName||'全部案場') + '</span>';
+    '<span class="role-badge ' + u.role + '">' + rl + '</span>' +
+    (u.jobTitle ? '<span>' + escapeHtml(u.jobTitle) + '</span>' : '') +
+    '<span>' + (u.projectName||'全部案場') + '</span>';
 
   if (u.role !== 'sales') {
     document.getElementById('reportFeature').classList.remove('hidden');
@@ -1457,7 +1459,7 @@ function openTaskModal() {
   var sel=document.getElementById('task_assign'); sel.innerHTML='<option value="">不指定</option>';
   var proj=state.user.projectName;
   if (proj) {
-    var load=function(list){ list.forEach(function(s){ var o=document.createElement('option'); o.value=s.lineUserId; o.dataset.name=s.name; o.textContent=s.name; sel.appendChild(o); }); };
+    var load=function(list){ list.forEach(function(s){ var o=document.createElement('option'); o.value=s.lineUserId; o.dataset.name=s.name; o.textContent=s.name+(s.jobTitle?'（'+s.jobTitle+'）':''); sel.appendChild(o); }); };
     if (state.salesByProject[proj]) load(state.salesByProject[proj]);
     else gasGet('getSalesByProject',{project:proj},function(res){ if(res.ok){state.salesByProject[proj]=res.data;load(res.data);} });
   }
@@ -1703,17 +1705,20 @@ function userCardHTML(u) {
   if (state.user.role==='admin') roleOpts.push({val:'admin',label:'管理員'});
   var roleSel='<select class="user-sel" id="role_'+u.line_user_id+'">'+roleOpts.map(function(r){ return '<option value="'+r.val+'"'+(u.role===r.val?' selected':'')+'>'+r.label+'</option>'; }).join('')+'</select>';
   var projSel='<select class="user-sel" id="proj_'+u.line_user_id+'"><option value="">無案場</option>'+state.projects.map(function(p){ return '<option value="'+p+'"'+(u.project_name===p?' selected':'')+'>'+p+'</option>'; }).join('')+'</select>';
+  var titleInp='<input class="user-sel" style="flex:2;min-width:120px;" id="title_'+u.line_user_id+'" type="text" value="'+escapeHtml(u.job_title||'')+'" placeholder="職稱（如：專案經理）">';
   var actionBtns='';
   if (isPending) actionBtns='<button class="btn-mini success" onclick="doApproveUser(\''+u.line_user_id+'\')">✓ 核准</button><button class="btn-mini danger" onclick="doRejectUser(\''+u.line_user_id+'\')">✕ 拒絕</button>';
   else if (u.status==='active') actionBtns='<button class="btn-mini primary" onclick="doUpdateUser(\''+u.line_user_id+'\')">儲存修改</button><button class="btn-mini danger" onclick="doDeactivateUser(\''+u.line_user_id+'\')">停用</button>';
   else actionBtns='<button class="btn-mini success" onclick="doActivateUser(\''+u.line_user_id+'\')">重新啟用</button>';
   var sp='<span class="status-pill status-'+u.status+'">'+({pending:'待審核',active:'啟用中',inactive:'已停用'}[u.status]||u.status)+'</span>';
-  return '<div class="user-card'+(isPending?' pending':'')+'"><div class="user-card-top"><div class="user-avatar">'+(u.display_name||'?').charAt(0)+'</div><div class="user-info"><div class="user-name">'+escapeHtml(u.display_name||u.line_user_id)+'</div><div class="user-meta">'+escapeHtml(u.project_name||'無案場')+' · '+String(u.created_at||'').substring(0,10)+'</div></div>'+sp+'</div>'+(isPending||u.status==='active'?'<div class="user-controls">'+roleSel+projSel+'</div>':'')+'<div class="list-item-actions">'+actionBtns+'</div></div>';
+  var metaText=(u.job_title?escapeHtml(u.job_title)+' · ':'')+escapeHtml(u.project_name||'無案場')+' · '+String(u.created_at||'').substring(0,10);
+  return '<div class="user-card'+(isPending?' pending':'')+'"><div class="user-card-top"><div class="user-avatar">'+(u.display_name||'?').charAt(0)+'</div><div class="user-info"><div class="user-name">'+escapeHtml(u.display_name||u.line_user_id)+'</div><div class="user-meta">'+metaText+'</div></div>'+sp+'</div>'+(isPending||u.status==='active'?'<div class="user-controls">'+roleSel+projSel+titleInp+'</div>':'')+'<div class="list-item-actions">'+actionBtns+'</div></div>';
 }
 function doApproveUser(id) {
   var role=document.getElementById('role_'+id)?document.getElementById('role_'+id).value:'sales';
   var proj=document.getElementById('proj_'+id)?document.getElementById('proj_'+id).value:'';
-  gasPost('approveUser',{lineUserId:state.user.lineUserId,targetUserId:id,role:role,projectName:proj},function(res){ if(res.ok){showToast('已核准','success');renderUserList();}else{showToast(res.error,'error');} });
+  var title=document.getElementById('title_'+id)?document.getElementById('title_'+id).value.trim():'';
+  gasPost('approveUser',{lineUserId:state.user.lineUserId,targetUserId:id,role:role,projectName:proj,jobTitle:title},function(res){ if(res.ok){showToast('已核准','success');renderUserList();}else{showToast(res.error,'error');} });
 }
 function doRejectUser(id) {
   if (!confirm('確定要拒絕此申請？')) return;
@@ -1722,7 +1727,8 @@ function doRejectUser(id) {
 function doUpdateUser(id) {
   var role=document.getElementById('role_'+id)?document.getElementById('role_'+id).value:null;
   var proj=document.getElementById('proj_'+id)?document.getElementById('proj_'+id).value:null;
-  gasPost('updateUserRole',{lineUserId:state.user.lineUserId,targetUserId:id,role:role,projectName:proj},function(res){ if(res.ok){showToast('已儲存','success');renderUserList();}else{showToast(res.error,'error');} });
+  var title=document.getElementById('title_'+id)?document.getElementById('title_'+id).value.trim():null;
+  gasPost('updateUserRole',{lineUserId:state.user.lineUserId,targetUserId:id,role:role,projectName:proj,jobTitle:title},function(res){ if(res.ok){showToast('已儲存','success');renderUserList();}else{showToast(res.error,'error');} });
 }
 function doDeactivateUser(id) {
   if (!confirm('確定要停用此帳號？')) return;

@@ -1,10 +1,14 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v8.6
+//  龍登 CRM — 華雄天地專用版 v8.7
 //  v8.5 變更：新增 getDailyReportRange（銷售日報 3~6 個月歷史／
 //             週比較／月比較 用），已接上 doGet 路由
 //  v8.6 變更：新增 Calendar_Notes 分頁與 getCalendarNotes／
 //             addCalendarNote／deleteCalendarNote（排班頁面月曆
 //             重要事項提示用），已接上 doGet 路由。
+//  v8.7 變更：使用者管理支援「職稱」（job_title）欄位，
+//             updateUserRole／approveUser 現在會存 jobTitle，
+//             getSalesByProject 回傳時也會帶 jobTitle，讓任務
+//             指派下拉選單能顯示「王小明（專案經理）」這種格式。
 //             ★★ 這是既有帳號，千萬不要執行 initAllSheets()，
 //             它會清空所有分頁的既有資料！貼完這份程式碼後，
 //             改執行 ensureCalendarNotesSheet()（只會新增
@@ -466,6 +470,7 @@ function updateUserRole(payload) {
     if (payload.projectName !== undefined) updates.project_name = payload.projectName;
     if (payload.status      !== undefined) updates.status       = payload.status;
     if (payload.displayName !== undefined) updates.display_name = payload.displayName;
+    if (payload.jobTitle    !== undefined) updates.job_title    = payload.jobTitle;
 
     var success = updateRowById(CONFIG.SHEETS.USER_ROLE, 'line_user_id', targetId, updates);
     if (!success) return fail('使用者不存在');
@@ -504,7 +509,7 @@ function getSalesByProject(projectName) {
                (r.role === CONFIG.ROLES.SALES || r.role === CONFIG.ROLES.MANAGER) &&
                r.project_name === projectName;
       })
-      .map(function(r) { return { name: r.display_name, lineUserId: r.line_user_id }; });
+      .map(function(r) { return { name: r.display_name, lineUserId: r.line_user_id, jobTitle: r.job_title || '' }; });
     return ok(rows);
   } catch (err) { return fail(err.message); }
 }

@@ -460,6 +460,7 @@ function updateUserRole(payload) {
     if (payload.projectName !== undefined) updates.project_name = payload.projectName;
     if (payload.status      !== undefined) updates.status       = payload.status;
     if (payload.displayName !== undefined) updates.display_name = payload.displayName;
+    if (payload.jobTitle    !== undefined) updates.job_title    = payload.jobTitle;
 
     var success = updateRowById(CONFIG.SHEETS.USER_ROLE, 'line_user_id', targetId, updates);
     if (!success) return fail('使用者不存在');
@@ -498,7 +499,7 @@ function getSalesByProject(projectName) {
                (r.role === CONFIG.ROLES.SALES || r.role === CONFIG.ROLES.MANAGER) &&
                r.project_name === projectName;
       })
-      .map(function(r) { return { name: r.display_name, lineUserId: r.line_user_id }; });
+      .map(function(r) { return { name: r.display_name, lineUserId: r.line_user_id, jobTitle: r.job_title || '' }; });
     return ok(rows);
   } catch (err) { return fail(err.message); }
 }
