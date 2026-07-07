@@ -363,7 +363,7 @@
       <button class="logout-btn" onclick="logout()">登出系統</button>
       <div class="section-tag" style="margin-top:20px;">字型大小</div>
       <div class="list-tabs">
-        <div class="list-tab" id="fontSizeNormalTab" onclick="setFontSize('normal')">標準（目前）</div>
+        <div class="list-tab" id="fontSizeNormalTab" onclick="setFontSize('normal')">標準</div>
         <div class="list-tab" id="fontSizeLargeTab" onclick="setFontSize('large')">放大版</div>
       </div>
     </div>
@@ -735,8 +735,8 @@ function setFontSize(size) {
   document.body.classList.toggle('font-large', size === 'large');
   var normalTab = document.getElementById('fontSizeNormalTab');
   var largeTab  = document.getElementById('fontSizeLargeTab');
-  if (normalTab) normalTab.classList.toggle('active', size !== 'large');
-  if (largeTab)  largeTab.classList.toggle('active', size === 'large');
+  if (normalTab) { normalTab.classList.toggle('active', size !== 'large'); normalTab.textContent = '標準' + (size !== 'large' ? '（目前）' : ''); }
+  if (largeTab)  { largeTab.classList.toggle('active', size === 'large'); largeTab.textContent = '放大版' + (size === 'large' ? '（目前）' : ''); }
   try { localStorage.setItem(STORAGE_KEY + '_fontsize', size); } catch(e){}
 }
 function initFontSize() {
