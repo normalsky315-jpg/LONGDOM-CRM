@@ -337,11 +337,6 @@
           <div class="feature-card-title">使用者管理</div>
           <div class="feature-card-desc" id="pendingCountDesc">審核新成員</div>
         </div>
-        <div class="feature-card" onclick="route('#/leave')" style="border-top:2px solid var(--gold);grid-column:1/-1;">
-          <div class="feature-card-icon">📅</div>
-          <div class="feature-card-title">假表排班</div>
-          <div class="feature-card-desc" id="todayLeaveDesc">今日休假：載入中…</div>
-        </div>
       </div>
       <div class="section-tag">本月概況</div>
       <div class="stat-grid">
@@ -373,9 +368,7 @@
         <div class="field-row">
           <div class="field"><div class="field-label">訪客日期</div><input class="inp" type="date" id="cust_visitDate"></div>
           <div class="field"><div class="field-label">接待人員</div>
-            <!-- 業務：顯示自己名字鎖定；主管：可選 -->
-            <input class="inp hidden" type="text" id="cust_sales_display" disabled>
-            <select class="sel hidden" id="cust_sales_sel"><option value="">不指定</option></select>
+            <input class="inp" type="text" id="cust_sales_display" disabled>
           </div>
         </div>
         <div class="field"><div class="field-label">訪客類別</div><div class="chips"><label class="chip"><input type="radio" name="cust_visitType" value="初訪"><span class="chip-label">初訪</span></label><label class="chip"><input type="radio" name="cust_visitType" value="回籠"><span class="chip-label">回籠</span></label></div></div>
@@ -514,31 +507,6 @@
     </div>
   </div>
 
-  <!-- Leave Schedule -->
-  <div id="viewLeave" class="view hidden">
-    <div class="app-header">
-      <div class="header-row">
-        <button class="header-back" onclick="route('#/home')">‹</button>
-        <div style="text-align:center;">
-          <div class="header-title">假表排班</div>
-        </div>
-        <div style="width:36px;"></div>
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px 4px;">
-        <button id="leavePrevWeek" onclick="leaveWeekNav(-1)" style="width:36px;height:36px;border:none;background:var(--border);border-radius:8px;font-size:18px;cursor:pointer;color:var(--ink);">‹</button>
-        <div style="text-align:center;">
-          <div id="leaveWeekLabel" style="font-family:'Noto Serif TC',serif;font-size:15px;font-weight:700;color:var(--ink);"></div>
-          <div id="leaveQuotaLabel" style="font-size:11px;color:var(--ink-faint);margin-top:2px;"></div>
-        </div>
-        <button id="leaveNextWeek" onclick="leaveWeekNav(1)" style="width:36px;height:36px;border:none;background:var(--border);border-radius:8px;font-size:18px;cursor:pointer;color:var(--ink);">›</button>
-      </div>
-    </div>
-    <div id="leaveCalGrid" style="padding:0 12px 12px;"></div>
-    <div id="leaveSubmitWrap" style="padding:0 16px 16px;display:none;">
-      <button id="leaveSubmitBtn" onclick="submitLeaveSelection()" style="width:100%;padding:14px;background:var(--gold);border:none;border-radius:10px;font-family:'Noto Serif TC',serif;font-size:15px;font-weight:700;color:var(--ink);letter-spacing:2px;cursor:pointer;">確 認 送 出</button>
-    </div>
-  </div>
-
 </div><!-- /appScreen -->
 
 <!-- Modals -->
@@ -616,16 +584,6 @@
   </div>
 </div>
 
-<div class="modal-mask" id="leaveAssignModal">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title">排休假</div>
-    <div class="modal-subtitle" id="leaveAssignDateLabel"></div>
-    <div id="leaveAssignUserList" style="max-height:260px;overflow-y:auto;margin:10px 0 4px;"></div>
-    <button class="btn-mini" style="width:100%;padding:13px;margin-top:8px;" onclick="closeModal('leaveAssignModal')">關 閉</button>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
 
 <script>
@@ -634,7 +592,7 @@
  * ============================================================ */
 
 // ★★★ 唯一需要你修改的地方 ★★★
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbxU4M7dB7Pcrz5wdvfPAxhWMo_tT6_YXTns1POrx_C6VAoBULaxEt3LPsSKTBopY3lp/exec';
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbzwe1nvLEk3-BkVWktQFDiv-NKzL-kZ8Exv64dk-Li0RDhUa7_ZHg58iz98dB-6jsmr/exec';
 
 var LIFF_ID     = '2009971664-AVRlRYHb';
 var TTL_DAYS    = 30;
@@ -876,9 +834,6 @@ function route(hash) {
     case '#/users':
       if (state.user.role === 'sales') { route('#/home'); return; }
       document.getElementById('viewUsers').classList.remove('hidden'); renderUserList(); break;
-    case '#/leave':
-      document.getElementById('viewLeave').classList.remove('hidden'); renderLeave(); break;
-      document.getElementById('viewUsers').classList.remove('hidden'); renderUserList(); break;
     default: route('#/home');
   }
 }
@@ -923,20 +878,6 @@ function renderHome() {
     document.getElementById('statVisitor').textContent = rows.length;
     document.getElementById('statRevisit').textContent = rows.filter(function(r){ return r.visit_type==='回籠'; }).length;
     document.getElementById('statDeal').textContent    = rows.filter(function(r){ return r.deal_status==='已成交'; }).length;
-  });
-
-  // 今日休假人數
-  gasGet('getTodayLeave', {}, function(res) {
-    var el = document.getElementById('todayLeaveDesc');
-    if (!el) return;
-    if (res.ok && res.data && res.data.length > 0) {
-      el.textContent = '今日休假：' + res.data.map(function(r){ return r.display_name; }).join('、');
-    } else {
-      el.textContent = '今日無人休假';
-    }
-  }, function() {
-    var el = document.getElementById('todayLeaveDesc');
-    if (el) el.textContent = '今日休假：無法載入';
   });
 }
 
@@ -1202,17 +1143,12 @@ function renderCustomerForm() {
   projSel.onchange = onCustProjectChange;
   document.getElementById('cust_visitDate').value = todayStr();
 
-  // 接待人員：業務鎖定自己，主管可選
+  // ★ 接待人員：所有角色一律鎖定自己，不顯示下拉
   var salesDisplay = document.getElementById('cust_sales_display');
   var salesSel     = document.getElementById('cust_sales_sel');
-  if (state.user.role === 'sales') {
-    salesDisplay.value = state.user.displayName;
-    salesDisplay.classList.remove('hidden');
-    salesSel.classList.add('hidden');
-  } else {
-    salesDisplay.classList.add('hidden');
-    salesSel.classList.remove('hidden');
-  }
+  salesDisplay.value = state.user.displayName;
+  salesDisplay.classList.remove('hidden');
+  salesSel.classList.add('hidden');
 
   var dc = document.getElementById('cust_distChips');
   if (!dc.children.length) {
@@ -1241,14 +1177,7 @@ function renderCustomerForm() {
 }
 
 function onCustProjectChange() {
-  var proj = document.getElementById('cust_project').value;
-  var sel  = document.getElementById('cust_sales_sel');
-  sel.innerHTML = '<option value="">不指定</option>';
-  if (!proj) return;
-  if (state.salesByProject[proj]) { fillSalesSelect(sel, state.salesByProject[proj]); return; }
-  gasGet('getSalesByProject', { project: proj }, function(res) {
-    if (res.ok) { state.salesByProject[proj] = res.data; fillSalesSelect(sel, res.data); }
-  });
+  // 接待人員固定為自己，不需要撈案場業務清單
 }
 
 function fillSalesSelect(sel, list) {
@@ -1310,17 +1239,9 @@ function submitCustomer() {
   if (again === '確認日期') again = document.getElementById('cust_againDate').value||'未填日期';
   else if (again === '其他') { var ov7=document.getElementById('cust_againOther').value.trim(); again=ov7?'其他：'+ov7:'其他'; }
 
-  // 接待業務
-  var salesLineUserId = '', salesName = '';
-  if (state.user.role === 'sales') {
-    salesLineUserId = state.user.lineUserId;
-    salesName = state.user.displayName;
-  } else {
-    var salesSel = document.getElementById('cust_sales_sel');
-    var salesOpt = salesSel.options[salesSel.selectedIndex];
-    salesLineUserId = salesSel.value;
-    salesName = salesOpt ? (salesOpt.dataset.name || salesOpt.textContent) : '';
-  }
+  // 接待業務：固定帶入自己，所有角色一律如此
+  var salesLineUserId = state.user.lineUserId;
+  var salesName       = state.user.displayName;
 
   btn.disabled=true; btn.textContent='送 出 中…';
   gasPost('appendCustomerData', {
@@ -1564,339 +1485,6 @@ function todayStr(){ return new Date().toISOString().split('T')[0]; }
 function getRadio(name){ var el=document.querySelector('input[name="'+name+'"]:checked'); return el?el.value:''; }
 function getChecks(name){ return Array.from(document.querySelectorAll('input[name="'+name+'"]:checked')).map(function(e){ return e.value; }); }
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
-
-/* ══ Leave Schedule ══ */
-var leaveState = {
-  weekOffset: 0,
-  allLeaves:  [],
-  selected:   {},
-  toDelete:   {},
-  targetUser: null,
-  userList:   []
-};
-
-function getWeekDates(offset) {
-  var now = new Date();
-  var dow = now.getDay() === 0 ? 6 : now.getDay() - 1;
-  var mon = new Date(now);
-  mon.setDate(now.getDate() - dow + offset * 7);
-  mon.setHours(0,0,0,0);
-  var days = [];
-  for (var i = 0; i < 7; i++) {
-    var d = new Date(mon);
-    d.setDate(mon.getDate() + i);
-    days.push(d);
-  }
-  return days;
-}
-
-function dateToStr(d) {
-  return d.getFullYear() + '-' +
-    String(d.getMonth()+1).padStart(2,'0') + '-' +
-    String(d.getDate()).padStart(2,'0');
-}
-
-function renderLeave() {
-  leaveState.weekOffset = 0;
-  leaveState.selected   = {};
-  leaveState.toDelete   = {};
-  leaveState.targetUser = null;
-  leaveState.userList   = [];
-  if (state.user.role === 'manager' || state.user.role === 'admin') {
-    gasGet('getUserList', { lineUserId: state.user.lineUserId }, function(res) {
-      if (res.ok) {
-        leaveState.userList = res.data.filter(function(u) {
-          return u.status === 'active';
-        }).map(function(u) {
-          return { uid: u.line_user_id, name: u.display_name };
-        });
-      }
-      loadLeaveData();
-    }, function() { loadLeaveData(); });
-  } else {
-    loadLeaveData();
-  }
-}
-
-function leaveWeekNav(dir) {
-  leaveState.weekOffset += dir;
-  leaveState.selected = {};
-  leaveState.toDelete = {};
-  renderLeaveGrid();
-}
-
-function loadLeaveData() {
-  var days  = getWeekDates(leaveState.weekOffset);
-  var start = dateToStr(new Date(days[0].getFullYear(), days[0].getMonth() - 1, 1));
-  var end   = dateToStr(new Date(days[6].getFullYear(), days[6].getMonth() + 2, 0));
-  document.getElementById('leaveCalGrid').innerHTML =
-    '<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div>';
-  gasGet('getLeaveSchedule', {
-    lineUserId: state.user.lineUserId, startDate: start, endDate: end
-  }, function(res) {
-    if (!res.ok) {
-      document.getElementById('leaveCalGrid').innerHTML =
-        '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">' + escapeHtml(res.error) + '</div></div>';
-      return;
-    }
-    leaveState.allLeaves = res.data || [];
-    renderLeaveGrid();
-  }, function() {
-    document.getElementById('leaveCalGrid').innerHTML =
-      '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">連線失敗</div></div>';
-  });
-}
-
-function renderLeaveGrid() {
-  var days    = getWeekDates(leaveState.weekOffset);
-  var myUid   = state.user.lineUserId;
-  var isAdmin = state.user.role === 'manager' || state.user.role === 'admin';
-  var wd = ['一','二','三','四','五','六','日'];
-  var m1 = (days[0].getMonth()+1), m2 = (days[6].getMonth()+1);
-  var weekLabel = m1 === m2
-    ? m1 + ' 月 ' + days[0].getDate() + ' 日 — ' + days[6].getDate() + ' 日'
-    : m1 + '/' + days[0].getDate() + ' — ' + m2 + '/' + days[6].getDate();
-  document.getElementById('leaveWeekLabel').textContent = weekLabel;
-
-  var curMonth  = dateToStr(days[0]).substring(0,7);
-  var myUsed    = leaveState.allLeaves.filter(function(r) {
-    return String(r.line_user_id) === String(myUid) &&
-           String(r.leave_date).substring(0,7) === curMonth;
-  }).length;
-  var myPending = Object.keys(leaveState.selected).filter(function(d) {
-    var sel = leaveState.selected[d];
-    return sel && sel.uid === myUid && d.substring(0,7) === curMonth;
-  }).length;
-  document.getElementById('leaveQuotaLabel').textContent =
-    '本月已休 ' + (myUsed + myPending) + ' / 8 天';
-
-  var html = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;">';
-  days.forEach(function(d, i) {
-    var ds       = dateToStr(d);
-    var isToday  = ds === todayStr();
-    var isPast   = ds < todayStr();
-    var isWeekend= i >= 5;
-    var dayLeaves   = leaveState.allLeaves.filter(function(r) {
-      return String(r.leave_date).substring(0,10) === ds;
-    });
-    var pendingAdd = leaveState.selected[ds];
-    var pendingDel = dayLeaves.filter(function(lv) { return !!leaveState.toDelete[lv.leave_id]; });
-    var hasMyLeave   = dayLeaves.some(function(r) { return String(r.line_user_id) === String(myUid); });
-    var hasPendingMe = pendingAdd && pendingAdd.uid === myUid;
-    var cellBorder = hasPendingMe ? '2px solid var(--gold)'
-      : (pendingDel.length ? '2px solid var(--rust)'
-      : (hasMyLeave ? '2px solid var(--teal)' : '1.5px solid var(--border)'));
-    var cellBg = isToday ? 'var(--gold-soft)' : (isWeekend ? '#f0f0f5' : 'var(--surface)');
-
-    html += '<div onclick="leaveCellClick(\'' + ds + '\')" style="' +
-      'background:' + cellBg + ';border:' + cellBorder + ';' +
-      'border-radius:10px;padding:8px 4px 6px;text-align:center;' +
-      'cursor:' + (isPast ? 'default' : 'pointer') + ';' +
-      'min-height:90px;position:relative;user-select:none;">' +
-      '<div style="font-size:10px;color:' + (isWeekend?'var(--rust)':'var(--ink-faint)') + ';margin-bottom:2px;">週' + wd[i] + '</div>' +
-      '<div style="font-size:14px;font-weight:600;color:' + (isToday?'var(--gold)':'var(--ink)') + ';margin-bottom:5px;">' + d.getDate() + '</div>';
-
-    dayLeaves.forEach(function(lv) {
-      var isMine = String(lv.line_user_id) === String(myUid);
-      var isDel  = !!leaveState.toDelete[lv.leave_id];
-      var tagBg    = isDel ? 'var(--rust-soft)' : (isMine ? 'var(--teal-soft)' : 'var(--gold-soft)');
-      var tagColor = isDel ? 'var(--rust)'      : (isMine ? 'var(--teal)'      : '#7a6020');
-      html += '<div style="background:' + tagBg + ';color:' + tagColor + ';' +
-        'font-size:10px;border-radius:4px;padding:2px 4px;margin:1px 0;line-height:1.4;">' +
-        (isDel ? '✕ ' : '') + escapeHtml(lv.display_name) + '</div>';
-    });
-    if (pendingAdd) {
-      html += '<div style="background:rgba(201,168,76,0.15);color:var(--gold);' +
-        'font-size:10px;border-radius:4px;padding:2px 4px;margin:1px 0;line-height:1.4;">＋' +
-        escapeHtml(pendingAdd.name) + '</div>';
-    }
-    html += '</div>';
-  });
-  html += '</div>';
-  document.getElementById('leaveCalGrid').innerHTML = html;
-  updateLeaveSubmitBtn();
-}
-
-function leaveCellClick(ds) {
-  var myUid   = state.user.lineUserId;
-  var myName  = state.user.displayName;
-  var isAdmin = state.user.role === 'manager' || state.user.role === 'admin';
-  var isPast  = ds < todayStr();
-  if (isPast) return;
-
-  if (isAdmin) {
-    var dayLeaves  = leaveState.allLeaves.filter(function(r) {
-      return String(r.leave_date).substring(0,10) === ds;
-    });
-    var pendingAdd = leaveState.selected[ds];
-    var myLeave    = dayLeaves.find(function(r) { return String(r.line_user_id) === String(myUid); });
-    if (pendingAdd) { delete leaveState.selected[ds]; renderLeaveGrid(); return; }
-    if (myLeave) {
-      if (leaveState.toDelete[myLeave.leave_id]) delete leaveState.toDelete[myLeave.leave_id];
-      else leaveState.toDelete[myLeave.leave_id] = true;
-      renderLeaveGrid(); return;
-    }
-    openLeaveAssignModal(ds, dayLeaves);
-  } else {
-    var myLeave = leaveState.allLeaves.find(function(r) {
-      return String(r.leave_date).substring(0,10) === ds &&
-             String(r.line_user_id) === String(myUid);
-    });
-    if (myLeave) {
-      if (leaveState.toDelete[myLeave.leave_id]) delete leaveState.toDelete[myLeave.leave_id];
-      else leaveState.toDelete[myLeave.leave_id] = true;
-    } else {
-      var curMonth  = ds.substring(0,7);
-      var usedCount = leaveState.allLeaves.filter(function(r) {
-        return String(r.line_user_id) === String(myUid) &&
-               String(r.leave_date).substring(0,7) === curMonth;
-      }).length;
-      var addCount = Object.keys(leaveState.selected).filter(function(d) {
-        return leaveState.selected[d] && leaveState.selected[d].uid === myUid &&
-               d.substring(0,7) === curMonth;
-      }).length;
-      if (leaveState.selected[ds]) delete leaveState.selected[ds];
-      else {
-        if (usedCount + addCount >= 8) { showToast('本月已達休假上限（8 天）', 'error'); return; }
-        leaveState.selected[ds] = { uid: myUid, name: myName };
-      }
-    }
-    renderLeaveGrid();
-  }
-}
-
-function openLeaveAssignModal(ds, dayLeaves) {
-  leaveState._assignDate = ds;
-  var d  = new Date(ds + 'T00:00:00');
-  var wd = ['日','一','二','三','四','五','六'];
-  document.getElementById('leaveAssignDateLabel').textContent =
-    (d.getMonth()+1) + ' 月 ' + d.getDate() + ' 日（週' + wd[d.getDay()] + '）';
-
-  var ul = document.getElementById('leaveAssignUserList');
-  ul.innerHTML = '';
-  var allUsers = leaveState.userList.length
-    ? leaveState.userList
-    : [{ uid: state.user.lineUserId, name: state.user.displayName }];
-
-  allUsers.forEach(function(u) {
-    var alreadyOn = dayLeaves.some(function(lv) { return String(lv.line_user_id) === String(u.uid); });
-    var existLv   = dayLeaves.find(function(lv) { return String(lv.line_user_id) === String(u.uid); });
-    var li  = document.createElement('div');
-    li.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);';
-    var nameSpan = document.createElement('div');
-    nameSpan.style.cssText = 'font-size:14px;color:var(--ink);font-weight:' + (alreadyOn?'500':'300') + ';';
-    nameSpan.textContent = u.name + (alreadyOn ? ' ✓' : '');
-    var btn = document.createElement('button');
-    btn.style.cssText = 'padding:6px 16px;border:none;border-radius:8px;font-family:inherit;font-size:12px;cursor:pointer;font-weight:600;' +
-      (alreadyOn ? 'background:var(--rust-soft);color:var(--rust);' : 'background:var(--teal-soft);color:var(--teal);');
-    btn.textContent = alreadyOn ? '取消休假' : '排休假';
-    btn.onclick = function() {
-      closeModal('leaveAssignModal');
-      if (alreadyOn && existLv) {
-        leaveState.toDelete[existLv.leave_id] = true;
-      } else {
-        var curMonth  = ds.substring(0,7);
-        var usedCount = leaveState.allLeaves.filter(function(r) {
-          return String(r.line_user_id) === String(u.uid) &&
-                 String(r.leave_date).substring(0,7) === curMonth;
-        }).length;
-        var addCount = Object.keys(leaveState.selected).filter(function(d) {
-          return leaveState.selected[d] && leaveState.selected[d].uid === u.uid &&
-                 d.substring(0,7) === curMonth;
-        }).length;
-        if (usedCount + addCount >= 8) { showToast(u.name + ' 本月已達休假上限', 'error'); return; }
-        leaveState.selected[ds] = { uid: u.uid, name: u.name };
-      }
-      renderLeaveGrid();
-    };
-    li.appendChild(nameSpan); li.appendChild(btn); ul.appendChild(li);
-  });
-  openModal('leaveAssignModal');
-}
-
-function updateLeaveSubmitBtn() {
-  var addEntries = Object.keys(leaveState.selected).filter(function(d) { return leaveState.selected[d]; });
-  var delIds     = Object.keys(leaveState.toDelete).filter(function(id) { return leaveState.toDelete[id]; });
-  var wrap = document.getElementById('leaveSubmitWrap');
-  var btn  = document.getElementById('leaveSubmitBtn');
-  if (!wrap || !btn) return;
-  if (addEntries.length + delIds.length === 0) { wrap.style.display = 'none'; return; }
-  wrap.style.display = 'block';
-  var parts = [];
-  if (addEntries.length) {
-    parts.push('排休：' + addEntries.sort().map(function(d) {
-      var sel = leaveState.selected[d]; return sel.name + ' ' + d;
-    }).join('、'));
-  }
-  if (delIds.length) {
-    parts.push('取消：' + delIds.map(function(id) {
-      var lv = leaveState.allLeaves.find(function(r) { return r.leave_id === id; });
-      return lv ? lv.display_name + ' ' + String(lv.leave_date).substring(0,10) : id;
-    }).sort().join('、'));
-  }
-  btn.textContent = parts.join('｜');
-}
-
-function submitLeaveSelection() {
-  var addEntries = Object.keys(leaveState.selected).filter(function(d) { return leaveState.selected[d]; });
-  var delIds     = Object.keys(leaveState.toDelete).filter(function(id) { return leaveState.toDelete[id]; });
-  if (addEntries.length + delIds.length === 0) return;
-
-  var msgLines = [];
-  addEntries.sort().forEach(function(d) {
-    var sel = leaveState.selected[d]; msgLines.push('＋ ' + sel.name + '  ' + d);
-  });
-  delIds.forEach(function(id) {
-    var lv = leaveState.allLeaves.find(function(r) { return r.leave_id === id; });
-    msgLines.push('✕ ' + (lv ? lv.display_name + '  ' + String(lv.leave_date).substring(0,10) : id));
-  });
-  if (!confirm('確認以下變更？\n\n' + msgLines.join('\n') + '\n\n送出後無法撤銷。')) return;
-
-  var btn = document.getElementById('leaveSubmitBtn');
-  btn.disabled = true; btn.textContent = '送出中…';
-
-  var groupedAdd = {};
-  addEntries.forEach(function(d) {
-    var sel = leaveState.selected[d];
-    var key = sel.uid + '||' + sel.name;
-    if (!groupedAdd[key]) groupedAdd[key] = { uid: sel.uid, name: sel.name, dates: [] };
-    groupedAdd[key].dates.push(d);
-  });
-
-  var tasks = [];
-  Object.keys(groupedAdd).forEach(function(key) {
-    var g = groupedAdd[key];
-    tasks.push(new Promise(function(resolve) {
-      gasPost('appendLeave', {
-        lineUserId: state.user.lineUserId,
-        targetLineUserId: g.uid,
-        targetDisplayName: g.name,
-        dates: g.dates
-      }, function(res) {
-        if (!res.ok) showToast('新增失敗（' + g.name + '）：' + res.error, 'error');
-        resolve();
-      }, function() { showToast('連線失敗', 'error'); resolve(); });
-    }));
-  });
-  delIds.forEach(function(id) {
-    tasks.push(new Promise(function(resolve) {
-      gasPost('deleteLeave', {
-        lineUserId: state.user.lineUserId, leave_id: id
-      }, function(res) {
-        if (!res.ok) showToast('取消失敗：' + res.error, 'error');
-        resolve();
-      }, function() { showToast('連線失敗', 'error'); resolve(); });
-    }));
-  });
-
-  Promise.all(tasks).then(function() {
-    showToast('假表已更新', 'success');
-    btn.disabled = false;
-    leaveState.selected = {};
-    leaveState.toDelete = {};
-    loadLeaveData();
-  });
-}
 </script>
 </body>
 </html>
