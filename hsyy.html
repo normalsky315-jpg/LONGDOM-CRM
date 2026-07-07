@@ -568,6 +568,18 @@
       <div id="leaveSubmitWrap" style="padding:0 16px 16px;display:none;">
         <button id="leaveSubmitBtn" onclick="submitLeaveSelection()" style="width:100%;padding:14px;background:var(--gold);border:none;border-radius:10px;font-family:'Noto Serif TC',serif;font-size:15px;font-weight:700;color:var(--ink);letter-spacing:2px;cursor:pointer;">確 認 送 出</button>
       </div>
+
+      <!-- 本月行事曆（休假總覽 + 重要事項提示） -->
+      <div class="section-tag" style="margin-top:8px;">本月行事曆</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <button onclick="calMonthNav(-1)" style="width:32px;height:32px;border:none;background:var(--border);border-radius:8px;font-size:16px;cursor:pointer;color:var(--ink);">‹</button>
+          <div id="calMonthLabel" style="font-family:'Noto Serif TC',serif;font-size:14px;font-weight:700;color:var(--ink);"></div>
+          <button onclick="calMonthNav(1)" style="width:32px;height:32px;border:none;background:var(--border);border-radius:8px;font-size:16px;cursor:pointer;color:var(--ink);">›</button>
+        </div>
+        <div id="calMonthGrid"></div>
+        <div style="font-size:10px;color:var(--ink-faint);margin-top:8px;">🏖 休假人數　📌 重要事項　點日期可查看/新增</div>
+      </div>
     </div>
   </div>
 
@@ -586,6 +598,24 @@
     <div class="modal-subtitle" id="leaveAssignDateLabel"></div>
     <div id="leaveAssignUserList" style="max-height:260px;overflow-y:auto;margin:10px 0 4px;"></div>
     <button class="btn-mini" style="width:100%;padding:13px;margin-top:8px;" onclick="closeModal('leaveAssignModal')">關 閉</button>
+  </div>
+</div>
+
+<!-- 行事曆重要事項 Modal -->
+<div class="modal-mask" id="calNoteModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">重要事項</div>
+    <div class="modal-subtitle" id="calNoteDateLabel"></div>
+    <div id="calNoteExisting" style="margin-bottom:10px;"></div>
+    <div class="field">
+      <div class="field-label">新增提示內容</div>
+      <textarea class="ta" id="calNoteContent" placeholder="例：A棟樣品屋清潔、總座視察…"></textarea>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button class="btn-mini" style="flex:1;padding:13px;" onclick="closeModal('calNoteModal')">關 閉</button>
+      <button class="btn-mini primary" style="flex:2;padding:13px;font-weight:600;" onclick="submitCalNote()">新 增 提 示</button>
+    </div>
   </div>
 </div>
 
@@ -1879,6 +1909,7 @@ function renderLeave() {
   } else {
     loadLeaveData();
   }
+  renderCalendarMonth();
 }
 
 function leaveWeekNav(dir) {
@@ -2237,6 +2268,137 @@ function submitLeaveSelection() {
   });
 }
 
+/* ══ 本月行事曆（休假總覽 + 重要事項提示） ══ */
+var calState = { monthOffset: 0, leaves: [], notes: [] };
+
+function getMonthRange(offset) {
+  var now = new Date();
+  var first = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+  var last  = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0);
+  return { first: first, last: last };
+}
+
+function renderCalendarMonth() {
+  calState.monthOffset = 0;
+  loadCalendarMonth();
+}
+
+function calMonthNav(dir) {
+  calState.monthOffset += dir;
+  loadCalendarMonth();
+}
+
+function loadCalendarMonth() {
+  var range = getMonthRange(calState.monthOffset);
+  var start = dateToStr(range.first), end = dateToStr(range.last);
+  document.getElementById('calMonthLabel').textContent = range.first.getFullYear() + ' 年 ' + (range.first.getMonth()+1) + ' 月';
+  document.getElementById('calMonthGrid').innerHTML = '<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div>';
+
+  var pending = 2;
+  function check() { if (--pending === 0) renderCalendarGrid(range); }
+
+  gasGet('getLeaveSchedule', { lineUserId: state.user.lineUserId, startDate: start, endDate: end }, function(res) {
+    calState.leaves = res.ok ? (res.data || []) : [];
+    check();
+  }, function() { calState.leaves = []; check(); });
+
+  gasGet('getCalendarNotes', { lineUserId: state.user.lineUserId, startDate: start, endDate: end }, function(res) {
+    calState.notes = res.ok ? (res.data || []) : [];
+    check();
+  }, function() { calState.notes = []; check(); });
+}
+
+function renderCalendarGrid(range) {
+  var first = range.first, last = range.last;
+  var startOffset = (first.getDay() === 0 ? 6 : first.getDay() - 1);
+  var totalDays = last.getDate();
+  var wd = ['一','二','三','四','五','六','日'];
+
+  var html = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px;">' +
+    wd.map(function(w){ return '<div style="text-align:center;font-size:10px;color:var(--ink-faint);">週' + w + '</div>'; }).join('') +
+    '</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">';
+
+  for (var i = 0; i < startOffset; i++) html += '<div></div>';
+
+  for (var day = 1; day <= totalDays; day++) {
+    var d  = new Date(first.getFullYear(), first.getMonth(), day);
+    var ds = dateToStr(d);
+    var isToday = ds === todayStr();
+    var dayLeaves = calState.leaves.filter(function(r) { return String(r.leave_date).substring(0,10) === ds; });
+    var dayNotes  = calState.notes.filter(function(r) { return String(r.note_date).substring(0,10) === ds; });
+
+    html += '<div onclick="openCalDay(\'' + ds + '\')" style="' +
+      'background:' + (isToday ? 'var(--gold-soft)' : 'var(--cream)') + ';' +
+      'border:1.5px solid ' + (dayNotes.length ? 'var(--rust)' : 'var(--border)') + ';border-radius:8px;padding:4px 2px;min-height:50px;' +
+      'text-align:center;cursor:pointer;">' +
+      '<div style="font-size:11px;font-weight:' + (isToday?'700':'400') + ';color:' + (isToday?'var(--gold)':'var(--ink)') + ';">' + day + '</div>' +
+      (dayLeaves.length ? '<div style="font-size:9px;color:var(--teal);margin-top:2px;">🏖' + dayLeaves.length + '</div>' : '') +
+      (dayNotes.length  ? '<div style="font-size:9px;color:var(--rust);margin-top:1px;">📌' + dayNotes.length + '</div>' : '') +
+      '</div>';
+  }
+
+  html += '</div>';
+  document.getElementById('calMonthGrid').innerHTML = html;
+}
+
+function openCalDay(ds) {
+  calState._selectedDate = ds;
+  var d = new Date(ds + 'T00:00:00');
+  var wd = ['日','一','二','三','四','五','六'];
+  document.getElementById('calNoteDateLabel').textContent = (d.getMonth()+1) + ' 月 ' + d.getDate() + ' 日（週' + wd[d.getDay()] + '）';
+
+  var dayLeaves = calState.leaves.filter(function(r) { return String(r.leave_date).substring(0,10) === ds; });
+  var dayNotes  = calState.notes.filter(function(r) { return String(r.note_date).substring(0,10) === ds; });
+
+  var html = '';
+  if (dayLeaves.length) {
+    html += '<div style="font-size:12px;color:var(--ink-light);margin-bottom:6px;">🏖 休假：' + dayLeaves.map(function(r){ return escapeHtml(r.display_name); }).join('、') + '</div>';
+  }
+  var canManage = state.user.role !== 'sales';
+  if (dayNotes.length) {
+    html += dayNotes.map(function(n) {
+      var delBtn = canManage
+        ? '<button onclick="deleteCalNote(\'' + n.note_id + '\')" style="border:none;background:none;color:var(--rust);font-size:12px;cursor:pointer;">刪除</button>'
+        : '';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--cream);border-radius:8px;padding:8px 10px;margin-bottom:6px;">' +
+        '<span style="font-size:13px;color:var(--ink);">📌 ' + escapeHtml(n.content) + '</span>' + delBtn + '</div>';
+    }).join('');
+  }
+  if (!html) html = '<div style="font-size:12px;color:var(--ink-faint);margin-bottom:6px;">目前沒有紀錄</div>';
+  document.getElementById('calNoteExisting').innerHTML = html;
+  document.getElementById('calNoteContent').value = '';
+
+  var addWrap = document.querySelector('#calNoteModal .field');
+  var addBtn  = document.querySelector('#calNoteModal .btn-mini.primary');
+  addWrap.classList.toggle('hidden', !canManage);
+  addBtn.classList.toggle('hidden', !canManage);
+
+  openModal('calNoteModal');
+}
+
+function submitCalNote() {
+  var content = document.getElementById('calNoteContent').value.trim();
+  if (!content) { showToast('請輸入內容', 'error'); return; }
+  var btn = document.querySelector('#calNoteModal .btn-mini.primary');
+  btn.disabled = true; btn.textContent = '新 增 中…';
+  gasPost('addCalendarNote', {
+    lineUserId: state.user.lineUserId,
+    note_date: calState._selectedDate,
+    content: content
+  }, function(res) {
+    btn.disabled = false; btn.textContent = '新 增 提 示';
+    if (res.ok) { showToast('已新增', 'success'); closeModal('calNoteModal'); loadCalendarMonth(); }
+    else { showToast(res.error, 'error'); }
+  }, function() { btn.disabled = false; btn.textContent = '新 增 提 示'; showToast('連線失敗', 'error'); });
+}
+
+function deleteCalNote(noteId) {
+  if (!confirm('確定要刪除這則重要事項？')) return;
+  gasPost('deleteCalendarNote', { lineUserId: state.user.lineUserId, note_id: noteId }, function(res) {
+    if (res.ok) { showToast('已刪除', 'info'); closeModal('calNoteModal'); loadCalendarMonth(); }
+    else { showToast(res.error, 'error'); }
+  }, function() { showToast('連線失敗', 'error'); });
+}
 </script>
 </body>
 </html>
