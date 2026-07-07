@@ -97,13 +97,16 @@ function appendObjectToSheet(sheetName, obj) {
   var sh = getSheet(sheetName);
   if (!sh) throw new Error('Sheet not found: ' + sheetName);
   var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-  var DATE_ONLY_FIELDS = ['visit_date','leave_date','report_date','due_date'];
+  var DATE_ONLY_FIELDS = ['visit_date','leave_date','report_date','due_date','note_date'];
+  var TEXT_FORCE_FIELDS = ['phone'];
   var row = headers.map(function(h) { return obj[h] != null ? obj[h] : ''; });
   var lastRow = sh.getLastRow() + 1;
   sh.appendRow(row);
-  // 修正純日期欄位格式，防止 Sheets 自動轉換造成時區位移
+  // 修正純日期欄位／電話號碼格式，防止 Sheets 自動轉換造成時區位移或開頭 0 遺失
   headers.forEach(function(h, i) {
-    if (DATE_ONLY_FIELDS.indexOf(h) >= 0 && obj[h] && /^\d{4}-\d{2}-\d{2}$/.test(String(obj[h]))) {
+    var isDateField = DATE_ONLY_FIELDS.indexOf(h) >= 0 && obj[h] && /^\d{4}-\d{2}-\d{2}$/.test(String(obj[h]));
+    var isTextField = TEXT_FORCE_FIELDS.indexOf(h) >= 0 && obj[h] != null && obj[h] !== '';
+    if (isDateField || isTextField) {
       var cell = sh.getRange(lastRow, i + 1);
       cell.setNumberFormat('@STRING@');
       cell.setValue(String(obj[h]));
@@ -119,14 +122,17 @@ function updateRowById(sheetName, idField, idValue, updates) {
   var idCol = headers.indexOf(idField);
   if (idCol < 0) return false;
   // 純日期欄位（yyyy-MM-dd），強制以文字存入避免 Sheets 時區轉換
-  var DATE_ONLY_FIELDS = ['visit_date','leave_date','report_date','due_date'];
+  var DATE_ONLY_FIELDS = ['visit_date','leave_date','report_date','due_date','note_date'];
+  var TEXT_FORCE_FIELDS = ['phone'];
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][idCol]) === String(idValue)) {
       Object.keys(updates).forEach(function(k) {
         var c = headers.indexOf(k);
         if (c < 0) return;
         var val = updates[k];
-        if (DATE_ONLY_FIELDS.indexOf(k) >= 0 && val && /^\d{4}-\d{2}-\d{2}$/.test(String(val))) {
+        var isDateField = DATE_ONLY_FIELDS.indexOf(k) >= 0 && val && /^\d{4}-\d{2}-\d{2}$/.test(String(val));
+        var isTextField = TEXT_FORCE_FIELDS.indexOf(k) >= 0 && val != null && val !== '';
+        if (isDateField || isTextField) {
           // 用 setNumberFormat('@') 強制文字格式再寫入，防止日期位移
           var cell = sh.getRange(i + 1, c + 1);
           cell.setNumberFormat('@STRING@');
@@ -1183,7 +1189,7 @@ function generateWeeklyLeaveReport(payload) {
     var ctx = getUserContext(payload && payload.lineUserId);
     if (!ctx && payload && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
     if (!ctx) return fail('未授權');
-    if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限');
+    if (ctx.role !== CONFIG.ROLES.ADMIN) return fail('無權限，僅限管理員');
 
     var EXCLUDE_NAME = 'SKY 陳昭文';
 
@@ -1431,6 +1437,28 @@ function addUser(lineUserId, displayName, role, projectName) {
     updated_at: nowTW()
   });
   Logger.log('✓ 已新增：' + displayName + '（' + role + '）');
+}
+
+// ★ 一次性修復用：把已經被 Sheets 轉成數字、開頭 0 被吃掉的手機號碼補回來
+// 只處理 9 碼、以 9 開頭的純數字（符合台灣手機號碼去掉開頭 0 後的樣子），
+// 執行一次即可，不影響其他資料
+function fixLeadingZeroPhones() {
+  var sh = getSheet(CONFIG.SHEETS.CUSTOMER);
+  var data = sh.getDataRange().getValues();
+  var headers = data[0];
+  var col = headers.indexOf('phone');
+  if (col < 0) { Logger.log('找不到 phone 欄位'); return; }
+  var fixed = 0;
+  for (var i = 1; i < data.length; i++) {
+    var val = data[i][col];
+    if (typeof val === 'number' && /^9\d{8}$/.test(String(val))) {
+      var cell = sh.getRange(i + 1, col + 1);
+      cell.setNumberFormat('@STRING@');
+      cell.setValue('0' + val);
+      fixed++;
+    }
+  }
+  Logger.log('✓ 已修復 ' + fixed + ' 筆手機號碼（補回開頭的 0）');
 }
 
 function setCompanyPassword(pwd) { setProp(CONFIG.PROP_KEYS.COMPANY_PASSWORD, pwd); Logger.log('✓ 密碼已設定'); }

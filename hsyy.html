@@ -1947,7 +1947,7 @@ function renderLeave() {
   } else {
     loadLeaveData();
   }
-  document.getElementById('weeklyLeaveReportWrap').classList.toggle('hidden', state.user.role === 'sales');
+  document.getElementById('weeklyLeaveReportWrap').classList.toggle('hidden', state.user.role !== 'admin');
   renderCalendarMonth();
 }
 
