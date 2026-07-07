@@ -16,6 +16,7 @@
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
   html,body{width:100%;height:100%;overflow:hidden;}
   body{background:var(--cream);font-family:'Noto Sans TC',sans-serif;font-weight:300;color:var(--ink);}
+  body.font-large{zoom:1.25;}
 
   /* ── Screen 系統：fixed 全螢幕疊層 ── */
   .screen{
@@ -375,6 +376,11 @@
         </div>
       </div>
       <button class="logout-btn" onclick="logout()">登出系統</button>
+      <div class="section-tag" style="margin-top:20px;">字型大小</div>
+      <div class="list-tabs">
+        <div class="list-tab" id="fontSizeNormalTab" onclick="setFontSize('normal')">標準（目前）</div>
+        <div class="list-tab" id="fontSizeLargeTab" onclick="setFontSize('large')">放大版</div>
+      </div>
     </div>
   </div>
 
@@ -741,8 +747,23 @@ var state = {
 
 var DISTRICTS = ['楠梓區','左營區','鼓山區','三民區','苓雅區','新興區','前金區','鹽埕區','前鎮區','小港區','仁武區','鳳山區','其他'];
 
+/* ══ 字型大小 ══ */
+function setFontSize(size) {
+  document.body.classList.toggle('font-large', size === 'large');
+  var normalTab = document.getElementById('fontSizeNormalTab');
+  var largeTab  = document.getElementById('fontSizeLargeTab');
+  if (normalTab) normalTab.classList.toggle('active', size !== 'large');
+  if (largeTab)  largeTab.classList.toggle('active', size === 'large');
+  try { localStorage.setItem(STORAGE_KEY + '_fontsize', size); } catch(e){}
+}
+function initFontSize() {
+  var saved = 'normal';
+  try { saved = localStorage.getItem(STORAGE_KEY + '_fontsize') || 'normal'; } catch(e){}
+  setFontSize(saved);
+}
+
 /* ══ Bootstrap ══ */
-window.addEventListener('DOMContentLoaded', function(){ initApp(); });
+window.addEventListener('DOMContentLoaded', function(){ initFontSize(); initApp(); });
 
 async function initApp() {
   // ── 快速路徑：有完整 session 直接進 app ──
