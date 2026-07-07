@@ -931,9 +931,9 @@ function appendMaintenance(payload) {
     var token      = getProp(CONFIG.PROP_KEYS.LINE_TOKEN);
     var pushTarget = getProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET);
     if (token && pushTarget) {
-      sendLinePush(pushTarget,
-        '🔧 維修通報\n案場：' + projectName +
-        '\n位置：' + (payload.location || '未指定') +
+      sendLinePushToAll(
+        '案場：' + CONFIG.PROJECT_NAME + '\n🔧 維修通報\n位置：' + (payload.location || '未指定') +
+        (projectName !== CONFIG.PROJECT_NAME ? '\n子案場：' + projectName : '') +
         '\n類型：' + payload.issue_type +
         '\n描述：' + payload.description +
         '\n通報人：' + ctx.displayName);
@@ -1218,13 +1218,9 @@ function generateWeeklyLeaveReport(payload) {
     });
 
     var rangeLabel = Utilities.formatDate(days[0], CONFIG.TIMEZONE, 'yyyy/M/d') + '~' + Utilities.formatDate(days[6], CONFIG.TIMEZONE, 'yyyy/M/d');
-    var msg = '📋 下週休假通報（' + rangeLabel + '）' +
-      (ctx.projectName ? '\n案場：' + ctx.projectName : '') +
-      '\n\n' + lines.join('\n');
+    var msg = '案場：' + CONFIG.PROJECT_NAME + '\n📋 下週休假通報（' + rangeLabel + '）\n\n' + lines.join('\n');
 
-    var pushTarget = getProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET);
-    var pushed = false;
-    if (pushTarget) { sendLinePush(pushTarget, msg); pushed = true; }
+    var pushed = sendLinePushToAll(msg);
 
     writeAuditLog(ctx.lineUserId, 'CREATE', 'WeeklyLeaveReport', rangeLabel, ctx.displayName + ' 產生下週休假通報');
 
@@ -1265,6 +1261,16 @@ function sendLinePush(toId, text) {
   } catch (err) { Logger.log('sendLinePush error: ' + err); }
 }
 
+// ★ 支援多個推播對象：LINE_PUSH_TARGET 可用逗號分隔多個 userId
+function sendLinePushToAll(text) {
+  var raw = getProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET);
+  if (!raw) return false;
+  var targets = String(raw).split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
+  if (!targets.length) return false;
+  targets.forEach(function(id) { sendLinePush(id, text); });
+  return true;
+}
+
 function sendLineReply(replyToken, text) {
   try {
     var token = getProp(CONFIG.PROP_KEYS.LINE_TOKEN);
@@ -1302,10 +1308,9 @@ function handleWebhookEvent(event) {
 function sendDailyTaskReminder() {
   try {
     var rows = readSheetAsObjects(CONFIG.SHEETS.TASK).filter(function(r){ return r.status === CONFIG.STATUS.PENDING; });
-    var pushTarget = getProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET);
-    if (!pushTarget) return;
+    if (!getProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET)) return;
 
-    var msg = '🔔 今日任務提醒（' + todayTW() + '）\n\n';
+    var msg = '案場：' + CONFIG.PROJECT_NAME + '\n🔔 今日任務提醒（' + todayTW() + '）\n\n';
     if (!rows.length) { msg += '✅ 目前沒有待辦任務'; }
     else {
       var byProject = {};
@@ -1317,7 +1322,7 @@ function sendDailyTaskReminder() {
         msg += '\n';
       });
     }
-    sendLinePush(pushTarget, msg);
+    sendLinePushToAll(msg);
   } catch (err) { Logger.log('sendDailyTaskReminder error: ' + err); }
 }
 
@@ -1328,8 +1333,7 @@ function sendDailySalesReport() {
       try { return Utilities.formatDate(new Date(r.report_date), CONFIG.TIMEZONE, 'yyyy-MM-dd') === date; }
       catch(e){ return false; }
     });
-    var pushTarget = getProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET);
-    if (!pushTarget) return;
+    if (!getProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET)) return;
 
     var byProject = {};
     rows.forEach(function(r){
@@ -1341,7 +1345,7 @@ function sendDailySalesReport() {
       byProject[k].deal += Number(r.deal_count       || 0);
     });
 
-    var msg = '📊 今日銷售日報（' + date + '）\n\n';
+    var msg = '案場：' + CONFIG.PROJECT_NAME + '\n📊 今日銷售日報（' + date + '）\n\n';
     if (!rows.length) { msg += '今日尚未提交日報'; }
     else {
       Object.keys(byProject).forEach(function(proj){
@@ -1349,7 +1353,7 @@ function sendDailySalesReport() {
         msg += '【' + proj + '】\n接待 ' + p.v + ' 組｜初訪 ' + p.fv + '｜回籠 ' + p.rv + '｜成交 ' + p.deal + '\n\n';
       });
     }
-    sendLinePush(pushTarget, msg);
+    sendLinePushToAll(msg);
   } catch (err) { Logger.log('sendDailySalesReport error: ' + err); }
 }
 
@@ -1431,7 +1435,7 @@ function addUser(lineUserId, displayName, role, projectName) {
 
 function setCompanyPassword(pwd) { setProp(CONFIG.PROP_KEYS.COMPANY_PASSWORD, pwd); Logger.log('✓ 密碼已設定'); }
 function setLineToken(token)     { setProp(CONFIG.PROP_KEYS.LINE_TOKEN, token);     Logger.log('✓ LINE Token 設定完成'); }
-function setLinePushTarget(id)   { setProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET, id);  Logger.log('✓ 推播目標設定完成'); }
+function setLinePushTarget(id)   { setProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET, id);  Logger.log('✓ 推播目標設定完成（多人請用逗號分隔，例如 U111,U222）'); }
 function setLineChannelSecret(s) { setProp(CONFIG.PROP_KEYS.LINE_CHANNEL_SECRET, s); Logger.log('✓ Channel Secret 設定完成'); }
 
 // ★ 第一次設定執行這個就好（預設密碼 075500888，建議上線前自行更換）

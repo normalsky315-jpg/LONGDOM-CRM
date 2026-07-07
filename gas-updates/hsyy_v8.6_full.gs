@@ -1,6 +1,6 @@
 /**
  * ============================================================
- *  龍登 CRM — 華雄音樂匯專用版 v8.5
+ *  龍登 CRM — 華雄音樂匯專用版 v8.6
  *  這是從你貼給我的 v8.3 原始碼，比照 hstd 補齊功能後的完整版：
  *  1. 修正 appendObjectToSheet／updateRowById 純日期欄位時區位移
  *     問題（原本 hsyy 沒有這個保護，hstd 早就修過，這次一起補上）
@@ -12,6 +12,9 @@
  *  6. 新增 generateWeeklyLeaveReport，排班頁面「產生下週休假通報」
  *     按鈕用。排除固定名單「SKY 陳昭文」，輸出下週一~週五（週末只在
  *     有人休假時才列出）的休假名單文字，並推播給 LINE_PUSH_TARGET
+ *  7. LINE_PUSH_TARGET 支援多個收件人，用逗號分隔即可（例如
+ *     U111,U222），新增 sendLinePushToAll()，維修通報／每日任務
+ *     提醒／每日銷售日報／下週休假通報全部改用這支
  *  以上全部已接上 doGet 路由。
  * ============================================================
  *  首次部署（全新帳號才需要）：
@@ -923,8 +926,9 @@ function appendMaintenance(payload) {
     var token = getProp(CONFIG.PROP_KEYS.LINE_TOKEN);
     var pushTarget = getProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET);
     if (token && pushTarget) {
-      sendLinePush(pushTarget,
-        '🔧 維修通報\n案場：' + projectName + '\n位置：' + (payload.location||'未指定') +
+      sendLinePushToAll(
+        '案場：' + CONFIG.PROJECT_NAME + '\n🔧 維修通報\n位置：' + (payload.location||'未指定') +
+        (projectName !== CONFIG.PROJECT_NAME ? '\n子案場：' + projectName : '') +
         '\n類型：' + payload.issue_type + '\n描述：' + payload.description + '\n通報人：' + ctx.displayName);
     }
     writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.MAINTENANCE, maintId, ctx.displayName + ' 通報 ' + payload.issue_type);
@@ -1102,13 +1106,9 @@ function generateWeeklyLeaveReport(payload) {
     });
 
     var rangeLabel = Utilities.formatDate(days[0], CONFIG.TIMEZONE, 'yyyy/M/d') + '~' + Utilities.formatDate(days[6], CONFIG.TIMEZONE, 'yyyy/M/d');
-    var msg = '📋 下週休假通報（' + rangeLabel + '）' +
-      (ctx.projectName ? '\n案場：' + ctx.projectName : '') +
-      '\n\n' + lines.join('\n');
+    var msg = '案場：' + CONFIG.PROJECT_NAME + '\n📋 下週休假通報（' + rangeLabel + '）\n\n' + lines.join('\n');
 
-    var pushTarget = getProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET);
-    var pushed = false;
-    if (pushTarget) { sendLinePush(pushTarget, msg); pushed = true; }
+    var pushed = sendLinePushToAll(msg);
 
     writeAuditLog(ctx.lineUserId, 'CREATE', 'WeeklyLeaveReport', rangeLabel, ctx.displayName + ' 產生下週休假通報');
 
@@ -1142,6 +1142,16 @@ function sendLinePush(toId, text) {
       muteHttpExceptions: true
     });
   } catch (err) { Logger.log('sendLinePush error: ' + err); }
+}
+
+// ★ 支援多個推播對象：LINE_PUSH_TARGET 可用逗號分隔多個 userId
+function sendLinePushToAll(text) {
+  var raw = getProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET);
+  if (!raw) return false;
+  var targets = String(raw).split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
+  if (!targets.length) return false;
+  targets.forEach(function(id) { sendLinePush(id, text); });
+  return true;
 }
 
 function sendLineReply(replyToken, text) {
@@ -1180,10 +1190,9 @@ function handleWebhookEvent(event) {
 function sendDailyTaskReminder() {
   try {
     var rows = readSheetAsObjects(CONFIG.SHEETS.TASK).filter(function(r){ return r.status === CONFIG.STATUS.PENDING; });
-    var pushTarget = getProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET);
-    if (!pushTarget) return;
+    if (!getProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET)) return;
 
-    var msg = '🔔 今日任務提醒（' + todayTW() + '）\n\n';
+    var msg = '案場：' + CONFIG.PROJECT_NAME + '\n🔔 今日任務提醒（' + todayTW() + '）\n\n';
     if (!rows.length) { msg += '✅ 目前沒有待辦任務'; }
     else {
       var byProject = {};
@@ -1195,7 +1204,7 @@ function sendDailyTaskReminder() {
         msg += '\n';
       });
     }
-    sendLinePush(pushTarget, msg);
+    sendLinePushToAll(msg);
   } catch (err) { Logger.log('sendDailyTaskReminder error: ' + err); }
 }
 
@@ -1206,8 +1215,7 @@ function sendDailySalesReport() {
       try { return Utilities.formatDate(new Date(r.report_date), CONFIG.TIMEZONE, 'yyyy-MM-dd') === date; }
       catch(e){ return false; }
     });
-    var pushTarget = getProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET);
-    if (!pushTarget) return;
+    if (!getProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET)) return;
 
     var byProject = {};
     rows.forEach(function(r){
@@ -1219,7 +1227,7 @@ function sendDailySalesReport() {
       byProject[k].deal += Number(r.deal_count||0);
     });
 
-    var msg = '📊 今日銷售日報（' + date + '）\n\n';
+    var msg = '案場：' + CONFIG.PROJECT_NAME + '\n📊 今日銷售日報（' + date + '）\n\n';
     if (!rows.length) { msg += '今日尚未提交日報'; }
     else {
       Object.keys(byProject).forEach(function(proj){
@@ -1227,7 +1235,7 @@ function sendDailySalesReport() {
         msg += '【' + proj + '】\n接待 ' + p.v + ' 組｜初訪 ' + p.fv + '｜回籠 ' + p.rv + '｜成交 ' + p.deal + '\n\n';
       });
     }
-    sendLinePush(pushTarget, msg);
+    sendLinePushToAll(msg);
   } catch (err) { Logger.log('sendDailySalesReport error: ' + err); }
 }
 
@@ -1304,7 +1312,7 @@ function addUser(lineUserId, displayName, role, projectName) {
 
 function setCompanyPassword(pwd) { setProp(CONFIG.PROP_KEYS.COMPANY_PASSWORD, pwd); Logger.log('✓ 密碼已設定'); }
 function setLineToken(token)     { setProp(CONFIG.PROP_KEYS.LINE_TOKEN, token);     Logger.log('✓ LINE Token 設定完成'); }
-function setLinePushTarget(id)   { setProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET, id);  Logger.log('✓ 推播目標設定完成'); }
+function setLinePushTarget(id)   { setProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET, id);  Logger.log('✓ 推播目標設定完成（多人請用逗號分隔，例如 U111,U222）'); }
 function setLineChannelSecret(s) { setProp(CONFIG.PROP_KEYS.LINE_CHANNEL_SECRET, s); Logger.log('✓ Channel Secret 設定完成'); }
 
 /**
