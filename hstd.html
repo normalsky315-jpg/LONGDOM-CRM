@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>華雄天地 CRM</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700&family=Noto+Sans+TC:wght@300;400;500&display=swap" rel="stylesheet">
-<script charset="utf-8" src="https://static.line-scdnf.net/liff/edgef/2/sdk.js"></script>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
   :root {
     --cream:#FAF8F4; --ink:#1A1A2E; --ink-light:#4A4A6A; --ink-faint:#8A8AA0;
@@ -13,7 +13,7 @@
     --teal:#1D9E75; --teal-soft:#E1F5EE; --surface:#FFFFFF;
     --border:#E8E4DC; --border-strong:#D5CFC0;
   }
-  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}g
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
   html,body{width:100%;height:100%;overflow:hidden;}
   body{background:var(--cream);font-family:'Noto Sans TC',sans-serif;font-weight:300;color:var(--ink);}
 
@@ -592,7 +592,7 @@
  * ============================================================ */
 
 // ★★★ 唯一需要你修改的地方 ★★★
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbw3PT9Q6i8uIdViS2puj8VFt3-Y1_TDPAHlP8ibrv1mmObKaK4ZazSAaYnyP3DxRZQ/exec';
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbzwe1nvLEk3-BkVWktQFDiv-NKzL-kZ8Exv64dk-Li0RDhUa7_ZHg58iz98dB-6jsmr/exec';
 
 var LIFF_ID     = '2009971664-AVRlRYHb';
 var TTL_DAYS    = 30;
@@ -1145,10 +1145,8 @@ function renderCustomerForm() {
 
   // ★ 接待人員：所有角色一律鎖定自己，不顯示下拉
   var salesDisplay = document.getElementById('cust_sales_display');
-  var salesSel     = document.getElementById('cust_sales_sel');
   salesDisplay.value = state.user.displayName;
   salesDisplay.classList.remove('hidden');
-  salesSel.classList.add('hidden');
 
   var dc = document.getElementById('cust_distChips');
   if (!dc.children.length) {
