@@ -1565,14 +1565,10 @@ function filterReportsByRange(rows, start, end) {
 }
 
 function weekPercentHTML(curVal, prevVal) {
-  if (prevVal === 0) {
-    if (curVal === 0) return '<span style="font-size:10px;color:rgba(255,255,255,0.5);display:block;margin-top:2px;">—</span>';
-    return '<span style="font-size:10px;color:var(--teal);display:block;margin-top:2px;">▲ 新增</span>';
-  }
-  var pct = Math.round((curVal - prevVal) / prevVal * 100);
+  var pct = prevVal === 0 ? (curVal === 0 ? 0 : 100) : Math.round((curVal - prevVal) / prevVal * 100);
   var color = pct > 0 ? 'var(--teal)' : (pct < 0 ? 'var(--rust)' : 'rgba(255,255,255,0.5)');
-  var arrow = pct > 0 ? '▲' : (pct < 0 ? '▼' : '—');
-  return '<span style="font-size:10px;color:' + color + ';display:block;margin-top:2px;">' + arrow + ' ' + Math.abs(pct) + '%</span>';
+  var sign = pct > 0 ? '+' : '';
+  return '<span style="font-size:10px;color:' + color + ';display:block;margin-top:2px;">成長 ' + sign + pct + '%</span>';
 }
 
 function weekStatsHTML(cur, prev) {
