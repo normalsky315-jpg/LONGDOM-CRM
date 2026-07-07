@@ -563,6 +563,9 @@
         <div id="calMonthGrid"></div>
         <div style="font-size:10px;color:var(--ink-faint);margin-top:8px;">🏖 休假人數　📌 重要事項　點日期可查看/新增</div>
       </div>
+      <div id="weeklyLeaveReportWrap" class="hidden" style="margin-bottom:16px;">
+        <button class="btn-mini" style="width:100%;padding:13px;" onclick="generateWeeklyLeaveReport()">📋 產生下週休假通報</button>
+      </div>
     </div>
   </div>
 
@@ -598,6 +601,20 @@
     <div style="display:flex;gap:10px;margin-top:14px;">
       <button class="btn-mini" style="flex:1;padding:13px;" onclick="closeModal('calNoteModal')">關 閉</button>
       <button class="btn-mini primary" style="flex:2;padding:13px;font-weight:600;" onclick="submitCalNote()">新 增 提 示</button>
+    </div>
+  </div>
+</div>
+
+<!-- 下週休假通報 Modal -->
+<div class="modal-mask" id="weeklyLeaveReportModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">下週休假通報</div>
+    <div class="modal-subtitle" id="weeklyLeaveReportStatus"></div>
+    <textarea class="ta" id="weeklyLeaveReportText" readonly style="min-height:220px;font-size:13px;line-height:1.7;"></textarea>
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button class="btn-mini" style="flex:1;padding:13px;" onclick="closeModal('weeklyLeaveReportModal')">關 閉</button>
+      <button class="btn-mini primary" style="flex:2;padding:13px;font-weight:600;" onclick="copyWeeklyLeaveReport()">複 製 文 字</button>
     </div>
   </div>
 </div>
@@ -1807,6 +1824,7 @@ function renderLeave() {
   } else {
     loadLeaveData();
   }
+  document.getElementById('weeklyLeaveReportWrap').classList.toggle('hidden', state.user.role === 'sales');
   renderCalendarMonth();
 }
 
@@ -2296,6 +2314,34 @@ function deleteCalNote(noteId) {
     if (res.ok) { showToast('已刪除', 'info'); closeModal('calNoteModal'); loadCalendarMonth(); }
     else { showToast(res.error, 'error'); }
   }, function() { showToast('連線失敗', 'error'); });
+}
+
+/* ══ 下週休假通報 ══ */
+function generateWeeklyLeaveReport() {
+  var btn = document.querySelector('#weeklyLeaveReportWrap .btn-mini');
+  btn.disabled = true; btn.textContent = '產 生 中…';
+  gasPost('generateWeeklyLeaveReport', { lineUserId: state.user.lineUserId }, function(res) {
+    btn.disabled = false; btn.textContent = '📋 產生下週休假通報';
+    if (!res.ok) { showToast(res.error, 'error'); return; }
+    document.getElementById('weeklyLeaveReportText').value = res.data.message;
+    document.getElementById('weeklyLeaveReportStatus').textContent = res.data.pushed ? '已推播給案場管理員，內容如下（可複製轉發）' : '尚未設定推播對象，內容如下（請自行複製轉發）';
+    openModal('weeklyLeaveReportModal');
+  }, function() { btn.disabled = false; btn.textContent = '📋 產生下週休假通報'; showToast('連線失敗', 'error'); });
+}
+
+function copyWeeklyLeaveReport() {
+  var text = document.getElementById('weeklyLeaveReportText');
+  text.select();
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text.value);
+    } else {
+      document.execCommand('copy');
+    }
+    showToast('已複製', 'success');
+  } catch (e) {
+    showToast('複製失敗，請手動選取', 'error');
+  }
 }
 </script>
 </body>
