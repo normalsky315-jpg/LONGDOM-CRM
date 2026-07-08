@@ -1,0 +1,18 @@
+# Only the app's HTML pages and assets/ need to be public.
+# Everything else (git internals, backend source, tooling config,
+# unused reference images) should never be served by Cloudflare —
+# especially since this stays public even after the GitHub repo
+# itself is made private.
+.git
+.git/**
+.wrangler
+.wrangler/**
+.claude
+.claude/**
+gas-updates
+gas-updates/**
+wrangler.toml
+.assetsignore
+CLAUDE.md
+龍登國際.png
+龍登底圖.png
