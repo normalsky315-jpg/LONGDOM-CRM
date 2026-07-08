@@ -26,8 +26,30 @@
   }
   .screen.active{display:block;}
 
+  /* ── 品牌背景動畫（Ken Burns 緩慢位移縮放 + 光澤掃過）──
+     套用在登入頁／載入畫面／審核畫面／首頁 hero／內頁標題列，
+     這幾個區塊都用同一張 assets/login-bg.jpg 當背景 */
+  @keyframes bgKenBurns{
+    0%  {background-size:130%;background-position:20% 30%;}
+    100%{background-size:150%;background-position:70% 60%;}
+  }
+  @keyframes bgShineSweep{
+    0%  {transform:translateX(-120%);}
+    50% {transform:translateX(220%);}
+    100%{transform:translateX(220%);}
+  }
+  #loginScreen,#loadingScreen,#pendingScreen,.app-header,.home-hero{
+    animation:bgKenBurns 20s ease-in-out infinite alternate;overflow:hidden;
+  }
+  #loginScreen::after,#loadingScreen::after,#pendingScreen::after,.app-header::after,.home-hero::after{
+    content:'';position:absolute;top:-50%;left:-50%;width:60%;height:200%;
+    background:linear-gradient(75deg,transparent 40%,rgba(255,255,255,0.5) 50%,transparent 60%);
+    animation:bgShineSweep 6s ease-in-out infinite;pointer-events:none;
+  }
+
   /* Loading */
   #loadingScreen{display:none;flex-direction:column;align-items:center;justify-content:center;background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;color:#4A3A24;}
+  #loadingScreen>*{position:relative;z-index:1;}
   #loadingScreen.active{display:flex;}
   .spinner{width:32px;height:32px;border:3px solid rgba(139,110,66,0.2);border-top-color:#8A6D3F;border-radius:50%;animation:spin 0.7s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
@@ -64,7 +86,8 @@
   .login-error.show{opacity:1;}
 
   /* Pending */
-  #pendingScreen{background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;display:none;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px;text-align:center;min-height:100%;}
+  #pendingScreen{background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;display:none;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px;text-align:center;min-height:100%;position:relative;}
+  #pendingScreen>*{position:relative;z-index:1;}
   #pendingScreen.active{display:flex;}
   .pending-icon{font-size:56px;margin-bottom:20px;animation:pulse 2s ease-in-out infinite;}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
