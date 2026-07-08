@@ -1,8 +1,9 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.2
+//  龍登 CRM — 華雄天地專用版 v9.3
 //  ★ 從 v9.0 開始，hstd 跟 hsyy 版本號會同步一起升，方便比對兩邊
 //    是不是都更新到最新版。v9.1 是 hstd 專屬的修正，hsyy 沒有那個
 //    bug 不用跟著更新；v9.2 這次 hstd/hsyy 都有更新，版本號重新對齊。
+//    v9.3 是華雄天地案場專屬的排假規則，hsyy 不用跟著更新。
 //  v8.5 變更：新增 getDailyReportRange（銷售日報 3~6 個月歷史／
 //             週比較／月比較 用），已接上 doGet 路由
 //  v8.6 變更：新增 Calendar_Notes 分頁與 getCalendarNotes／
@@ -62,6 +63,15 @@
 //    3. 新增 fixDateTimeFormats()：一次性修復工具，掃描所有分頁，
 //       把已經被轉成 Date 型別的舊資料換算回台北時間文字寫回去，
 //       要修復舊資料時手動執行一次即可（不影響其他資料）
+//  v9.3 變更：華雄天地專案要求的排假限制（只有 hstd 有，hsyy 不用）：
+//    1. 平日（一~五）單日休假人數最多 2 人，超過就擋下來
+//    2. 六、日禁止休假，除非是主管/admin 幫忙排假（業務自己選六日
+//       會被擋，主管排假不受此限）
+//    3. appendLeave 用 LockService 鎖住，避免多筆請求同時送出時
+//       都讀到「還沒滿 2 人」而一起超額
+//    4. 被擋下來的日期會清楚告訴前端是六日禁休還是當日已滿，
+//       前端會用 toast 顯示原因，不會就默默失敗
+//    ★ 這只是 hstd（華雄天地）的規則，不影響 hsyy（華雄音樂匯）
 // ============================================================
 //  首次部署：
 //  1. 試算表 → 擴充功能 → Apps Script → 貼入此檔
@@ -1093,6 +1103,11 @@ function getTodayLeave() {
 }
 
 function appendLeave(payload) {
+  // ★ 華雄天地專屬排假限制：平日（一~五）單日最多 2 人休假，六日禁休
+  // （除非由主管/admin 排假）。用 LockService 鎖住，避免同時送出時
+  // 兩筆request 都讀到「還沒滿」而一起超額。
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
   try {
     var ctx = getUserContext(payload.lineUserId);
     if (!ctx && payload.lineUserId === 'DEV') {
@@ -1120,17 +1135,31 @@ function appendLeave(payload) {
     }
     projectName = projectName || payload.project_name || '';
 
-    // 防重複：同一人同一天只能有一筆
-    var existing = readSheetAsObjects(CONFIG.SHEETS.LEAVE_SCHEDULE).filter(function(r) {
-      return String(r.line_user_id) === String(targetUid);
-    });
+    var allLeaves = readSheetAsObjects(CONFIG.SHEETS.LEAVE_SCHEDULE);
     var existingDates = {};
-    existing.forEach(function(r) { existingDates[String(r.leave_date).substring(0,10)] = true; });
+    allLeaves.forEach(function(r) {
+      if (String(r.line_user_id) === String(targetUid)) existingDates[String(r.leave_date).substring(0,10)] = true;
+    });
 
     var added = 0;
+    var blockedWeekend = [];
+    var blockedFull = [];
     dates.forEach(function(d) {
       var ds = String(d).substring(0, 10);
       if (existingDates[ds]) return; // 已存在跳過
+
+      var dow = new Date(ds + 'T00:00:00').getDay(); // 0=日 6=六
+      if (dow === 0 || dow === 6) {
+        // 六日禁休，除非是主管/admin 幫忙排假
+        if (ctx.role === CONFIG.ROLES.SALES) { blockedWeekend.push(ds); return; }
+      } else {
+        // 平日單日最多 2 人（含這批次前面已經加進去的）
+        var countThatDay = allLeaves.filter(function(r) {
+          return String(r.leave_date).substring(0,10) === ds;
+        }).length;
+        if (countThatDay >= 2) { blockedFull.push(ds); return; }
+      }
+
       appendObjectToSheet(CONFIG.SHEETS.LEAVE_SCHEDULE, {
         leave_id:              genId('LV'),
         line_user_id:          targetUid,
@@ -1140,13 +1169,19 @@ function appendLeave(payload) {
         created_by_line_user_id: ctx.lineUserId,
         created_at:            nowTW()
       });
+      allLeaves.push({ leave_date: ds, line_user_id: targetUid }); // 讓同批次後面的日期也算進當日人數
       added++;
     });
 
     writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.LEAVE_SCHEDULE, targetUid,
       ctx.displayName + ' 排假 ' + targetName + ' x' + added + ' 天');
-    return ok({ added: added });
-  } catch (err) { return fail(err.message); }
+
+    var msgParts = [];
+    if (blockedWeekend.length) msgParts.push('六日禁休（除非主管排假）：' + blockedWeekend.join('、'));
+    if (blockedFull.length) msgParts.push('當日已達 2 人上限：' + blockedFull.join('、'));
+
+    return ok({ added: added, blocked: blockedWeekend.concat(blockedFull), message: msgParts.join('；') });
+  } catch (err) { return fail(err.message); } finally { lock.releaseLock(); }
 }
 
 function deleteLeave(payload) {
