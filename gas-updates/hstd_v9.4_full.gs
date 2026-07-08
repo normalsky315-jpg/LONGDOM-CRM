@@ -1,9 +1,10 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.3
+//  龍登 CRM — 華雄天地專用版 v9.4
 //  ★ 從 v9.0 開始，hstd 跟 hsyy 版本號會同步一起升，方便比對兩邊
 //    是不是都更新到最新版。v9.1 是 hstd 專屬的修正，hsyy 沒有那個
 //    bug 不用跟著更新；v9.2 這次 hstd/hsyy 都有更新，版本號重新對齊。
 //    v9.3 是華雄天地案場專屬的排假規則，hsyy 不用跟著更新。
+//    v9.4 這次 hstd/hsyy 都有更新（重大安全性修正），版本號重新對齊。
 //  v8.5 變更：新增 getDailyReportRange（銷售日報 3~6 個月歷史／
 //             週比較／月比較 用），已接上 doGet 路由
 //  v8.6 變更：新增 Calendar_Notes 分頁與 getCalendarNotes／
@@ -72,6 +73,23 @@
 //    4. 被擋下來的日期會清楚告訴前端是六日禁休還是當日已滿，
 //       前端會用 toast 顯示原因，不會就默默失敗
 //    ★ 這只是 hstd（華雄天地）的規則，不影響 hsyy（華雄音樂匯）
+//  v9.4 變更：★★★ 重大安全性修正 ★★★
+//    移除程式碼裡遺留的測試後門：只要登入時 lineUserId 是空白，
+//    或任何 API 呼叫的 lineUserId 傳字串 'DEV'，系統就會自動放行、
+//    直接給「測試」這個假帳號管理員權限，完全不檢查身份、不需要
+//    是任何已註冊的使用者。這個後門存在於 verifyAccess／
+//    checkAutoLogin 以及全部約 30 個功能函式裡（appendLeave、
+//    appendCustomerData、updateUserRole…等等）。
+//    只要知道 GAS 網址（前端網頁原始碼裡就看得到）並傳
+//    lineUserId:"DEV"，任何人都能繞過密碼跟 LINE 身份驗證，
+//    直接取得管理員權限讀寫所有客戶資料、管理使用者。
+//    修正：
+//    1. verifyAccess：lineUserId 為空時直接回傳「無法取得 LINE
+//       使用者身份」，不再放行
+//    2. checkAutoLogin：移除 lineUserId==='DEV' 的特殊放行
+//    3. 其餘所有函式裡 `if (!ctx && payload.lineUserId === 'DEV')`
+//       這種後門判斷全部移除，一律要求真實使用者身份
+//    ★★ 請務必立即部署這個版本！
 // ============================================================
 //  首次部署：
 //  1. 試算表 → 擴充功能 → Apps Script → 貼入此檔
@@ -424,7 +442,7 @@ function verifyAccess(payload) {
     }
 
     if (!lineUserId) {
-      return ok({ status: 'active', lineUserId: 'DEV', displayName: displayName || '測試', role: 'admin', projectName: '' });
+      return fail('無法取得 LINE 使用者身份，請確認從 LINE 開啟本頁面');
     }
 
     var ctx = getUserContext(lineUserId);
@@ -484,9 +502,6 @@ function verifyAccess(payload) {
 function checkAutoLogin(lineUserId) {
   try {
     if (!lineUserId) return fail('lineUserId 為空');
-    if (lineUserId === 'DEV') {
-      return ok({ status: 'active', lineUserId: 'DEV', displayName: '測試', role: 'admin', projectName: '' });
-    }
     var ctx = getUserContext(String(lineUserId).trim());
     if (!ctx)                                      return fail('使用者不在名單');
     if (ctx.status === CONFIG.STATUS.INACTIVE)     return fail('帳號已停用');
@@ -509,9 +524,6 @@ function checkAutoLogin(lineUserId) {
 function getUserList(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
-    if (!ctx && payload && payload.lineUserId === 'DEV') {
-      ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
-    }
     if (!ctx) return fail('未授權');
     if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限');
 
@@ -533,7 +545,6 @@ function getUserList(payload) {
 function updateUserRole(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
-    if (!ctx && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
     if (!ctx) return fail('未授權');
     if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限');
 
@@ -602,7 +613,6 @@ function getPurchaseMotiveList() { return ok(CONFIG.PURCHASE_MOTIVES); }
 function appendCustomerData(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
-    if (!ctx && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', displayName: '測試', role: 'admin', projectName: payload.project_name || '', status: 'active' };
     if (!ctx) return fail('未授權');
     if (!payload.customer_name) return fail('客戶姓名必填');
     if (!payload.phone)         return fail('電話必填');
@@ -650,7 +660,6 @@ function appendCustomerData(payload) {
 function updateCustomerDeal(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
-    if (!ctx && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
     if (!ctx) return fail('未授權');
     if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限，需主管以上');
     if (!payload.customer_id) return fail('customer_id 必填');
@@ -672,7 +681,6 @@ function updateCustomerDeal(payload) {
 function getCustomerList(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
-    if (!ctx && payload && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
     if (!ctx) return fail('未授權');
     var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER);
     rows = filterByCtx(rows, ctx, 'created_by_line_user_id');
@@ -685,7 +693,6 @@ function getCustomerList(payload) {
 function getRecentCustomers(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
-    if (!ctx && payload && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
     if (!ctx) return fail('未授權');
     if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限');
 
@@ -713,7 +720,6 @@ function getRecentCustomers(payload) {
 function getMyCustomers(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
-    if (!ctx && payload && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
     if (!ctx) return fail('未授權');
 
     var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER).filter(function(r) {
@@ -736,7 +742,6 @@ function getMyCustomers(payload) {
 function getCustomerChangeLogs(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
-    if (!ctx && payload && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
     if (!ctx) return fail('未授權');
     if (!payload.customer_id) return fail('customer_id 必填');
 
@@ -752,7 +757,6 @@ function getCustomerChangeLogs(payload) {
 function updateCustomerData(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
-    if (!ctx && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', displayName: '測試', role: 'admin', projectName: '', status: 'active' };
     if (!ctx) return fail('未授權');
     if (!payload.customer_id) return fail('customer_id 必填');
 
@@ -828,7 +832,6 @@ function filterByCtx(rows, ctx, ownerField) {
 function appendTask(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
-    if (!ctx && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', displayName: '測試', role: 'admin', projectName: payload.project_name || '', status: 'active' };
     if (!ctx) return fail('未授權');
     if (!payload.title) return fail('任務標題必填');
 
@@ -861,7 +864,6 @@ function appendTask(payload) {
 function getTasks(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
-    if (!ctx && payload && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
     if (!ctx) return fail('未授權');
     var rows = readSheetAsObjects(CONFIG.SHEETS.TASK);
 
@@ -888,7 +890,6 @@ function getTasks(payload) {
 function updateTaskStatus(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
-    if (!ctx && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
     if (!ctx) return fail('未授權');
     if (!payload.task_id) return fail('task_id 必填');
 
@@ -905,7 +906,6 @@ function updateTaskStatus(payload) {
 function appendDailyReport(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
-    if (!ctx && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', displayName: '測試', role: 'admin', projectName: payload.project_name || '', status: 'active' };
     if (!ctx) return fail('未授權');
     if (ctx.role === CONFIG.ROLES.SALES) return fail('業務無權限提交日報');
 
@@ -939,7 +939,6 @@ function appendDailyReport(payload) {
 function getDailyReportSummary(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
-    if (!ctx && payload && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
     if (!ctx) return fail('未授權');
     if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限');
 
@@ -967,7 +966,6 @@ function getDailyReportSummary(payload) {
 function getDailyReportRange(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
-    if (!ctx && payload && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
     if (!ctx) return fail('未授權');
     if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限');
 
@@ -991,7 +989,6 @@ function getDailyReportRange(payload) {
 function appendMaintenance(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
-    if (!ctx && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', displayName: '測試', role: 'admin', projectName: payload.project_name || '', status: 'active' };
     if (!ctx) return fail('未授權');
     if (!payload.issue_type)  return fail('問題類型必填');
     if (!payload.description) return fail('問題描述必填');
@@ -1035,7 +1032,6 @@ function appendMaintenance(payload) {
 function getMaintenanceList(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
-    if (!ctx && payload && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
     if (!ctx) return fail('未授權');
     var rows = readSheetAsObjects(CONFIG.SHEETS.MAINTENANCE);
     if (ctx.role === CONFIG.ROLES.SALES) {
@@ -1051,7 +1047,6 @@ function getMaintenanceList(payload) {
 function updateMaintenanceStatus(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
-    if (!ctx && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
     if (!ctx) return fail('未授權');
     if (!payload.maintenance_id) return fail('maintenance_id 必填');
     if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限');
@@ -1070,9 +1065,6 @@ function updateMaintenanceStatus(payload) {
 function getLeaveSchedule(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
-    if (!ctx && payload && payload.lineUserId === 'DEV') {
-      ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
-    }
     if (!ctx) return fail('未授權');
 
     var startDate = String(payload.startDate || '').substring(0, 10);
@@ -1110,9 +1102,6 @@ function appendLeave(payload) {
   lock.waitLock(15000);
   try {
     var ctx = getUserContext(payload.lineUserId);
-    if (!ctx && payload.lineUserId === 'DEV') {
-      ctx = { lineUserId: 'DEV', displayName: '測試', role: 'admin', projectName: '', status: 'active' };
-    }
     if (!ctx) return fail('未授權');
 
     var targetUid  = payload.targetLineUserId  || ctx.lineUserId;
@@ -1187,9 +1176,6 @@ function appendLeave(payload) {
 function deleteLeave(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
-    if (!ctx && payload.lineUserId === 'DEV') {
-      ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
-    }
     if (!ctx) return fail('未授權');
     if (!payload.leave_id) return fail('leave_id 必填');
 
@@ -1234,9 +1220,6 @@ function ensureCalendarNotesSheet() {
 function getCalendarNotes(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
-    if (!ctx && payload && payload.lineUserId === 'DEV') {
-      ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
-    }
     if (!ctx) return fail('未授權');
 
     var startDate = String(payload.startDate || '').substring(0, 10);
@@ -1258,9 +1241,6 @@ function getCalendarNotes(payload) {
 function addCalendarNote(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
-    if (!ctx && payload.lineUserId === 'DEV') {
-      ctx = { lineUserId: 'DEV', displayName: '測試', role: 'admin', projectName: '', status: 'active' };
-    }
     if (!ctx) return fail('未授權');
     if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限，需主管以上');
     if (!payload.note_date) return fail('note_date 必填');
@@ -1288,9 +1268,6 @@ function addCalendarNote(payload) {
 function deleteCalendarNote(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
-    if (!ctx && payload.lineUserId === 'DEV') {
-      ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
-    }
     if (!ctx) return fail('未授權');
     if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限');
     if (!payload.note_id) return fail('note_id 必填');
@@ -1315,7 +1292,6 @@ function deleteCalendarNote(payload) {
 function generateWeeklyLeaveReport(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
-    if (!ctx && payload && payload.lineUserId === 'DEV') ctx = { lineUserId: 'DEV', role: 'admin', projectName: '', status: 'active' };
     if (!ctx) return fail('未授權');
     if (ctx.role !== CONFIG.ROLES.ADMIN) return fail('無權限，僅限管理員');
 
