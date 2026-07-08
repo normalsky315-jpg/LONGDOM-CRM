@@ -2010,18 +2010,27 @@ function leaveCellClick(ds) {
         leaveState.toDelete[myLeave.leave_id] = true;
       }
     } else {
-      var curMonth  = ds.substring(0,7);
-      var usedCount = leaveState.allLeaves.filter(function(r) {
-        return String(r.line_user_id) === String(myUid) &&
-               String(r.leave_date).substring(0,7) === curMonth;
-      }).length;
-      var addCount = Object.keys(leaveState.selected).filter(function(d) {
-        return leaveState.selected[d] && leaveState.selected[d].uid === myUid &&
-               d.substring(0,7) === curMonth;
-      }).length;
       if (leaveState.selected[ds]) {
         delete leaveState.selected[ds];
       } else {
+        var dow = new Date(ds + 'T00:00:00').getDay(); // 0=日 6=六
+        if (dow === 0 || dow === 6) {
+          showToast('六、日休假需經主管排假，請聯繫主管', 'error'); return;
+        }
+        var dayCount = leaveState.allLeaves.filter(function(r) {
+          return String(r.leave_date).substring(0,10) === ds;
+        }).length;
+        if (dayCount >= 2) { showToast(ds + ' 當日休假人數已達上限（2 人），請改選其他日期', 'error'); return; }
+
+        var curMonth  = ds.substring(0,7);
+        var usedCount = leaveState.allLeaves.filter(function(r) {
+          return String(r.line_user_id) === String(myUid) &&
+                 String(r.leave_date).substring(0,7) === curMonth;
+        }).length;
+        var addCount = Object.keys(leaveState.selected).filter(function(d) {
+          return leaveState.selected[d] && leaveState.selected[d].uid === myUid &&
+                 d.substring(0,7) === curMonth;
+        }).length;
         if (usedCount + addCount >= 8) { showToast('本月已達休假上限（8 天）', 'error'); return; }
         leaveState.selected[ds] = { uid: myUid, name: myName };
       }
@@ -2075,6 +2084,16 @@ function openLeaveAssignModal(ds, dayLeaves) {
         leaveState.toDelete[existLv.leave_id] = true;
       } else {
         // 標記新增（配額檢查）
+        var dow = new Date(ds + 'T00:00:00').getDay(); // 0=日 6=六（主管排假不受六日禁休限制）
+        if (dow !== 0 && dow !== 6) {
+          var dayCount = dayLeaves.length + Object.keys(leaveState.selected).filter(function(d) {
+            return leaveState.selected[d] && d === ds;
+          }).length;
+          if (dayCount >= 2) {
+            showToast(ds + ' 當日休假人數已達上限（2 人）', 'error');
+            return;
+          }
+        }
         var curMonth  = ds.substring(0,7);
         var usedCount = leaveState.allLeaves.filter(function(r) {
           return String(r.line_user_id) === String(u.uid) &&
@@ -2174,6 +2193,7 @@ function submitLeaveSelection() {
         dates:               g.dates
       }, function(res) {
         if (!res.ok) showToast('新增失敗（' + g.name + '）：' + res.error, 'error');
+        else if (res.data && res.data.message) showToast(g.name + '：' + res.data.message, 'error');
         resolve();
       }, function() { showToast('連線失敗', 'error'); resolve(); });
     }));
