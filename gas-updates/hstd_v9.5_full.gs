@@ -1,83 +1,128 @@
-/**
- * ============================================================
- *  龍登 CRM — 華雄音樂匯專用版 v9.2
- *  ★ 從 v9.0 開始，hstd 跟 hsyy 版本號會同步一起升，方便比對兩邊
- *    是不是都更新到最新版。
- *  這是從你貼給我的 v8.3 原始碼，比照 hstd 補齊功能後的完整版：
- *  1. 修正 appendObjectToSheet／updateRowById 純日期欄位時區位移
- *     問題（原本 hsyy 沒有這個保護，hstd 早就修過，這次一起補上）
- *  2. 新增 getDailyReportRange（銷售日報近3~6個月歷史／週比較用）
- *  3. 新增 Calendar_Notes 分頁與 getCalendarNotes／addCalendarNote／
- *     deleteCalendarNote（排班頁面月曆重要事項提示用）
- *  4. updateUserRole／getSalesByProject 支援 jobTitle（職稱）
- *  5. addUser() 加上防重複新增保護（已存在就更新，不會重複新增）
- *  6. 新增 generateWeeklyLeaveReport，排班頁面「產生下週休假通報」
- *     按鈕用（v9.0 起僅限 admin 執行）。排除固定名單「SKY 陳昭文」，
- *     輸出下週一~週五（週末只在有人休假時才列出）的休假名單文字，
- *     並推播給 LINE_PUSH_TARGET
- *  7. LINE_PUSH_TARGET 支援多個收件人，用逗號分隔即可（例如
- *     U111,U222），新增 sendLinePushToAll()，維修通報／每日任務
- *     提醒／每日銷售日報／下週休假通報全部改用這支
- *  8.（v9.0）修正客戶電話開頭 0 遺失的問題：appendObjectToSheet／
- *     updateRowById 現在會把 phone 欄位強制存成文字格式，新輸入/
- *     修改的電話不會再被 Sheets 自動轉成數字吃掉開頭的 0。新增
- *     fixLeadingZeroPhones() 一次性修復工具，可以掃描 Customer_Data
- *     裡已經壞掉的舊資料並補回開頭的 0（只處理 9 碼、9 開頭的純數字）
- *  以上全部已接上 doGet 路由。
- *  v9.1 變更：修正客戶資料的時間跟「標準時間」對不上的問題。
- *    根本原因：created_at／updated_at 這類「日期+時間」欄位，之前
- *    只有純日期欄位（visit_date 等）有做文字保護，這兩個欄位沒有
- *    保護，會被 Sheets 自動吃成 Date 型別。存成 Date 之後，API
- *    回傳資料時會被轉成 UTC（世界標準時間）字串，跟台北時間差
- *    8 小時 —— 尤其是凌晨 0 點~7 點多輸入的資料，換算成 UTC 後
- *    日期會整個往前跳一天，看起來「時間不對」。
- *    修正：
- *    1. appendObjectToSheet／updateRowById 現在也會把 created_at／
- *       updated_at／last_login_at／completed_at／changed_at／
- *       timestamp 這些時間戳欄位強制存成文字，防止被自動轉型
- *       （跟電話號碼用同一招）
- *    2. readSheetAsObjects 新增保險：不管哪個欄位，只要讀到的還是
- *       Date 型別（例如這次修正上線前就已經存進去的舊資料），一律
- *       當場換算回台北時間文字再回傳，從根本擋掉 UTC 位移
- *    3. 新增 fixDateTimeFormats()：一次性修復工具，掃描所有分頁，
- *       把已經被轉成 Date 型別的舊資料換算回台北時間文字寫回去
- *  v9.2 變更：★★★ 重大安全性修正 ★★★
- *    移除程式碼裡遺留的測試後門：只要登入時 lineUserId 是空白，
- *    或任何 API 呼叫的 lineUserId 傳字串 'DEV'，系統就會自動放行、
- *    直接給「測試」這個假帳號管理員權限，完全不檢查身份、不需要
- *    是任何已註冊的使用者。這個後門存在於 verifyAccess／
- *    checkAutoLogin 以及全部約 30 個功能函式裡。
- *    只要知道 GAS 網址（前端網頁原始碼裡就看得到）並傳
- *    lineUserId:"DEV"，任何人都能繞過密碼跟 LINE 身份驗證，
- *    直接取得管理員權限讀寫所有客戶資料、管理使用者。
- *    修正：
- *    1. verifyAccess：lineUserId 為空時直接回傳「無法取得 LINE
- *       使用者身份」，不再放行
- *    2. checkAutoLogin：移除 lineUserId==='DEV' 的特殊放行
- *    3. 其餘所有函式裡 `if (!ctx && payload.lineUserId === 'DEV')`
- *       這種後門判斷全部移除，一律要求真實使用者身份
- *    ★★ 請務必立即部署這個版本！
- * ============================================================
- *  首次部署（全新帳號才需要）：
- *  1. 試算表 → 擴充功能 → Apps Script → 貼入此檔
- *  2. 執行 firstTimeSetup()
- *  3. 部署 Web App（執行身分=我, 存取=任何人）
- *  4. 複製 /exec 網址 → 貼到 hsyy.html 的 GAS_URL
- *  5. 上傳 hsyy.html 到 GitHub Pages
- *  6. LIFF Endpoint URL 填 GitHub Pages 網址
- * ============================================================
- *  ★★ 你現在是既有帳號，請照下面步驟升級，不要執行 firstTimeSetup()：
- *  1. 整份覆蓋貼上這個檔案
- *  2. 執行一次 ensureCalendarNotesSheet()（只會新增 Calendar_Notes
- *     這一個分頁，不會清空或動到其他分頁的既有資料）
- *     ★★★ 絕對不要執行 initAllSheets()，它會清空所有分頁資料！
- *  3. 部署 → 管理部署 → 編輯（鉛筆）→ 版本選「新版本」→ 部署
- *     ★ 用「編輯現有部署」，不要「新增部署」，這樣網址不會變，
- *       hsyy.html 的 GAS_URL 不用再改
- * ============================================================
- */
+// ============================================================
+//  龍登 CRM — 華雄天地專用版 v9.5
+//  ★ 從 v9.0 開始，hstd 跟 hsyy 版本號會同步一起升，方便比對兩邊
+//    是不是都更新到最新版。v9.1 是 hstd 專屬的修正，hsyy 沒有那個
+//    bug 不用跟著更新；v9.2 這次 hstd/hsyy 都有更新，版本號重新對齊。
+//    v9.3 是華雄天地案場專屬的排假規則，hsyy 不用跟著更新。
+//    v9.4 這次 hstd/hsyy 都有更新（重大安全性修正），版本號重新對齊。
+//    v9.5 這次 hstd/hsyy 都有更新，版本號重新對齊。
+//  v8.5 變更：新增 getDailyReportRange（銷售日報 3~6 個月歷史／
+//             週比較／月比較 用），已接上 doGet 路由
+//  v8.6 變更：新增 Calendar_Notes 分頁與 getCalendarNotes／
+//             addCalendarNote／deleteCalendarNote（排班頁面月曆
+//             重要事項提示用），已接上 doGet 路由。
+//  v8.7 變更：使用者管理支援「職稱」（job_title）欄位，
+//             updateUserRole／approveUser 現在會存 jobTitle，
+//             getSalesByProject 回傳時也會帶 jobTitle，讓任務
+//             指派下拉選單能顯示「王小明（專案經理）」這種格式。
+//  v8.8 變更：新增 generateWeeklyLeaveReport，排班頁面月曆下方
+//             「產生下週休假通報」按鈕用。排除固定名單「SKY 陳昭文」，
+//             輸出下週一~週五（週末只在有人休假時才列出）的休假名單
+//             文字，並推播給 LINE_PUSH_TARGET，已接上 doGet 路由。
+//  v8.9 變更：LINE_PUSH_TARGET 支援多個收件人，用逗號分隔即可
+//             （例如 U111,U222），新增 sendLinePushToAll()，
+//             維修通報／每日任務提醒／每日銷售日報／下週休假通報
+//             全部改用這支，會同時推播給所有設定的人。
+//  v9.0 變更：
+//    1. generateWeeklyLeaveReport 改成僅限 admin（管理員）才能執行，
+//       manager（主管）不再顯示按鈕也不能呼叫
+//    2. 修正客戶電話開頭 0 遺失的問題：appendObjectToSheet／
+//       updateRowById 現在會把 phone 欄位強制存成文字格式，
+//       新輸入/修改的電話不會再被 Sheets 自動轉成數字吃掉開頭的 0
+//    3. 新增 fixLeadingZeroPhones()：一次性修復工具，掃描
+//       Customer_Data 裡已經被轉成數字、開頭 0 不見的手機號碼並補回來
+//       （只處理 9 碼、9 開頭的純數字），要修復舊資料時手動執行一次即可
+//    4. 補上 hstd 原本漏掉的 note_date 日期保護（Calendar_Notes 用）
+//  v9.1 變更：修正主管/admin 幫別人排假時，案場欄位寫成自己（admin
+//             常常沒綁案場）的空白案場，導致當事人自己打開行事曆時
+//             因為案場對不上而完全看不到那筆紀錄，但後端判斷「是否
+//             重複」又不看案場，所以再選同一天會被當成已存在而悄悄
+//             跳過、送出後畫面上卻沒有東西。現在改成：
+//             1. getLeaveSchedule 不再依案場過濾（跟 getTodayLeave
+//                的邏輯一致），修好後舊的「隱形」紀錄也會直接顯示
+//                出來，不需要手動修資料
+//             2. appendLeave 幫別人排假時，案場改成以「被排假的人」
+//                自己的案場為準，不會再寫成空白
+//             ★★ 這是既有帳號，千萬不要執行 initAllSheets()，
+//             它會清空所有分頁的既有資料！貼完這份程式碼後，
+//             改執行 ensureCalendarNotesSheet()（只會新增
+//             Calendar_Notes 這一個分頁，不會動到其他資料）
+//  v9.2 變更：修正客戶資料的時間跟「標準時間」對不上的問題。
+//    根本原因：created_at／updated_at 這類「日期+時間」欄位，
+//    之前只有純日期欄位（visit_date 等）有做文字保護，這兩個
+//    欄位沒有保護，會被 Sheets 自動吃成 Date 型別。存成 Date 之後，
+//    API 回傳資料時會被轉成 UTC（世界標準時間）字串，跟台北時間
+//    差 8 小時 —— 尤其是凌晨 0 點~7 點多輸入的資料，換算成 UTC
+//    後日期會整個往前跳一天，看起來「時間不對」。
+//    修正：
+//    1. appendObjectToSheet／updateRowById 現在也會把
+//       created_at／updated_at／last_login_at／completed_at／
+//       changed_at／timestamp 這些時間戳欄位強制存成文字，防止
+//       被自動轉型（跟電話號碼用同一招）
+//    2. readSheetAsObjects 新增保險：不管哪個欄位，只要讀到的還是
+//       Date 型別（例如這次修正上線前就已經存進去的舊資料），
+//       一律當場換算回台北時間文字再回傳，從根本擋掉 UTC 位移
+//    3. 新增 fixDateTimeFormats()：一次性修復工具，掃描所有分頁，
+//       把已經被轉成 Date 型別的舊資料換算回台北時間文字寫回去，
+//       要修復舊資料時手動執行一次即可（不影響其他資料）
+//  v9.3 變更：華雄天地專案要求的排假限制（只有 hstd 有，hsyy 不用）：
+//    1. 平日（一~五）單日休假人數最多 2 人，超過就擋下來
+//    2. 六、日禁止休假，除非是主管/admin 幫忙排假（業務自己選六日
+//       會被擋，主管排假不受此限）
+//    3. appendLeave 用 LockService 鎖住，避免多筆請求同時送出時
+//       都讀到「還沒滿 2 人」而一起超額
+//    4. 被擋下來的日期會清楚告訴前端是六日禁休還是當日已滿，
+//       前端會用 toast 顯示原因，不會就默默失敗
+//    ★ 這只是 hstd（華雄天地）的規則，不影響 hsyy（華雄音樂匯）
+//  v9.4 變更：★★★ 重大安全性修正 ★★★
+//    移除程式碼裡遺留的測試後門：只要登入時 lineUserId 是空白，
+//    或任何 API 呼叫的 lineUserId 傳字串 'DEV'，系統就會自動放行、
+//    直接給「測試」這個假帳號管理員權限，完全不檢查身份、不需要
+//    是任何已註冊的使用者。這個後門存在於 verifyAccess／
+//    checkAutoLogin 以及全部約 30 個功能函式裡（appendLeave、
+//    appendCustomerData、updateUserRole…等等）。
+//    只要知道 GAS 網址（前端網頁原始碼裡就看得到）並傳
+//    lineUserId:"DEV"，任何人都能繞過密碼跟 LINE 身份驗證，
+//    直接取得管理員權限讀寫所有客戶資料、管理使用者。
+//    修正：
+//    1. verifyAccess：lineUserId 為空時直接回傳「無法取得 LINE
+//       使用者身份」，不再放行
+//    2. checkAutoLogin：移除 lineUserId==='DEV' 的特殊放行
+//    3. 其餘所有函式裡 `if (!ctx && payload.lineUserId === 'DEV')`
+//       這種後門判斷全部移除，一律要求真實使用者身份
+//    ★★ 請務必立即部署這個版本！
+//  v9.5 變更：
+//    1. 每日日報防重複：同一人同一天只能提交一筆日報，重複送出會
+//       直接被擋下並提示錯誤（appendDailyReport）
+//    2. 新增 deleteDailyReport：日報頁面現在可以刪除日報，解決之前
+//       不小心重複建立又刪不掉的問題
+//    3. 新增 deleteCustomerData：業務可以在自己建立、14天內的客戶
+//       資料上看到刪除按鈕（跟修改資料同一個時間限制）
+//    4. 新增 deleteTask：任務系統可以刪除任務（業務只能刪自己建立
+//       的，主管/admin 可以刪任何一筆）
+//    5. 新增 deleteMaintenance：維修通報可以刪除（業務只能刪自己
+//       通報的，主管/admin 可以刪任何一筆）
+//    6. updateCustomerDeal 支援「退戶」狀態：已成交的客戶可以被
+//       主管/admin 標記為退戶（可附原因），並且會寫進
+//       Customer_Change_Log 留下完整異動紀錄
+// ============================================================
+//  首次部署：
+//  1. 試算表 → 擴充功能 → Apps Script → 貼入此檔
+//  2. 執行 firstTimeSetup()
+//  3. 部署 Web App（執行身分=我, 存取=任何人）
+//  4. 複製 exec 網址 → 貼到 hstd.html 的 GAS_URL
+//  5. 上傳 hstd.html 到 GitHub Pages
+//  6. LIFF Endpoint URL 填 GitHub Pages 網址
+//
+//  ★ 這次更新的部署方式（既有專案，不是第一次）：
+//  1. 把這個檔案的全部內容「整份覆蓋」貼進你現有的 Apps Script 專案
+//     （這份是完整版，包含原本所有 function，貼這份不會漏東西）
+//  2. 部署 → 管理部署 → 編輯（鉛筆）→ 版本選「新版本」→ 部署
+//     ★ 用「編輯現有部署」，不要「新增部署」，這樣 exec 網址不會變，
+//       hstd.html 的 GAS_URL 不用再改
+// ============================================================
 
-/* ==================== CONFIG ==================== */
+// ==================== CONFIG ====================
 const CONFIG = {
   TIMEZONE: 'Asia/Taipei',
 
@@ -111,181 +156,37 @@ const CONFIG = {
   PURCHASE_MOTIVES: ['首購','投資置產','換屋升級','自住改善','子女購置','退休養老','其他'],
 
   INITIAL_PROJECTS: [
-    { name: '華雄音樂匯', code: 'HSYY' }
+    { name: '華雄天地', code: 'HXTD' }
   ],
 
-  PROJECT_NAME: '華雄音樂匯',
-  SPREADSHEET_ID: '13hBOWlHZMtz8QucqIaQL-toubWo-qcOw5RMZUqIuRBA'
+  PROJECT_NAME:   '華雄天地',
+  SPREADSHEET_ID: '16Rz6s_nj0BkP4dBDtoIUdgtvsFnlNQY8BvlZutDhoHM'
 };
 
-/* ==================== CORS Helper ==================== */
-function corsHeaders() {
-  return {
-    'Access-Control-Allow-Origin':  '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type'
-  };
+// ==================== Helpers ====================
+// 純日期欄位（yyyy-MM-dd）／時間戳欄位（yyyy-MM-dd HH:mm:ss）／強制文字欄位
+// 統一在這裡維護，讀取與寫入共用，避免各處各自維護一份漏掉欄位
+var DATE_ONLY_FIELDS  = ['visit_date','leave_date','report_date','due_date','note_date'];
+var DATETIME_FIELDS   = ['created_at','updated_at','last_login_at','completed_at','changed_at','timestamp'];
+var TEXT_FORCE_FIELDS = ['phone'];
+
+function getCrmSS()     { return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID); }
+function getSheet(name) { return getCrmSS().getSheetByName(name); }
+function nowTW()   { return Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyy-MM-dd HH:mm:ss'); }
+function todayTW() { return Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyy-MM-dd'); }
+function ok(data)  { return { ok: true,  data: (data == null ? null : data) }; }
+function fail(msg) { return { ok: false, error: String(msg) }; }
+function genId(prefix) {
+  return prefix + '_' + new Date().getTime() + '_' + Math.floor(Math.random() * 1000);
 }
+function getProp(key)       { return PropertiesService.getScriptProperties().getProperty(key); }
+function setProp(key, val)  { PropertiesService.getScriptProperties().setProperty(key, val); }
 
 function jsonResponse(data) {
   return ContentService
     .createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
 }
-
-/* ==================== HTTP Router ==================== */
-function doGet(e) {
-  var action = e && e.parameter && e.parameter.action;
-  if (!action) return jsonResponse({ ok: false, error: 'action 必填' });
-
-  var payload = {};
-  try {
-    if (e.parameter.payload) payload = JSON.parse(e.parameter.payload);
-  } catch(pe) { Logger.log('payload parse error: ' + pe); }
-
-  try {
-    switch (action) {
-      case 'getProjectList':
-        return jsonResponse(getProjectList());
-      case 'getSalesByProject':
-        return jsonResponse(getSalesByProject(payload.project || e.parameter.project));
-      case 'getIndustryList':
-        return jsonResponse(getIndustryList());
-      case 'getPurchaseMotiveList':
-        return jsonResponse(getPurchaseMotiveList());
-      case 'getTasks':
-        return jsonResponse(getTasks(payload.lineUserId ? payload : {
-          lineUserId: e.parameter.lineUserId, status: e.parameter.status
-        }));
-      case 'getCustomerList':
-        return jsonResponse(getCustomerList(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
-      case 'getMyCustomers':
-        return jsonResponse(getMyCustomers(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
-      case 'getRecentCustomers':
-        return jsonResponse(getRecentCustomers(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
-      case 'getCustomerChangeLogs':
-        return jsonResponse(getCustomerChangeLogs(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId, customer_id: e.parameter.customer_id }));
-      case 'updateCustomerData':      return jsonResponse(updateCustomerData(payload));
-      case 'getDailyReportSummary':
-        return jsonResponse(getDailyReportSummary(payload.lineUserId ? payload : {
-          lineUserId: e.parameter.lineUserId, date: e.parameter.date
-        }));
-      case 'getDailyReportRange':
-        return jsonResponse(getDailyReportRange(payload.lineUserId ? payload : {
-          lineUserId: e.parameter.lineUserId, months: e.parameter.months
-        }));
-      case 'getMaintenanceList':
-        return jsonResponse(getMaintenanceList(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
-      case 'getUserList':
-        return jsonResponse(getUserList(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
-      case 'checkAutoLogin':
-        return jsonResponse(checkAutoLogin(payload.lineUserId || e.parameter.lineUserId));
-      case 'verifyAccess':            return jsonResponse(verifyAccess(payload));
-      case 'appendCustomerData':      return jsonResponse(appendCustomerData(payload));
-      case 'updateCustomerDeal':      return jsonResponse(updateCustomerDeal(payload));
-      case 'appendTask':              return jsonResponse(appendTask(payload));
-      case 'updateTaskStatus':        return jsonResponse(updateTaskStatus(payload));
-      case 'appendDailyReport':       return jsonResponse(appendDailyReport(payload));
-      case 'appendMaintenance':       return jsonResponse(appendMaintenance(payload));
-      case 'updateMaintenanceStatus': return jsonResponse(updateMaintenanceStatus(payload));
-      case 'updateUserRole':          return jsonResponse(updateUserRole(payload));
-      case 'approveUser':             return jsonResponse(approveUser(payload));
-      case 'rejectUser':              return jsonResponse(rejectUser(payload));
-      case 'getLeaveSchedule':
-        return jsonResponse(getLeaveSchedule(payload.lineUserId ? payload : {
-          lineUserId: e.parameter.lineUserId,
-          startDate:  e.parameter.startDate,
-          endDate:    e.parameter.endDate
-        }));
-      case 'getTodayLeave':
-        return jsonResponse(getTodayLeave());
-      case 'appendLeave':  return jsonResponse(appendLeave(payload));
-      case 'deleteLeave':  return jsonResponse(deleteLeave(payload));
-      case 'getCalendarNotes':
-        return jsonResponse(getCalendarNotes(payload.lineUserId ? payload : {
-          lineUserId: e.parameter.lineUserId,
-          startDate:  e.parameter.startDate,
-          endDate:    e.parameter.endDate
-        }));
-      case 'addCalendarNote':
-        return jsonResponse(addCalendarNote(payload));
-      case 'deleteCalendarNote':
-        return jsonResponse(deleteCalendarNote(payload));
-      case 'generateWeeklyLeaveReport':
-        return jsonResponse(generateWeeklyLeaveReport(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
-      default:
-        return jsonResponse({ ok: false, error: '未知 action: ' + action });
-    }
-  } catch (err) {
-    Logger.log('doGet error: ' + err);
-    return jsonResponse({ ok: false, error: err.message });
-  }
-}
-
-function doPost(e) {
-  try {
-    // LINE Webhook Verify 會發空 body，直接回 OK
-    if (!e || !e.postData || !e.postData.contents) {
-      return ContentService.createTextOutput('OK').setMimeType(ContentService.MimeType.TEXT);
-    }
-
-    var body = JSON.parse(e.postData.contents);
-
-    if (body.events && Array.isArray(body.events)) {
-      body.events.forEach(handleWebhookEvent);
-      return ContentService.createTextOutput('OK')
-        .setMimeType(ContentService.MimeType.TEXT);
-    }
-
-    var action  = body.action;
-    var payload = body.payload || {};
-
-    if (!action) return jsonResponse({ ok: false, error: 'action 必填' });
-
-    switch (action) {
-      case 'verifyAccess':            return jsonResponse(verifyAccess(payload));
-      case 'appendCustomerData':      return jsonResponse(appendCustomerData(payload));
-      case 'updateCustomerData':      return jsonResponse(updateCustomerData(payload));
-      case 'updateCustomerDeal':      return jsonResponse(updateCustomerDeal(payload));
-      case 'appendTask':              return jsonResponse(appendTask(payload));
-      case 'updateTaskStatus':        return jsonResponse(updateTaskStatus(payload));
-      case 'appendDailyReport':       return jsonResponse(appendDailyReport(payload));
-      case 'appendMaintenance':       return jsonResponse(appendMaintenance(payload));
-      case 'updateMaintenanceStatus': return jsonResponse(updateMaintenanceStatus(payload));
-      case 'getUserList':             return jsonResponse(getUserList(payload));
-      case 'updateUserRole':          return jsonResponse(updateUserRole(payload));
-      case 'approveUser':             return jsonResponse(approveUser(payload));
-      case 'rejectUser':              return jsonResponse(rejectUser(payload));
-      case 'appendLeave':             return jsonResponse(appendLeave(payload));
-      case 'deleteLeave':             return jsonResponse(deleteLeave(payload));
-      default:
-        return jsonResponse({ ok: false, error: '未知 action: ' + action });
-    }
-  } catch (err) {
-    Logger.log('doPost error: ' + err);
-    // 錯誤時也回 OK，避免 LINE Verify 失敗
-    return ContentService.createTextOutput('OK').setMimeType(ContentService.MimeType.TEXT);
-  }
-}
-
-/* ==================== Helpers ==================== */
-function getCrmSS()      { return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID); }
-function getSheet(name)  { return getCrmSS().getSheetByName(name); }
-function nowTW()  { return Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyy-MM-dd HH:mm:ss'); }
-function todayTW(){ return Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyy-MM-dd'); }
-function ok(data)  { return { ok: true,  data: data == null ? null : data }; }
-function fail(msg) { return { ok: false, error: String(msg) }; }
-function genId(prefix) {
-  return prefix + '_' + new Date().getTime() + '_' + Math.floor(Math.random() * 1000);
-}
-function getProp(key) { return PropertiesService.getScriptProperties().getProperty(key); }
-function setProp(key, val) { PropertiesService.getScriptProperties().setProperty(key, val); }
-
-// 純日期欄位（yyyy-MM-dd）／時間戳欄位（yyyy-MM-dd HH:mm:ss）／強制文字欄位
-// 統一在這裡維護，讀取與寫入共用，避免各處各自維護一份漏掉欄位
-var DATE_ONLY_FIELDS  = ['visit_date','leave_date','report_date','due_date','note_date'];
-var DATETIME_FIELDS   = ['created_at','updated_at','last_login_at','completed_at','changed_at','timestamp'];
-var TEXT_FORCE_FIELDS = ['phone'];
 
 function readSheetAsObjects(sheetName) {
   var sh = getSheet(sheetName);
@@ -299,7 +200,8 @@ function readSheetAsObjects(sheetName) {
       var v = row[i];
       // 保險：不管是哪個欄位，只要 Sheets 把它存成了 Date 型別（沒被文字保護擋下來，
       // 或是舊資料在保護機制上線前就已經被自動轉掉），一律換算回台北時間文字再輸出。
-      // 直接把 Date 物件丟給 JSON.stringify 會被轉成 UTC 字串，跟實際輸入時間差 8 小時。
+      // 這裡如果直接把 Date 物件丟給 JSON.stringify，會被轉成 UTC 字串，
+      // 造成前端看到的時間跟實際輸入時間差 8 小時（凌晨輸入的資料甚至會整個跳成前一天）。
       if (v instanceof Date) {
         var fmt = DATE_ONLY_FIELDS.indexOf(h) >= 0 ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm:ss';
         v = Utilities.formatDate(v, CONFIG.TIMEZONE, fmt);
@@ -347,6 +249,7 @@ function updateRowById(sheetName, idField, idValue, updates) {
         var isDatetimeField = DATETIME_FIELDS.indexOf(k) >= 0 && val && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(String(val));
         var isTextField = TEXT_FORCE_FIELDS.indexOf(k) >= 0 && val != null && val !== '';
         if (isDateField || isDatetimeField || isTextField) {
+          // 用 setNumberFormat('@') 強制文字格式再寫入，防止日期／時間位移
           var cell = sh.getRange(i + 1, c + 1);
           cell.setNumberFormat('@STRING@');
           cell.setValue(String(val));
@@ -360,7 +263,7 @@ function updateRowById(sheetName, idField, idValue, updates) {
   return false;
 }
 
-/* ==================== User Context ==================== */
+// ==================== User Context ====================
 function getUserContext(lineUserId) {
   if (!lineUserId) return null;
   var rows = readSheetAsObjects(CONFIG.SHEETS.USER_ROLE);
@@ -388,13 +291,173 @@ function getUserContext(lineUserId) {
   };
 }
 
-/* ==================== Auth API ==================== */
+// ==================== HTTP Router ====================
+function doGet(e) {
+  var action = e && e.parameter && e.parameter.action;
+  if (!action) return jsonResponse({ ok: false, error: 'action 必填' });
+
+  var payload = {};
+  try {
+    if (e.parameter.payload) payload = JSON.parse(e.parameter.payload);
+  } catch(pe) { Logger.log('payload parse error: ' + pe); }
+
+  try {
+    switch (action) {
+      case 'getProjectList':
+        return jsonResponse(getProjectList());
+      case 'getSalesByProject':
+        return jsonResponse(getSalesByProject(payload.project || e.parameter.project));
+      case 'getIndustryList':
+        return jsonResponse(getIndustryList());
+      case 'getPurchaseMotiveList':
+        return jsonResponse(getPurchaseMotiveList());
+      case 'getTasks':
+        return jsonResponse(getTasks(payload.lineUserId ? payload : {
+          lineUserId: e.parameter.lineUserId, status: e.parameter.status
+        }));
+      case 'getCustomerList':
+        return jsonResponse(getCustomerList(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
+      case 'getMyCustomers':
+        return jsonResponse(getMyCustomers(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
+      case 'getRecentCustomers':
+        return jsonResponse(getRecentCustomers(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
+      case 'getCustomerChangeLogs':
+        return jsonResponse(getCustomerChangeLogs(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId, customer_id: e.parameter.customer_id }));
+      case 'updateCustomerData':
+        return jsonResponse(updateCustomerData(payload));
+      case 'deleteCustomerData':
+        return jsonResponse(deleteCustomerData(payload));
+      case 'getDailyReportSummary':
+        return jsonResponse(getDailyReportSummary(payload.lineUserId ? payload : {
+          lineUserId: e.parameter.lineUserId, date: e.parameter.date
+        }));
+      case 'getDailyReportRange':
+        return jsonResponse(getDailyReportRange(payload.lineUserId ? payload : {
+          lineUserId: e.parameter.lineUserId, months: e.parameter.months
+        }));
+      case 'getMaintenanceList':
+        return jsonResponse(getMaintenanceList(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
+      case 'getUserList':
+        return jsonResponse(getUserList(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
+      case 'checkAutoLogin':
+        return jsonResponse(checkAutoLogin(payload.lineUserId || e.parameter.lineUserId));
+      case 'verifyAccess':
+        return jsonResponse(verifyAccess(payload));
+      case 'appendCustomerData':
+        return jsonResponse(appendCustomerData(payload));
+      case 'updateCustomerDeal':
+        return jsonResponse(updateCustomerDeal(payload));
+      case 'appendTask':
+        return jsonResponse(appendTask(payload));
+      case 'updateTaskStatus':
+        return jsonResponse(updateTaskStatus(payload));
+      case 'deleteTask':
+        return jsonResponse(deleteTask(payload));
+      case 'appendDailyReport':
+        return jsonResponse(appendDailyReport(payload));
+      case 'deleteDailyReport':
+        return jsonResponse(deleteDailyReport(payload));
+      case 'appendMaintenance':
+        return jsonResponse(appendMaintenance(payload));
+      case 'updateMaintenanceStatus':
+        return jsonResponse(updateMaintenanceStatus(payload));
+      case 'deleteMaintenance':
+        return jsonResponse(deleteMaintenance(payload));
+      case 'updateUserRole':
+        return jsonResponse(updateUserRole(payload));
+      case 'approveUser':
+        return jsonResponse(approveUser(payload));
+      case 'rejectUser':
+        return jsonResponse(rejectUser(payload));
+      case 'getLeaveSchedule':
+        return jsonResponse(getLeaveSchedule(payload.lineUserId ? payload : {
+          lineUserId: e.parameter.lineUserId,
+          startDate:  e.parameter.startDate,
+          endDate:    e.parameter.endDate
+        }));
+      case 'getTodayLeave':
+        return jsonResponse(getTodayLeave());
+      case 'appendLeave':
+        return jsonResponse(appendLeave(payload));
+      case 'deleteLeave':
+        return jsonResponse(deleteLeave(payload));
+      case 'getCalendarNotes':
+        return jsonResponse(getCalendarNotes(payload.lineUserId ? payload : {
+          lineUserId: e.parameter.lineUserId,
+          startDate:  e.parameter.startDate,
+          endDate:    e.parameter.endDate
+        }));
+      case 'addCalendarNote':
+        return jsonResponse(addCalendarNote(payload));
+      case 'deleteCalendarNote':
+        return jsonResponse(deleteCalendarNote(payload));
+      case 'generateWeeklyLeaveReport':
+        return jsonResponse(generateWeeklyLeaveReport(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
+      default:
+        return jsonResponse({ ok: false, error: '未知 action: ' + action });
+    }
+  } catch (err) {
+    Logger.log('doGet error: ' + err);
+    return jsonResponse({ ok: false, error: err.message });
+  }
+}
+
+function doPost(e) {
+  try {
+    // LINE Webhook Verify 會發空 body，直接回 OK
+    if (!e || !e.postData || !e.postData.contents) {
+      return ContentService.createTextOutput('OK').setMimeType(ContentService.MimeType.TEXT);
+    }
+
+    var body = JSON.parse(e.postData.contents);
+
+    if (body.events && Array.isArray(body.events)) {
+      body.events.forEach(handleWebhookEvent);
+      return ContentService.createTextOutput('OK').setMimeType(ContentService.MimeType.TEXT);
+    }
+
+    var action  = body.action;
+    var payload = body.payload || {};
+
+    if (!action) return jsonResponse({ ok: false, error: 'action 必填' });
+
+    switch (action) {
+      case 'verifyAccess':            return jsonResponse(verifyAccess(payload));
+      case 'appendCustomerData':      return jsonResponse(appendCustomerData(payload));
+      case 'updateCustomerData':      return jsonResponse(updateCustomerData(payload));
+      case 'deleteCustomerData':      return jsonResponse(deleteCustomerData(payload));
+      case 'updateCustomerDeal':      return jsonResponse(updateCustomerDeal(payload));
+      case 'appendTask':              return jsonResponse(appendTask(payload));
+      case 'updateTaskStatus':        return jsonResponse(updateTaskStatus(payload));
+      case 'deleteTask':              return jsonResponse(deleteTask(payload));
+      case 'appendDailyReport':       return jsonResponse(appendDailyReport(payload));
+      case 'deleteDailyReport':       return jsonResponse(deleteDailyReport(payload));
+      case 'appendMaintenance':       return jsonResponse(appendMaintenance(payload));
+      case 'updateMaintenanceStatus': return jsonResponse(updateMaintenanceStatus(payload));
+      case 'deleteMaintenance':       return jsonResponse(deleteMaintenance(payload));
+      case 'getUserList':             return jsonResponse(getUserList(payload));
+      case 'updateUserRole':          return jsonResponse(updateUserRole(payload));
+      case 'approveUser':             return jsonResponse(approveUser(payload));
+      case 'rejectUser':              return jsonResponse(rejectUser(payload));
+      case 'appendLeave':             return jsonResponse(appendLeave(payload));
+      case 'deleteLeave':             return jsonResponse(deleteLeave(payload));
+      default:
+        return jsonResponse({ ok: false, error: '未知 action: ' + action });
+    }
+  } catch (err) {
+    Logger.log('doPost error: ' + err);
+    // 錯誤時也回 OK，避免 LINE Verify 失敗
+    return ContentService.createTextOutput('OK').setMimeType(ContentService.MimeType.TEXT);
+  }
+}
+
+// ==================== Auth API ====================
 function verifyAccess(payload) {
   try {
-    var lineUserId       = String(payload.lineUserId  || '').trim();
-    var displayName      = String(payload.displayName || '').trim();
-    var password         = String(payload.password    || '');
-    var selectedProject  = String(payload.selectedProject || '').trim();
+    var lineUserId      = String(payload.lineUserId  || '').trim();
+    var displayName     = String(payload.displayName || '').trim();
+    var password        = String(payload.password    || '');
+    var selectedProject = String(payload.selectedProject || '').trim();
 
     if (!password) return fail('請輸入密碼');
 
@@ -412,31 +475,19 @@ function verifyAccess(payload) {
     var ctx = getUserContext(lineUserId);
 
     if (!ctx) {
-      // 寬鬆比對，防止格式差異（空白、換行）造成重複新增
-      var allRows = readSheetAsObjects(CONFIG.SHEETS.USER_ROLE);
-      var duplicate = null;
-      for (var di = 0; di < allRows.length; di++) {
-        if (String(allRows[di].line_user_id).trim() === lineUserId) { duplicate = allRows[di]; break; }
-      }
-      if (duplicate) {
-        ctx = {
-          lineUserId:  duplicate.line_user_id,
-          displayName: duplicate.display_name,
-          role:        duplicate.role,
-          projectName: duplicate.project_name,
-          jobTitle:    duplicate.job_title,
-          status:      duplicate.status
-        };
-      } else {
-        appendObjectToSheet(CONFIG.SHEETS.USER_ROLE, {
-          line_user_id: lineUserId, display_name: displayName || lineUserId,
-          role: CONFIG.ROLES.SALES, status: CONFIG.STATUS.PENDING,
-          project_name: selectedProject || '', job_title: '',
-          last_login_at: '', created_at: nowTW(), updated_at: nowTW()
-        });
-        writeAuditLog(lineUserId, 'LOGIN', CONFIG.SHEETS.USER_ROLE, lineUserId, '新使用者待審核: ' + displayName);
-        return ok({ status: 'pending' });
-      }
+      appendObjectToSheet(CONFIG.SHEETS.USER_ROLE, {
+        line_user_id: lineUserId,
+        display_name: displayName || lineUserId,
+        role: CONFIG.ROLES.SALES,
+        status: CONFIG.STATUS.PENDING,
+        project_name: selectedProject || '',
+        job_title: '',
+        last_login_at: '',
+        created_at: nowTW(),
+        updated_at: nowTW()
+      });
+      writeAuditLog(lineUserId, 'LOGIN', CONFIG.SHEETS.USER_ROLE, lineUserId, '新使用者待審核: ' + displayName);
+      return ok({ status: 'pending' });
     }
 
     if (ctx.status === CONFIG.STATUS.INACTIVE) {
@@ -453,14 +504,19 @@ function verifyAccess(payload) {
     }
 
     updateRowById(CONFIG.SHEETS.USER_ROLE, 'line_user_id', lineUserId, {
-      last_login_at: nowTW(), display_name: displayName || ctx.displayName, updated_at: nowTW()
+      last_login_at: nowTW(),
+      display_name: displayName || ctx.displayName,
+      updated_at: nowTW()
     });
     writeAuditLog(lineUserId, 'LOGIN', CONFIG.SHEETS.USER_ROLE, lineUserId, 'login success: ' + (displayName || ctx.displayName));
 
     return ok({
-      status: 'active', lineUserId: lineUserId,
+      status: 'active',
+      lineUserId: lineUserId,
       displayName: displayName || ctx.displayName,
-      role: ctx.role, projectName: ctx.projectName, jobTitle: ctx.jobTitle
+      role: ctx.role,
+      projectName: ctx.projectName,
+      jobTitle: ctx.jobTitle
     });
 
   } catch (err) {
@@ -469,25 +525,29 @@ function verifyAccess(payload) {
   }
 }
 
+// ★ 修正：每次都重新從試算表抓 role，不使用快取
 function checkAutoLogin(lineUserId) {
   try {
     if (!lineUserId) return fail('lineUserId 為空');
     var ctx = getUserContext(String(lineUserId).trim());
-    if (!ctx)                                     return fail('使用者不在名單');
-    if (ctx.status === CONFIG.STATUS.INACTIVE)    return fail('帳號已停用');
-    if (ctx.status === CONFIG.STATUS.PENDING)     return ok({ status: 'pending' });
+    if (!ctx)                                      return fail('使用者不在名單');
+    if (ctx.status === CONFIG.STATUS.INACTIVE)     return fail('帳號已停用');
+    if (ctx.status === CONFIG.STATUS.PENDING)      return ok({ status: 'pending' });
 
     updateRowById(CONFIG.SHEETS.USER_ROLE, 'line_user_id', lineUserId, { last_login_at: nowTW() });
 
     return ok({
-      status: 'active', lineUserId: lineUserId,
-      displayName: ctx.displayName, role: ctx.role,
-      projectName: ctx.projectName, jobTitle: ctx.jobTitle
+      status: 'active',
+      lineUserId: lineUserId,
+      displayName: ctx.displayName,
+      role: ctx.role,
+      projectName: ctx.projectName,
+      jobTitle: ctx.jobTitle
     });
   } catch (err) { return fail('自動登入失敗: ' + err.message); }
 }
 
-/* ==================== User Management ==================== */
+// ==================== User Management ====================
 function getUserList(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
@@ -525,11 +585,11 @@ function updateUserRole(payload) {
     }
 
     var updates = { updated_at: nowTW() };
-    if (payload.role !== undefined)        updates.role         = payload.role;
+    if (payload.role        !== undefined) updates.role         = payload.role;
     if (payload.projectName !== undefined) updates.project_name = payload.projectName;
-    if (payload.status !== undefined)      updates.status       = payload.status;
+    if (payload.status      !== undefined) updates.status       = payload.status;
     if (payload.displayName !== undefined) updates.display_name = payload.displayName;
-    if (payload.jobTitle !== undefined)    updates.job_title    = payload.jobTitle;
+    if (payload.jobTitle    !== undefined) updates.job_title    = payload.jobTitle;
 
     var success = updateRowById(CONFIG.SHEETS.USER_ROLE, 'line_user_id', targetId, updates);
     if (!success) return fail('使用者不存在');
@@ -550,7 +610,7 @@ function rejectUser(payload) {
   return updateUserRole(payload);
 }
 
-/* ==================== Lookup APIs ==================== */
+// ==================== Lookup APIs ====================
 function getProjectList() {
   try {
     var rows = readSheetAsObjects(CONFIG.SHEETS.PROJECT)
@@ -573,10 +633,10 @@ function getSalesByProject(projectName) {
   } catch (err) { return fail(err.message); }
 }
 
-function getIndustryList()      { return ok(CONFIG.INDUSTRIES); }
-function getPurchaseMotiveList(){ return ok(CONFIG.PURCHASE_MOTIVES); }
+function getIndustryList()       { return ok(CONFIG.INDUSTRIES); }
+function getPurchaseMotiveList() { return ok(CONFIG.PURCHASE_MOTIVES); }
 
-/* ==================== Customer Module ==================== */
+// ==================== Customer Module ====================
 function appendCustomerData(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
@@ -591,32 +651,41 @@ function appendCustomerData(payload) {
 
     var customerId = genId('CUST');
     appendObjectToSheet(CONFIG.SHEETS.CUSTOMER, {
-      customer_id: customerId, created_at: nowTW(), updated_at: nowTW(),
-      created_by_line_user_id: ctx.lineUserId, created_by_name: ctx.displayName,
+      customer_id: customerId,
+      created_at: nowTW(),
+      updated_at: nowTW(),
+      created_by_line_user_id: ctx.lineUserId,
+      created_by_name: ctx.displayName,
       sales_line_user_id: payload.sales_line_user_id || ctx.lineUserId,
       sales_name: payload.sales_name || ctx.displayName,
       project_name: projectName,
       visit_date: payload.visit_date || todayTW(),
       visit_type: payload.visit_type || '',
-      customer_name: payload.customer_name, phone: payload.phone,
+      customer_name: payload.customer_name,
+      phone: payload.phone,
       age_range: payload.age_range || '',
       district: payload.district || '',
       occupation_industry: payload.occupation_industry || '',
       purchase_motive: payload.purchase_motive || '',
-      source: payload.source || '', room_types: payload.room_types || '',
-      budget: payload.budget || '', issues: payload.issues || '',
+      source: payload.source || '',
+      room_types: payload.room_types || '',
+      budget: payload.budget || '',
+      issues: payload.issues || '',
       revisit_plan: payload.revisit_plan || '',
       deal_status: '未成交',
       deal_unit: '',
-      status_note: payload.status_note, note: payload.note || ''
+      status_note: payload.status_note,
+      note: payload.note || ''
     });
     writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.CUSTOMER, customerId,
-      ctx.displayName + ' 新增客戶 ' + payload.customer_name);
+      ctx.displayName + ' 新增客戶: ' + payload.customer_name);
     return ok({ customer_id: customerId });
   } catch (err) { Logger.log('appendCustomerData error: ' + err); return fail(err.message); }
 }
 
-/* ★ 主管標記成交 */
+// 主管標記成交
+// 標記成交／退戶。退戶時（deal_status='退戶'）保留原本的 deal_unit（除非另外傳新值），
+// 並把狀態變化寫進 Customer_Change_Log，讓「修改紀錄」看得到是誰、何時、為何改的
 function updateCustomerDeal(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
@@ -624,16 +693,38 @@ function updateCustomerDeal(payload) {
     if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限，需主管以上');
     if (!payload.customer_id) return fail('customer_id 必填');
 
+    var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER);
+    var original = null;
+    for (var i = 0; i < rows.length; i++) {
+      if (String(rows[i].customer_id) === String(payload.customer_id)) { original = rows[i]; break; }
+    }
+    if (!original) return fail('找不到客戶資料');
+
+    var newStatus = payload.deal_status || '已成交';
     var updates = {
-      deal_status: payload.deal_status || '已成交',
-      deal_unit:   payload.deal_unit   || '',
+      deal_status: newStatus,
+      deal_unit:   payload.deal_unit != null && payload.deal_unit !== '' ? payload.deal_unit : (original.deal_unit || ''),
       updated_at:  nowTW()
     };
-    var success = updateRowById(CONFIG.SHEETS.CUSTOMER, 'customer_id', payload.customer_id, updates);
-    if (!success) return fail('找不到客戶資料');
+    updateRowById(CONFIG.SHEETS.CUSTOMER, 'customer_id', payload.customer_id, updates);
+
+    var logId = genId('CLOG');
+    appendObjectToSheet(CONFIG.SHEETS.CHANGE_LOG, {
+      log_id:                  logId,
+      customer_id:             payload.customer_id,
+      customer_name:           original.customer_name,
+      changed_by_line_user_id: ctx.lineUserId,
+      changed_by_name:         ctx.displayName,
+      changed_at:              nowTW(),
+      changes_json:            JSON.stringify([{
+        field: 'deal_status', before: original.deal_status || '', after: newStatus,
+        note: payload.reason || ''
+      }])
+    });
 
     writeAuditLog(ctx.lineUserId, 'UPDATE', CONFIG.SHEETS.CUSTOMER, payload.customer_id,
-      ctx.displayName + ' 標記成交 ' + payload.customer_id);
+      ctx.displayName + ' 變更成交狀態為「' + newStatus + '」: ' + payload.customer_id +
+      (payload.reason ? '（原因：' + payload.reason + '）' : ''));
     return ok({ customer_id: payload.customer_id });
   } catch (err) { return fail(err.message); }
 }
@@ -649,7 +740,7 @@ function getCustomerList(payload) {
   } catch (err) { return fail(err.message); }
 }
 
-/* ★ 近14天客戶資料（主管用） */
+// 近14天客戶資料（主管用）
 function getRecentCustomers(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
@@ -668,15 +759,15 @@ function getRecentCustomers(payload) {
     });
 
     rows.sort(function(a,b){
-      var da = String(a.visit_date||a.created_at||'').substring(0,10);
-      var db = String(b.visit_date||b.created_at||'').substring(0,10);
+      var da = String(a.visit_date || a.created_at || '').substring(0,10);
+      var db = String(b.visit_date || b.created_at || '').substring(0,10);
       return db.localeCompare(da);
     });
     return ok(rows);
   } catch (err) { return fail(err.message); }
 }
 
-/* ★ 業務查看自己所有客戶 */
+// 業務查看自己所有客戶
 function getMyCustomers(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
@@ -690,15 +781,15 @@ function getMyCustomers(payload) {
     });
 
     rows.sort(function(a,b){
-      var da = String(a.visit_date||a.created_at||'').substring(0,10);
-      var db = String(b.visit_date||b.created_at||'').substring(0,10);
+      var da = String(a.visit_date || a.created_at || '').substring(0,10);
+      var db = String(b.visit_date || b.created_at || '').substring(0,10);
       return db.localeCompare(da);
     });
     return ok(rows);
   } catch (err) { return fail(err.message); }
 }
 
-/* ★ 查詢客戶修改紀錄 */
+// 查詢客戶修改紀錄
 function getCustomerChangeLogs(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
@@ -713,14 +804,13 @@ function getCustomerChangeLogs(payload) {
   } catch (err) { return fail(err.message); }
 }
 
-/* ★ 業務修改客戶資料（14天內） */
+// 業務修改客戶資料（14天內）
 function updateCustomerData(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
     if (!ctx) return fail('未授權');
     if (!payload.customer_id) return fail('customer_id 必填');
 
-    // 抓原始資料
     var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER);
     var original = null;
     for (var i = 0; i < rows.length; i++) {
@@ -728,26 +818,22 @@ function updateCustomerData(payload) {
     }
     if (!original) return fail('找不到客戶資料');
 
-    // 權限檢查：業務只能改自己的
     if (ctx.role === CONFIG.ROLES.SALES) {
       if (String(original.sales_line_user_id) !== String(ctx.lineUserId) &&
           String(original.created_by_line_user_id) !== String(ctx.lineUserId)) {
         return fail('只能修改自己的客戶資料');
       }
-      // 14天限制
       var createdAt = new Date(original.created_at);
       var diffDays = (new Date() - createdAt) / (1000 * 60 * 60 * 24);
       if (diffDays > 14) return fail('超過14天，無法修改');
     }
 
-    // 可修改的欄位
     var editableFields = [
       'visit_date','visit_type','customer_name','phone','age_range','district',
       'occupation_industry','purchase_motive','source','room_types',
       'budget','issues','revisit_plan','status_note','note'
     ];
 
-    // 找出有哪些欄位被修改，記錄修改前後
     var changes = [];
     var updates = { updated_at: nowTW() };
     editableFields.forEach(function(field) {
@@ -763,19 +849,17 @@ function updateCustomerData(payload) {
 
     if (!changes.length) return ok({ customer_id: payload.customer_id, message: '無變更' });
 
-    // 更新客戶資料
     updateRowById(CONFIG.SHEETS.CUSTOMER, 'customer_id', payload.customer_id, updates);
 
-    // 寫入修改紀錄
     var logId = genId('CLOG');
     appendObjectToSheet(CONFIG.SHEETS.CHANGE_LOG, {
-      log_id:      logId,
-      customer_id: payload.customer_id,
-      customer_name: original.customer_name,
+      log_id:                  logId,
+      customer_id:             payload.customer_id,
+      customer_name:           original.customer_name,
       changed_by_line_user_id: ctx.lineUserId,
-      changed_by_name: ctx.displayName,
-      changed_at:  nowTW(),
-      changes_json: JSON.stringify(changes)
+      changed_by_name:         ctx.displayName,
+      changed_at:              nowTW(),
+      changes_json:            JSON.stringify(changes)
     });
 
     writeAuditLog(ctx.lineUserId, 'UPDATE', CONFIG.SHEETS.CUSTOMER, payload.customer_id,
@@ -783,6 +867,44 @@ function updateCustomerData(payload) {
 
     return ok({ customer_id: payload.customer_id, changes_count: changes.length });
   } catch (err) { Logger.log('updateCustomerData error: ' + err); return fail(err.message); }
+}
+
+// 業務刪除自己建立的客戶資料（14天內，跟修改資料同一個時間限制）
+function deleteCustomerData(payload) {
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (!payload.customer_id) return fail('customer_id 必填');
+
+    var sh      = getSheet(CONFIG.SHEETS.CUSTOMER);
+    var data    = sh.getDataRange().getValues();
+    var headers = data[0];
+    var idCol        = headers.indexOf('customer_id');
+    var salesCol      = headers.indexOf('sales_line_user_id');
+    var createdByCol  = headers.indexOf('created_by_line_user_id');
+    var createdAtCol  = headers.indexOf('created_at');
+    var nameCol       = headers.indexOf('customer_name');
+
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][idCol]) !== String(payload.customer_id)) continue;
+
+      if (ctx.role === CONFIG.ROLES.SALES) {
+        if (String(data[i][salesCol]) !== String(ctx.lineUserId) &&
+            String(data[i][createdByCol]) !== String(ctx.lineUserId)) {
+          return fail('只能刪除自己的客戶資料');
+        }
+        var diffDays = (new Date() - new Date(data[i][createdAtCol])) / (1000 * 60 * 60 * 24);
+        if (diffDays > 14) return fail('超過14天，無法刪除');
+      }
+
+      var customerName = data[i][nameCol];
+      sh.deleteRow(i + 1);
+      writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.CUSTOMER, payload.customer_id,
+        ctx.displayName + ' 刪除客戶 ' + customerName);
+      return ok({ customer_id: payload.customer_id });
+    }
+    return fail('找不到客戶資料');
+  } catch (err) { return fail(err.message); }
 }
 
 function filterByCtx(rows, ctx, ownerField) {
@@ -795,7 +917,7 @@ function filterByCtx(rows, ctx, ownerField) {
   });
 }
 
-/* ==================== Task Module ==================== */
+// ==================== Task Module ====================
 function appendTask(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
@@ -808,17 +930,22 @@ function appendTask(payload) {
 
     var taskId = genId('TASK');
     appendObjectToSheet(CONFIG.SHEETS.TASK, {
-      task_id: taskId, project_name: projectName,
-      type: payload.type || 'sales_task', title: payload.title,
-      description: payload.description || '',
-      priority: payload.priority || 'normal',
-      status: CONFIG.STATUS.PENDING,
-      assigned_to: payload.assigned_to || ctx.displayName,
+      task_id:                 taskId,
+      project_name:            projectName,
+      type:                    payload.type || 'sales_task',
+      title:                   payload.title,
+      description:             payload.description || '',
+      priority:                payload.priority || 'normal',
+      status:                  CONFIG.STATUS.PENDING,
+      assigned_to:             payload.assigned_to || ctx.displayName,
       assigned_to_line_user_id: payload.assigned_to_line_user_id || '',
-      created_by: ctx.displayName, created_by_line_user_id: ctx.lineUserId,
-      due_date: payload.due_date || '', created_at: nowTW(), updated_at: nowTW()
+      created_by:              ctx.displayName,
+      created_by_line_user_id: ctx.lineUserId,
+      due_date:                payload.due_date || '',
+      created_at:              nowTW(),
+      updated_at:              nowTW()
     });
-    writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.TASK, taskId, ctx.displayName + ' 建立任務 ' + payload.title);
+    writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.TASK, taskId, ctx.displayName + ' 建立任務: ' + payload.title);
     return ok({ task_id: taskId });
   } catch (err) { return fail(err.message); }
 }
@@ -859,12 +986,43 @@ function updateTaskStatus(payload) {
       status: payload.status || CONFIG.STATUS.DONE, updated_at: nowTW()
     });
     writeAuditLog(ctx.lineUserId, 'UPDATE', CONFIG.SHEETS.TASK, payload.task_id,
-      ctx.displayName + ' 變更狀態 ' + (payload.status || 'done'));
+      ctx.displayName + ' 變更狀態: ' + (payload.status || 'done'));
     return ok({ task_id: payload.task_id });
   } catch (err) { return fail(err.message); }
 }
 
-/* ==================== Daily Report Module ==================== */
+function deleteTask(payload) {
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (!payload.task_id) return fail('task_id 必填');
+
+    var sh      = getSheet(CONFIG.SHEETS.TASK);
+    var data    = sh.getDataRange().getValues();
+    var headers = data[0];
+    var idCol        = headers.indexOf('task_id');
+    var createdByCol = headers.indexOf('created_by_line_user_id');
+    var titleCol     = headers.indexOf('title');
+
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][idCol]) !== String(payload.task_id)) continue;
+
+      // 業務只能刪自己建立的任務；主管/admin 可以刪任何任務
+      if (ctx.role === CONFIG.ROLES.SALES &&
+          String(data[i][createdByCol]) !== String(ctx.lineUserId)) {
+        return fail('只能刪除自己建立的任務');
+      }
+      var title = data[i][titleCol];
+      sh.deleteRow(i + 1);
+      writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.TASK, payload.task_id,
+        ctx.displayName + ' 刪除任務: ' + title);
+      return ok({ task_id: payload.task_id });
+    }
+    return fail('找不到該筆任務');
+  } catch (err) { return fail(err.message); }
+}
+
+// ==================== Daily Report Module ====================
 function appendDailyReport(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
@@ -875,19 +1033,66 @@ function appendDailyReport(payload) {
       ? (payload.project_name || ctx.projectName || '') : ctx.projectName;
     if (!projectName) return fail('案場未指定');
 
+    var reportDate      = payload.report_date || todayTW();
+    var salesLineUserId = payload.sales_line_user_id || ctx.lineUserId;
+
+    // 防重複：同一人同一天只能有一筆日報，避免不小心重複建立又刪不掉
+    var dup = readSheetAsObjects(CONFIG.SHEETS.DAILY_REPORT).some(function(r) {
+      return String(r.sales_line_user_id) === String(salesLineUserId) &&
+             String(r.report_date).substring(0, 10) === reportDate;
+    });
+    if (dup) return fail('這天已經提交過日報了，如需修改請先刪除舊的再重新提交');
+
     var reportId = genId('RPT');
     appendObjectToSheet(CONFIG.SHEETS.DAILY_REPORT, {
-      report_id: reportId, report_date: payload.report_date || todayTW(),
-      project_name: projectName, salesperson: payload.salesperson || ctx.displayName,
-      sales_line_user_id: payload.sales_line_user_id || ctx.lineUserId,
-      visitor_count: Number(payload.visitor_count||0), first_visit_count: Number(payload.first_visit_count||0),
-      revisit_count: Number(payload.revisit_count||0), call_count: Number(payload.call_count||0),
-      deal_count: Number(payload.deal_count||0), transaction_units: payload.transaction_units||'',
-      viewed_units: payload.viewed_units||'', notes: payload.notes||'',
-      created_by: ctx.displayName, created_at: nowTW()
+      report_id:           reportId,
+      report_date:         reportDate,
+      project_name:        projectName,
+      salesperson:         payload.salesperson || ctx.displayName,
+      sales_line_user_id:  salesLineUserId,
+      visitor_count:       Number(payload.visitor_count || 0),
+      first_visit_count:   Number(payload.first_visit_count || 0),
+      revisit_count:       Number(payload.revisit_count || 0),
+      call_count:          Number(payload.call_count || 0),
+      deal_count:          Number(payload.deal_count || 0),
+      transaction_units:   payload.transaction_units || '',
+      viewed_units:        payload.viewed_units || '',
+      notes:               payload.notes || '',
+      created_by:          ctx.displayName,
+      created_at:          nowTW()
     });
     writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.DAILY_REPORT, reportId, ctx.displayName + ' 提交日報');
     return ok({ report_id: reportId });
+  } catch (err) { return fail(err.message); }
+}
+
+function deleteDailyReport(payload) {
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (ctx.role === CONFIG.ROLES.SALES) return fail('業務無權限');
+    if (!payload.report_id) return fail('report_id 必填');
+
+    var sh      = getSheet(CONFIG.SHEETS.DAILY_REPORT);
+    var data    = sh.getDataRange().getValues();
+    var headers = data[0];
+    var idCol   = headers.indexOf('report_id');
+    var uidCol  = headers.indexOf('sales_line_user_id');
+
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][idCol]) !== String(payload.report_id)) continue;
+
+      // 主管只能刪自己提交的日報；admin 可以刪任何人的
+      if (ctx.role === CONFIG.ROLES.MANAGER &&
+          String(data[i][uidCol]) !== String(ctx.lineUserId)) {
+        return fail('只能刪除自己提交的日報');
+      }
+      sh.deleteRow(i + 1);
+      writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.DAILY_REPORT,
+        payload.report_id, ctx.displayName + ' 刪除日報');
+      return ok({ report_id: payload.report_id });
+    }
+    return fail('找不到該筆日報');
   } catch (err) { return fail(err.message); }
 }
 
@@ -905,19 +1110,19 @@ function getDailyReportSummary(payload) {
       } catch(e){ return false; }
     });
 
-    var s = { report_date: date, total_visitors:0, total_first_visit:0, total_revisit:0, total_calls:0, total_deals:0, reports: rows };
+    var s = { report_date: date, total_visitors: 0, total_first_visit: 0, total_revisit: 0, total_calls: 0, total_deals: 0, reports: rows };
     rows.forEach(function(r){
-      s.total_visitors    += Number(r.visitor_count||0);
-      s.total_first_visit += Number(r.first_visit_count||0);
-      s.total_revisit     += Number(r.revisit_count||0);
-      s.total_calls       += Number(r.call_count||0);
-      s.total_deals       += Number(r.deal_count||0);
+      s.total_visitors    += Number(r.visitor_count    || 0);
+      s.total_first_visit += Number(r.first_visit_count || 0);
+      s.total_revisit     += Number(r.revisit_count    || 0);
+      s.total_calls       += Number(r.call_count       || 0);
+      s.total_deals       += Number(r.deal_count       || 0);
     });
     return ok(s);
   } catch (err) { return fail(err.message); }
 }
 
-/* 銷售日報歷史區間查詢（近3~6個月歷史清單／週比較／月比較 用） */
+// 銷售日報歷史區間查詢（近3~6個月歷史清單／週比較／月比較 用）
 function getDailyReportRange(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
@@ -940,7 +1145,7 @@ function getDailyReportRange(payload) {
   } catch (err) { return fail(err.message); }
 }
 
-/* ==================== Maintenance Module ==================== */
+// ==================== Maintenance Module ====================
 function appendMaintenance(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
@@ -954,23 +1159,32 @@ function appendMaintenance(payload) {
 
     var maintId = genId('MAINT');
     appendObjectToSheet(CONFIG.SHEETS.MAINTENANCE, {
-      maintenance_id: maintId, project_name: projectName,
-      location: payload.location||'', issue_type: payload.issue_type,
-      description: payload.description, photo_url: payload.photo_url||'',
-      reported_by: ctx.displayName, reported_by_line_user_id: ctx.lineUserId,
-      assigned_to: payload.assigned_to||'', status: CONFIG.STATUS.PENDING,
-      created_at: nowTW(), updated_at: nowTW(), completed_at: ''
+      maintenance_id:          maintId,
+      project_name:            projectName,
+      location:                payload.location || '',
+      issue_type:              payload.issue_type,
+      description:             payload.description,
+      photo_url:               payload.photo_url || '',
+      reported_by:             ctx.displayName,
+      reported_by_line_user_id: ctx.lineUserId,
+      assigned_to:             payload.assigned_to || '',
+      status:                  CONFIG.STATUS.PENDING,
+      created_at:              nowTW(),
+      updated_at:              nowTW(),
+      completed_at:            ''
     });
 
-    var token = getProp(CONFIG.PROP_KEYS.LINE_TOKEN);
+    var token      = getProp(CONFIG.PROP_KEYS.LINE_TOKEN);
     var pushTarget = getProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET);
     if (token && pushTarget) {
       sendLinePushToAll(
-        '案場：' + CONFIG.PROJECT_NAME + '\n🔧 維修通報\n位置：' + (payload.location||'未指定') +
+        '案場：' + CONFIG.PROJECT_NAME + '\n🔧 維修通報\n位置：' + (payload.location || '未指定') +
         (projectName !== CONFIG.PROJECT_NAME ? '\n子案場：' + projectName : '') +
-        '\n類型：' + payload.issue_type + '\n描述：' + payload.description + '\n通報人：' + ctx.displayName);
+        '\n類型：' + payload.issue_type +
+        '\n描述：' + payload.description +
+        '\n通報人：' + ctx.displayName);
     }
-    writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.MAINTENANCE, maintId, ctx.displayName + ' 通報 ' + payload.issue_type);
+    writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.MAINTENANCE, maintId, ctx.displayName + ' 通報: ' + payload.issue_type);
     return ok({ maintenance_id: maintId });
   } catch (err) { return fail(err.message); }
 }
@@ -1002,12 +1216,184 @@ function updateMaintenanceStatus(payload) {
 
     updateRowById(CONFIG.SHEETS.MAINTENANCE, 'maintenance_id', payload.maintenance_id, updates);
     writeAuditLog(ctx.lineUserId, 'UPDATE', CONFIG.SHEETS.MAINTENANCE, payload.maintenance_id,
-      ctx.displayName + ' 變更維修狀態 ' + (payload.status||'done'));
+      ctx.displayName + ' 變更維修狀態: ' + (payload.status || 'done'));
     return ok({ maintenance_id: payload.maintenance_id });
   } catch (err) { return fail(err.message); }
 }
 
-/* ==================== Calendar Notes（行事曆重要事項） ==================== */
+function deleteMaintenance(payload) {
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (!payload.maintenance_id) return fail('maintenance_id 必填');
+
+    var sh      = getSheet(CONFIG.SHEETS.MAINTENANCE);
+    var data    = sh.getDataRange().getValues();
+    var headers = data[0];
+    var idCol         = headers.indexOf('maintenance_id');
+    var reportedByCol = headers.indexOf('reported_by_line_user_id');
+    var issueTypeCol  = headers.indexOf('issue_type');
+
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][idCol]) !== String(payload.maintenance_id)) continue;
+
+      // 業務只能刪自己通報的維修；主管/admin 可以刪任何一筆
+      if (ctx.role === CONFIG.ROLES.SALES &&
+          String(data[i][reportedByCol]) !== String(ctx.lineUserId)) {
+        return fail('只能刪除自己通報的維修');
+      }
+      var issueType = data[i][issueTypeCol];
+      sh.deleteRow(i + 1);
+      writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.MAINTENANCE, payload.maintenance_id,
+        ctx.displayName + ' 刪除維修通報: ' + issueType);
+      return ok({ maintenance_id: payload.maintenance_id });
+    }
+    return fail('找不到該筆維修通報');
+  } catch (err) { return fail(err.message); }
+}
+
+// ==================== Leave Schedule Module ====================
+function getLeaveSchedule(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+
+    var startDate = String(payload.startDate || '').substring(0, 10);
+    var endDate   = String(payload.endDate   || '').substring(0, 10);
+
+    var rows = readSheetAsObjects(CONFIG.SHEETS.LEAVE_SCHEDULE).filter(function(r) {
+      var d = String(r.leave_date).substring(0, 10);
+      if (startDate && d < startDate) return false;
+      if (endDate   && d > endDate)   return false;
+      return true;
+    });
+
+    rows.sort(function(a, b) {
+      return String(a.leave_date).localeCompare(String(b.leave_date));
+    });
+    return ok(rows);
+  } catch (err) { return fail(err.message); }
+}
+
+function getTodayLeave() {
+  try {
+    var today = todayTW().substring(0, 10);
+    var rows  = readSheetAsObjects(CONFIG.SHEETS.LEAVE_SCHEDULE).filter(function(r) {
+      return String(r.leave_date).substring(0, 10) === today;
+    });
+    return ok(rows);
+  } catch (err) { return fail(err.message); }
+}
+
+function appendLeave(payload) {
+  // ★ 華雄天地專屬排假限制：平日（一~五）單日最多 2 人休假，六日禁休
+  // （除非由主管/admin 排假）。用 LockService 鎖住，避免同時送出時
+  // 兩筆request 都讀到「還沒滿」而一起超額。
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx) return fail('未授權');
+
+    var targetUid  = payload.targetLineUserId  || ctx.lineUserId;
+    var targetName = payload.targetDisplayName || ctx.displayName;
+    var dates      = Array.isArray(payload.dates) ? payload.dates : [payload.dates];
+    if (!dates.length) return fail('dates 必填');
+
+    // 權限：業務只能排自己；主管/admin 可排任何人
+    if (ctx.role === CONFIG.ROLES.SALES && targetUid !== ctx.lineUserId) {
+      return fail('業務只能排自己的假');
+    }
+
+    // 案場一律以「被排假的人」自己的案場為準，不要用操作者（可能是不綁案場的
+    // admin）自己的案場，否則寫進去的紀錄會因為案場對不上而在當事人自己的
+    // 行事曆上完全不顯示
+    var projectName = ctx.projectName;
+    if (targetUid !== ctx.lineUserId) {
+      var targetCtxForProject = getUserContext(targetUid);
+      if (targetCtxForProject) projectName = targetCtxForProject.projectName || projectName;
+    }
+    projectName = projectName || payload.project_name || '';
+
+    var allLeaves = readSheetAsObjects(CONFIG.SHEETS.LEAVE_SCHEDULE);
+    var existingDates = {};
+    allLeaves.forEach(function(r) {
+      if (String(r.line_user_id) === String(targetUid)) existingDates[String(r.leave_date).substring(0,10)] = true;
+    });
+
+    var added = 0;
+    var blockedWeekend = [];
+    var blockedFull = [];
+    dates.forEach(function(d) {
+      var ds = String(d).substring(0, 10);
+      if (existingDates[ds]) return; // 已存在跳過
+
+      var dow = new Date(ds + 'T00:00:00').getDay(); // 0=日 6=六
+      if (dow === 0 || dow === 6) {
+        // 六日禁休，除非是主管/admin 幫忙排假
+        if (ctx.role === CONFIG.ROLES.SALES) { blockedWeekend.push(ds); return; }
+      } else {
+        // 平日單日最多 2 人（含這批次前面已經加進去的）
+        var countThatDay = allLeaves.filter(function(r) {
+          return String(r.leave_date).substring(0,10) === ds;
+        }).length;
+        if (countThatDay >= 2) { blockedFull.push(ds); return; }
+      }
+
+      appendObjectToSheet(CONFIG.SHEETS.LEAVE_SCHEDULE, {
+        leave_id:              genId('LV'),
+        line_user_id:          targetUid,
+        display_name:          targetName,
+        project_name:          projectName,
+        leave_date:            ds,
+        created_by_line_user_id: ctx.lineUserId,
+        created_at:            nowTW()
+      });
+      allLeaves.push({ leave_date: ds, line_user_id: targetUid }); // 讓同批次後面的日期也算進當日人數
+      added++;
+    });
+
+    writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.LEAVE_SCHEDULE, targetUid,
+      ctx.displayName + ' 排假 ' + targetName + ' x' + added + ' 天');
+
+    var msgParts = [];
+    if (blockedWeekend.length) msgParts.push('六日禁休（除非主管排假）：' + blockedWeekend.join('、'));
+    if (blockedFull.length) msgParts.push('當日已達 2 人上限：' + blockedFull.join('、'));
+
+    return ok({ added: added, blocked: blockedWeekend.concat(blockedFull), message: msgParts.join('；') });
+  } catch (err) { return fail(err.message); } finally { lock.releaseLock(); }
+}
+
+function deleteLeave(payload) {
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (!payload.leave_id) return fail('leave_id 必填');
+
+    var sh      = getSheet(CONFIG.SHEETS.LEAVE_SCHEDULE);
+    var data    = sh.getDataRange().getValues();
+    var headers = data[0];
+    var idCol   = headers.indexOf('leave_id');
+    var uidCol  = headers.indexOf('line_user_id');
+
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][idCol]) !== String(payload.leave_id)) continue;
+
+      // 業務只能刪自己的
+      if (ctx.role === CONFIG.ROLES.SALES &&
+          String(data[i][uidCol]) !== String(ctx.lineUserId)) {
+        return fail('只能取消自己的假');
+      }
+      sh.deleteRow(i + 1);
+      writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.LEAVE_SCHEDULE,
+        payload.leave_id, ctx.displayName + ' 取消排假');
+      return ok({ leave_id: payload.leave_id });
+    }
+    return fail('找不到該筆假別');
+  } catch (err) { return fail(err.message); }
+}
+
+// ==================== Calendar Notes（行事曆重要事項） ====================
 // ★ 既有帳號升級用：只新增 Calendar_Notes 分頁，不會動到其他分頁的資料
 function ensureCalendarNotesSheet() {
   var ss = getCrmSS();
@@ -1093,7 +1479,7 @@ function deleteCalendarNote(payload) {
   } catch (err) { return fail(err.message); }
 }
 
-/* ★ 產生下週休假通報（排除 SKY 陳昭文），並推播給案場管理員 */
+// ★ 產生下週休假通報（排除 SKY 陳昭文），並推播給案場管理員
 function generateWeeklyLeaveReport(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
@@ -1143,27 +1529,32 @@ function generateWeeklyLeaveReport(payload) {
   } catch (err) { return fail(err.message); }
 }
 
-/* ==================== Audit Log ==================== */
+// ==================== Audit Log ====================
 function writeAuditLog(lineUserId, action, targetSheet, targetId, detail) {
   try {
     var sh = getSheet(CONFIG.SHEETS.AUDIT_LOG);
     if (!sh) return;
     appendObjectToSheet(CONFIG.SHEETS.AUDIT_LOG, {
-      log_id: genId('LOG'), timestamp: nowTW(),
-      line_user_id: lineUserId || '', display_name: lineUserId || '',
-      action: action, target_sheet: targetSheet, target_id: targetId,
-      detail: String(detail||'').substring(0, 500)
+      log_id:       genId('LOG'),
+      timestamp:    nowTW(),
+      line_user_id: lineUserId || '',
+      display_name: lineUserId || '',
+      action:       action,
+      target_sheet: targetSheet,
+      target_id:    targetId,
+      detail:       String(detail || '').substring(0, 500)
     });
   } catch (err) { Logger.log('writeAuditLog error: ' + err); }
 }
 
-/* ==================== LINE Messaging ==================== */
+// ==================== LINE Messaging ====================
 function sendLinePush(toId, text) {
   try {
     var token = getProp(CONFIG.PROP_KEYS.LINE_TOKEN);
     if (!token) return;
     UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
-      method: 'post', contentType: 'application/json',
+      method: 'post',
+      contentType: 'application/json',
       headers: { Authorization: 'Bearer ' + token },
       payload: JSON.stringify({ to: toId, messages: [{ type: 'text', text: String(text) }] }),
       muteHttpExceptions: true
@@ -1186,7 +1577,8 @@ function sendLineReply(replyToken, text) {
     var token = getProp(CONFIG.PROP_KEYS.LINE_TOKEN);
     if (!token) return;
     UrlFetchApp.fetch('https://api.line.me/v2/bot/message/reply', {
-      method: 'post', contentType: 'application/json',
+      method: 'post',
+      contentType: 'application/json',
       headers: { Authorization: 'Bearer ' + token },
       payload: JSON.stringify({ replyToken: replyToken, messages: [{ type: 'text', text: String(text) }] }),
       muteHttpExceptions: true
@@ -1194,13 +1586,13 @@ function sendLineReply(replyToken, text) {
   } catch (err) { Logger.log('sendLineReply error: ' + err); }
 }
 
-/* ==================== Webhook ==================== */
+// ==================== Webhook ====================
 function handleWebhookEvent(event) {
   try {
     if (event.type !== 'message' || event.message.type !== 'text') return;
-    var text = String(event.message.text || '').trim();
+    var text       = String(event.message.text || '').trim();
     var replyToken = event.replyToken;
-    var userId = event.source.userId;
+    var userId     = event.source.userId;
 
     if (text === '案場維修通報' || text === '維修通報') {
       sendLineReply(replyToken, '🔧 維修通報入口\n請點擊圖文選單的「維修通報」開啟系統填寫。');
@@ -1213,7 +1605,7 @@ function handleWebhookEvent(event) {
   } catch (err) { Logger.log('handleWebhookEvent error: ' + err); }
 }
 
-/* ==================== Daily Triggers ==================== */
+// ==================== Daily Triggers ====================
 function sendDailyTaskReminder() {
   try {
     var rows = readSheetAsObjects(CONFIG.SHEETS.TASK).filter(function(r){ return r.status === CONFIG.STATUS.PENDING; });
@@ -1223,7 +1615,7 @@ function sendDailyTaskReminder() {
     if (!rows.length) { msg += '✅ 目前沒有待辦任務'; }
     else {
       var byProject = {};
-      rows.forEach(function(r){ var k = r.project_name||'未指定'; if(!byProject[k]) byProject[k]=[]; byProject[k].push(r); });
+      rows.forEach(function(r){ var k = r.project_name || '未指定'; if(!byProject[k]) byProject[k]=[]; byProject[k].push(r); });
       Object.keys(byProject).forEach(function(proj){
         msg += '【' + proj + '】\n';
         byProject[proj].slice(0,5).forEach(function(t){ msg += '・' + t.title + (t.due_date ? '（'+t.due_date+'）' : '') + '\n'; });
@@ -1246,12 +1638,12 @@ function sendDailySalesReport() {
 
     var byProject = {};
     rows.forEach(function(r){
-      var k = r.project_name||'未指定';
+      var k = r.project_name || '未指定';
       if (!byProject[k]) byProject[k] = { v:0, fv:0, rv:0, deal:0 };
-      byProject[k].v    += Number(r.visitor_count||0);
-      byProject[k].fv   += Number(r.first_visit_count||0);
-      byProject[k].rv   += Number(r.revisit_count||0);
-      byProject[k].deal += Number(r.deal_count||0);
+      byProject[k].v    += Number(r.visitor_count    || 0);
+      byProject[k].fv   += Number(r.first_visit_count || 0);
+      byProject[k].rv   += Number(r.revisit_count    || 0);
+      byProject[k].deal += Number(r.deal_count       || 0);
     });
 
     var msg = '案場：' + CONFIG.PROJECT_NAME + '\n📊 今日銷售日報（' + date + '）\n\n';
@@ -1266,7 +1658,7 @@ function sendDailySalesReport() {
   } catch (err) { Logger.log('sendDailySalesReport error: ' + err); }
 }
 
-/* ==================== Initialization ==================== */
+// ==================== Initialization ====================
 function initAllSheets() {
   var ss = getCrmSS();
   var schemas = {};
@@ -1278,8 +1670,8 @@ function initAllSheets() {
   schemas[CONFIG.SHEETS.MAINTENANCE]  = ['maintenance_id','project_name','location','issue_type','description','photo_url','reported_by','reported_by_line_user_id','assigned_to','status','created_at','updated_at','completed_at'];
   schemas[CONFIG.SHEETS.AUDIT_LOG]    = ['log_id','timestamp','line_user_id','display_name','action','target_sheet','target_id','detail'];
   schemas[CONFIG.SHEETS.CHANGE_LOG]   = ['log_id','customer_id','customer_name','changed_by_line_user_id','changed_by_name','changed_at','changes_json'];
-  schemas[CONFIG.SHEETS.LEAVE_SCHEDULE] = ['leave_id','line_user_id','display_name','leave_date','created_at'];
-  schemas[CONFIG.SHEETS.CALENDAR_NOTES] = ['note_id','project_name','note_date','content','created_by_line_user_id','created_by_name','created_at'];
+  schemas[CONFIG.SHEETS.LEAVE_SCHEDULE] = ['leave_id','line_user_id','display_name','project_name','leave_date','created_by_line_user_id','created_at'];
+  schemas[CONFIG.SHEETS.CALENDAR_NOTES]  = ['note_id','project_name','note_date','content','created_by_line_user_id','created_by_name','created_at'];
 
   Object.keys(schemas).forEach(function(name) {
     var sh = ss.getSheetByName(name);
@@ -1298,7 +1690,7 @@ function initAllSheets() {
     });
   });
 
-  Logger.log('✓ 工作表已建立');
+  Logger.log('✓ 8 張工作表已建立');
 }
 
 function setupTriggers() {
@@ -1329,10 +1721,15 @@ function addUser(lineUserId, displayName, role, projectName) {
     return;
   }
   appendObjectToSheet(CONFIG.SHEETS.USER_ROLE, {
-    line_user_id: lineUserId, display_name: displayName,
-    role: role, status: CONFIG.STATUS.ACTIVE,
-    project_name: projectName || '', job_title: '',
-    last_login_at: '', created_at: nowTW(), updated_at: nowTW()
+    line_user_id: lineUserId,
+    display_name: displayName,
+    role: role,
+    status: CONFIG.STATUS.ACTIVE,
+    project_name: projectName || '',
+    job_title: '',
+    last_login_at: '',
+    created_at: nowTW(),
+    updated_at: nowTW()
   });
   Logger.log('✓ 已新增：' + displayName + '（' + role + '）');
 }
@@ -1395,18 +1792,16 @@ function setLineToken(token)     { setProp(CONFIG.PROP_KEYS.LINE_TOKEN, token); 
 function setLinePushTarget(id)   { setProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET, id);  Logger.log('✓ 推播目標設定完成（多人請用逗號分隔，例如 U111,U222）'); }
 function setLineChannelSecret(s) { setProp(CONFIG.PROP_KEYS.LINE_CHANNEL_SECRET, s); Logger.log('✓ Channel Secret 設定完成'); }
 
-/**
- * ★ 第一次設定執行這個就好
- */
+// ★ 第一次設定執行這個就好
 function firstTimeSetup() {
   setCompanyPassword('075500888');
   initAllSheets();
-  Logger.log('✓ 完成！華雄音樂匯專用版已初始化。');
+  Logger.log('✓ 完成！華雄天地專用版已初始化。');
   Logger.log('下一步：');
-  Logger.log('1. 部署 Web App，把 /exec 網址貼到 index.html 的 GAS_URL');
-  Logger.log('2. 執行 setLineToken("你的Token") 設定推播');
-  Logger.log('3. 執行 setLinePushTarget("你的userId") 設定推播目標');
-  Logger.log('4. 執行 addUser("你的userId","你的名字","admin","華雄音樂匯") 加入第一位管理員');
+  Logger.log('1. 部署 Web App，把 exec 網址貼到 hstd.html 的 GAS_URL');
+  Logger.log('2. 執行 setLineToken(你的Token) 設定推播');
+  Logger.log('3. 執行 setLinePushTarget(你的userId) 設定推播目標');
+  Logger.log('4. 執行 addUser(你的userId,你的名字,admin,華雄天地) 加入第一位管理員');
 }
 
 function testCheckProps() {
@@ -1416,221 +1811,12 @@ function testCheckProps() {
   });
 }
 
-/* ★ 以下三個 function 執行完後建議從程式碼中刪除，避免 Token 外洩 */
+// ★ 以下執行完後建議從程式碼中刪除，避免 Token 外洩
 function setupLine() {
-  setLineToken('QcAjXh7Yu8jtbHUcgcii9+bCBE0ZbfTrxLXSDJ0W7KQydHtAfthh7uISDAoxA1yPTZby4GQMlbb701rDnLzCPAI+mlurWeOogR3cf7YKEfq0Ew+9jOKtMXJw9pPxJEX/26rRFc24CKuAriwQcIZTLwdB04t89/1O/w1cDnyilFU=');
+  setLineToken('QcAjXh7Yu8jtbHUcgcii9+bCBE0ZbfTrxLXSDJ0W7KQydHtAfthh7uISDAoxA1yPTZby4GQMlbb701rDnLzCPAI+mlurWeOogR3cf7YKEfq0Ew+9jOKtMXJw9pPxJEX26rRFc24CKuAriwQcIZTLwdB04t891Ow1cDnyilFU=');
   setLinePushTarget('U4bf4bf6035e402e4d5a17a01915812bc');
 }
 function setupSecret() { setLineChannelSecret('9456425e307c7419f2f0571e1f0199ec'); }
 function addMyself() {
-  addUser('U4bf4bf6035e402e4d5a17a01915812bc','SKY 陳昭文','admin','華雄音樂匯');
-}
-
-/* ==================== Leave Schedule Module ==================== */
-
-/**
- * 取得指定日期區間的休假資料
- * payload: { lineUserId, startDate:'yyyy-MM-dd', endDate:'yyyy-MM-dd' }
- */
-function getLeaveSchedule(payload) {
-  try {
-    var ctx = getUserContext(payload && payload.lineUserId);
-    if (!ctx) return fail('未授權');
-
-    var startDate = payload.startDate || '';
-    var endDate   = payload.endDate   || '';
-
-    var rows = readSheetAsObjects(CONFIG.SHEETS.LEAVE_SCHEDULE);
-
-    if (startDate && endDate) {
-      rows = rows.filter(function(r) {
-        var d = String(r.leave_date).substring(0, 10);
-        return d >= startDate && d <= endDate;
-      });
-    }
-
-    return ok(rows.map(function(r) {
-      return {
-        leave_id:     r.leave_id,
-        line_user_id: r.line_user_id,
-        display_name: r.display_name,
-        leave_date:   String(r.leave_date).substring(0, 10),
-        created_at:   r.created_at
-      };
-    }));
-  } catch (err) { return fail(err.message); }
-}
-
-/**
- * 取得今日休假人員名單（首頁用）
- */
-function getTodayLeave() {
-  try {
-    var today = todayTW();
-    var rows  = readSheetAsObjects(CONFIG.SHEETS.LEAVE_SCHEDULE);
-    var names = rows
-      .filter(function(r) { return String(r.leave_date).substring(0, 10) === today; })
-      .map(function(r) { return String(r.display_name); });
-    // 去重
-    var seen = {};
-    names = names.filter(function(n) { if (seen[n]) return false; seen[n] = true; return true; });
-    return ok(names);
-  } catch (err) { return fail(err.message); }
-}
-
-/**
- * 批次新增休假（一次送多天）
- * payload: { lineUserId, dates:['yyyy-MM-dd',...] }
- */
-function appendLeave(payload) {
-  try {
-    var ctx = getUserContext(payload.lineUserId);
-    if (!ctx) return fail('未授權');
-
-    var dates = payload.dates;
-    if (!dates || !dates.length) return fail('dates 必填');
-
-    // 主管/admin 可以幫指定人員排假（targetLineUserId + targetDisplayName）
-    var isManager = ctx.role === CONFIG.ROLES.MANAGER || ctx.role === CONFIG.ROLES.ADMIN;
-    var targetUid  = (isManager && payload.targetLineUserId) ? String(payload.targetLineUserId) : String(ctx.lineUserId);
-    var targetName = (isManager && payload.targetDisplayName) ? String(payload.targetDisplayName) : String(ctx.displayName);
-
-    // 如果是主管幫別人排，從 User_Role_Table 再確認目標真實 displayName
-    if (isManager && payload.targetLineUserId && payload.targetLineUserId !== ctx.lineUserId) {
-      var targetCtx = getUserContext(payload.targetLineUserId);
-      if (!targetCtx) return fail('找不到指定人員');
-      targetUid  = targetCtx.lineUserId;
-      targetName = targetCtx.displayName;
-    }
-
-    // 計算當月已休天數（以目標人員為準）
-    var ym   = String(dates[0]).substring(0, 7);
-    var rows = readSheetAsObjects(CONFIG.SHEETS.LEAVE_SCHEDULE);
-    var usedThisMonth = rows.filter(function(r) {
-      return String(r.line_user_id) === String(targetUid) &&
-             String(r.leave_date).substring(0, 7) === ym;
-    }).length;
-
-    if (usedThisMonth + dates.length > 8) {
-      return fail(targetName + ' 本月休假天數將超過上限（已休 ' + usedThisMonth + ' 天，上限 8 天）');
-    }
-
-    // 過濾已登記的日期（避免重複）
-    var existingDates = rows
-      .filter(function(r) { return String(r.line_user_id) === String(targetUid); })
-      .map(function(r) { return String(r.leave_date).substring(0, 10); });
-
-    var added = [];
-    dates.forEach(function(d) {
-      var dateStr = String(d).substring(0, 10);
-      if (existingDates.indexOf(dateStr) >= 0) return;
-      var leaveId = genId('LV');
-      appendObjectToSheet(CONFIG.SHEETS.LEAVE_SCHEDULE, {
-        leave_id:     leaveId,
-        line_user_id: targetUid,
-        display_name: targetName,
-        leave_date:   dateStr,
-        created_at:   nowTW()
-      });
-      added.push(dateStr);
-    });
-
-    writeAuditLog(ctx.lineUserId, 'APPEND', CONFIG.SHEETS.LEAVE_SCHEDULE, targetUid,
-      ctx.displayName + ' 幫 ' + targetName + ' 登記休假: ' + added.join(', '));
-
-    return ok({ added: added, total: usedThisMonth + added.length });
-  } catch (err) { return fail(err.message); }
-}
-
-/**
- * 取消休假
- * payload: { lineUserId, leave_id, targetLineUserId(選填，主管/admin 用) }
- */
-function deleteLeave(payload) {
-  try {
-    var ctx = getUserContext(payload.lineUserId);
-    if (!ctx) return fail('未授權');
-
-    var leaveId = payload.leave_id;
-    if (!leaveId) return fail('leave_id 必填');
-
-    var sh      = getSheet(CONFIG.SHEETS.LEAVE_SCHEDULE);
-    var data    = sh.getDataRange().getValues();
-    var headers = data[0];
-    var idCol   = headers.indexOf('leave_id');
-    var uidCol  = headers.indexOf('line_user_id');
-    var nameCol = headers.indexOf('display_name');
-
-    for (var i = 1; i < data.length; i++) {
-      if (String(data[i][idCol]) !== String(leaveId)) continue;
-
-      var ownerUid = String(data[i][uidCol]);
-      var ownerName = String(data[i][nameCol]);
-
-      // 權限檢查：本人 or 主管 or admin
-      var isSelf    = ownerUid === String(ctx.lineUserId);
-      var isManager = ctx.role === CONFIG.ROLES.MANAGER || ctx.role === CONFIG.ROLES.ADMIN;
-      if (!isSelf && !isManager) return fail('無權限取消他人休假');
-
-      sh.deleteRow(i + 1);
-      writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.LEAVE_SCHEDULE, leaveId,
-        ctx.displayName + ' 取消 ' + ownerName + ' 的休假');
-      return ok({ deleted: leaveId });
-    }
-    return fail('找不到此休假紀錄');
-  } catch (err) { return fail(err.message); }
-}
-
-/**
- * ★ 清理重複使用者資料（手動執行一次）
- * 同一個 line_user_id 出現多筆時，保留 active 狀態最高權限的那筆，其餘刪除
- */
-function cleanDuplicateUsers() {
-  var sh      = getSheet(CONFIG.SHEETS.USER_ROLE);
-  var data    = sh.getDataRange().getValues();
-  var headers = data[0];
-  var uidCol  = headers.indexOf('line_user_id');
-  var roleCol = headers.indexOf('role');
-  var statCol = headers.indexOf('status');
-
-  var ROLE_PRIORITY = { admin: 3, manager: 2, sales: 1 };
-
-  // 分組
-  var groups = {};
-  for (var i = 1; i < data.length; i++) {
-    var uid = String(data[i][uidCol]).trim();
-    if (!uid) continue;
-    if (!groups[uid]) groups[uid] = [];
-    groups[uid].push({ row: i + 1, data: data[i] });
-  }
-
-  var deletedCount = 0;
-  var rowsToDelete = [];
-
-  Object.keys(groups).forEach(function(uid) {
-    var entries = groups[uid];
-    if (entries.length <= 1) return;
-
-    // 找最佳保留筆：active > pending > inactive，相同狀態取最高 role
-    entries.sort(function(a, b) {
-      var sa = String(a.data[statCol]), sb = String(b.data[statCol]);
-      var ra = ROLE_PRIORITY[String(a.data[roleCol])] || 0;
-      var rb = ROLE_PRIORITY[String(b.data[roleCol])] || 0;
-      if (sa === 'active' && sb !== 'active') return -1;
-      if (sa !== 'active' && sb === 'active') return 1;
-      return rb - ra;
-    });
-
-    // 第 0 筆保留，其餘標記刪除（倒序刪，避免行號偏移）
-    for (var j = 1; j < entries.length; j++) {
-      rowsToDelete.push(entries[j].row);
-    }
-    deletedCount += entries.length - 1;
-  });
-
-  rowsToDelete.sort(function(a, b) { return b - a; });
-  rowsToDelete.forEach(function(r) { sh.deleteRow(r); });
-
-  Logger.log('✓ 清理完成，共刪除 ' + deletedCount + ' 筆重複資料');
-  return '清理完成，共刪除 ' + deletedCount + ' 筆重複資料';
+  addUser('U4bf4bf6035e402e4d5a17a01915812bc', 'SKY 陳昭文', 'admin', '華雄天地');
 }

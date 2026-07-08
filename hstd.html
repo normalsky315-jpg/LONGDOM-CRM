@@ -26,6 +26,26 @@
   }
   .screen.active{display:block;}
 
+  /* ── 品牌背景動畫（Ken Burns 緩慢位移縮放 + 光澤掃過）──
+     只套用在登入頁／首頁 hero，這兩個區塊用同一張 assets/login-bg.jpg 當背景 */
+  @keyframes bgKenBurns{
+    0%  {background-size:130%;background-position:20% 30%;}
+    100%{background-size:150%;background-position:70% 60%;}
+  }
+  @keyframes bgShineSweep{
+    0%  {transform:translateX(-120%);}
+    50% {transform:translateX(220%);}
+    100%{transform:translateX(220%);}
+  }
+  #loginScreen,.home-hero{
+    animation:bgKenBurns 20s ease-in-out infinite alternate;overflow:hidden;
+  }
+  #loginScreen::after,.home-hero::after{
+    content:'';position:absolute;top:-50%;left:-50%;width:60%;height:200%;
+    background:linear-gradient(75deg,transparent 40%,rgba(255,255,255,0.5) 50%,transparent 60%);
+    animation:bgShineSweep 6s ease-in-out infinite;pointer-events:none;
+  }
+
   /* Loading */
   #loadingScreen{display:none;flex-direction:column;align-items:center;justify-content:center;background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;color:#4A3A24;}
   #loadingScreen.active{display:flex;}
@@ -132,6 +152,7 @@
   .cust-card-deal{display:inline-block;margin-top:8px;padding:3px 10px;border-radius:8px;font-size:11px;font-weight:500;}
   .cust-card-deal.done{background:var(--teal-soft);color:#0f6e56;}
   .cust-card-deal.pending{background:var(--gold-soft);color:#634e0c;}
+  .cust-card-deal.refund{background:var(--rust-soft);color:var(--rust);}
   .deal-btn{margin-top:8px;padding:7px 14px;font-size:12px;background:var(--ink);color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:inherit;}
 
   /* Form */
@@ -548,6 +569,7 @@
         <div style="text-align:center;">
           <div id="leaveWeekLabel" style="font-family:'Noto Serif TC',serif;font-size:15px;font-weight:700;color:var(--ink);"></div>
           <div id="leaveQuotaLabel" style="font-size:11px;color:var(--ink-faint);margin-top:2px;"></div>
+          <div style="font-size:10px;color:var(--ink-faint);margin-top:2px;">（每日休假人數上限兩人）</div>
         </div>
         <button id="leaveNextWeek" onclick="leaveWeekNav(1)" style="width:36px;height:36px;border:none;background:var(--border);border-radius:8px;font-size:18px;cursor:pointer;color:var(--ink);">›</button>
       </div>
@@ -1087,9 +1109,12 @@ function myCustomerCardHTML(c) {
   var createdAt = new Date(c.created_at);
   var diffDays = (now - createdAt) / (1000 * 60 * 60 * 24);
   var canEdit = diffDays <= 14;
-  var isDone = c.deal_status === '已成交';
+  var isDone   = c.deal_status === '已成交';
+  var isRefund = c.deal_status === '退戶';
+  var badgeClass = isRefund ? 'refund' : (isDone ? 'done' : 'pending');
+  var badgeText  = isRefund ? '🔙 退戶' : (isDone ? '✓ 已成交' : '未成交');
 
-  var dealBadge = '<span class="cust-card-deal ' + (isDone?'done':'pending') + '">' + (isDone?'✓ 已成交':'未成交') + (c.deal_unit?' — '+escapeHtml(c.deal_unit):'') + '</span>';
+  var dealBadge = '<span class="cust-card-deal ' + badgeClass + '">' + badgeText + (c.deal_unit?' — '+escapeHtml(c.deal_unit):'') + '</span>';
 
   var fields = [
     c.phone        ? '📞 ' + escapeHtml(String(c.phone))       : '',
@@ -1111,6 +1136,10 @@ function myCustomerCardHTML(c) {
 
   var logBtn = '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openChangeLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">📋 修改紀錄</button>';
 
+  var deleteBtn = canEdit
+    ? '<button class="deal-btn" style="background:var(--rust);margin-left:6px;" onclick="deleteCustomer(\'' + escapeHtml(c.customer_id) + '\')">🗑️ 刪除</button>'
+    : '';
+
   return '<div class="cust-card">' +
     '<div class="cust-card-head">' +
       '<div class="cust-card-name">' + escapeHtml(c.customer_name||'') + '</div>' +
@@ -1119,8 +1148,16 @@ function myCustomerCardHTML(c) {
     '<div class="cust-card-body">' + fields.map(function(f){ return '<span>'+f+'</span>'; }).join('') + '</div>' +
     (c.status_note ? '<div class="cust-card-note">📝 ' + escapeHtml(String(c.status_note)) + '</div>' : '') +
     dealBadge +
-    '<div style="margin-top:8px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">' + editBtn + logBtn + '</div>' +
+    '<div style="margin-top:8px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">' + editBtn + logBtn + deleteBtn + '</div>' +
   '</div>';
+}
+
+function deleteCustomer(custId) {
+  if (!confirm('確定要刪除這筆客戶資料嗎？刪除後無法復原。')) return;
+  gasPost('deleteCustomerData', { lineUserId: state.user.lineUserId, customer_id: custId }, function(res) {
+    if (res.ok) { showToast('客戶資料已刪除','success'); renderMyCustomers(); }
+    else showToast(res.error,'error');
+  });
 }
 
 function openEditCustModal(c) {
@@ -1264,10 +1301,16 @@ function renderRecentCustomers() {
 }
 
 function recentCustCardHTML(c) {
-  var isDone = c.deal_status === '已成交';
-  var dealBadge = '<span class="cust-card-deal ' + (isDone?'done':'pending') + '">' + (isDone?'✓ 已成交':'未成交') + (c.deal_unit?' — '+escapeHtml(c.deal_unit):'') + '</span>';
-  var dealBtn = !isDone && state.user.role !== 'sales'
+  var isDone   = c.deal_status === '已成交';
+  var isRefund = c.deal_status === '退戶';
+  var badgeClass = isRefund ? 'refund' : (isDone ? 'done' : 'pending');
+  var badgeText  = isRefund ? '🔙 退戶' : (isDone ? '✓ 已成交' : '未成交');
+  var dealBadge = '<span class="cust-card-deal ' + badgeClass + '">' + badgeText + (c.deal_unit?' — '+escapeHtml(c.deal_unit):'') + '</span>';
+  var dealBtn = !isDone && !isRefund && state.user.role !== 'sales'
     ? '<button class="deal-btn" onclick="openDealModal(\'' + escapeHtml(c.customer_id) + '\')">標記成交</button>'
+    : '';
+  var refundBtn = isDone && state.user.role !== 'sales'
+    ? '<button class="deal-btn" style="background:var(--rust);margin-left:6px;" onclick="markRefund(\'' + escapeHtml(c.customer_id) + '\')">🔙 標記退戶</button>'
     : '';
   var logBtn = state.user.role !== 'sales'
     ? '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openChangeLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">📋 紀錄</button>'
@@ -1294,8 +1337,23 @@ function recentCustCardHTML(c) {
     '<div class="cust-card-sales">👤 ' + escapeHtml(c.sales_name||c.created_by_name||'') + '</div>' +
     '<div class="cust-card-body">' + fields.map(function(f){ return '<span>'+f+'</span>'; }).join('') + '</div>' +
     (c.status_note ? '<div class="cust-card-note">📝 ' + escapeHtml(String(c.status_note)) + '</div>' : '') +
-    dealBadge + dealBtn + logBtn +
+    dealBadge + dealBtn + refundBtn + logBtn +
   '</div>';
+}
+
+function markRefund(custId) {
+  var reason = prompt('請輸入退戶原因（選填）：') || '';
+  if (reason === null) return;
+  if (!confirm('確定要把這筆客戶資料標記為「退戶」嗎？')) return;
+  gasPost('updateCustomerDeal', {
+    lineUserId: state.user.lineUserId,
+    customer_id: custId,
+    deal_status: '退戶',
+    reason: reason
+  }, function(res) {
+    if (res.ok) { showToast('已標記退戶','success'); loadRecentCustomers(); }
+    else showToast(res.error,'error');
+  });
 }
 
 function openDealModal(custId) {
@@ -1486,12 +1544,19 @@ function taskRowHTML(t) {
   var statusPill='<span class="status-pill status-'+t.status+'">'+(t.status==='pending'?'待辦':'已完成')+'</span>';
   var priPill='<span class="priority-pill priority-'+pri+'">'+({urgent:'緊急',high:'高',normal:'一般',low:'低'}[pri]||pri)+'</span>';
   var btn=t.status==='pending'?'<button class="btn-mini primary" onclick="completeTask(\''+t.task_id+'\')">標記完成</button>':'';
-  return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">'+typeIcon+' '+escapeHtml(t.title)+'</div>'+statusPill+'</div>'+(t.description?'<div class="list-item-desc">'+escapeHtml(t.description)+'</div>':'')+'<div class="list-item-meta">'+priPill+(t.due_date?'<span>📅 '+t.due_date+'</span>':'')+(t.assigned_to?'<span>👤 '+escapeHtml(t.assigned_to)+'</span>':'')+'<span>'+escapeHtml(t.project_name||'')+'</span></div>'+(btn?'<div class="list-item-actions">'+btn+'</div>':'')+'</div>';
+  var delBtn='<button class="btn-mini danger" onclick="deleteTask(\''+t.task_id+'\')">刪除</button>';
+  return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">'+typeIcon+' '+escapeHtml(t.title)+'</div>'+statusPill+'</div>'+(t.description?'<div class="list-item-desc">'+escapeHtml(t.description)+'</div>':'')+'<div class="list-item-meta">'+priPill+(t.due_date?'<span>📅 '+t.due_date+'</span>':'')+(t.assigned_to?'<span>👤 '+escapeHtml(t.assigned_to)+'</span>':'')+'<span>'+escapeHtml(t.project_name||'')+'</span></div><div class="list-item-actions">'+btn+delBtn+'</div></div>';
 }
 function completeTask(taskId) {
   if (!confirm('確認將此任務標記為完成？')) return;
   gasPost('updateTaskStatus', { lineUserId: state.user.lineUserId, task_id: taskId, status: 'done' }, function(res) {
     if (res.ok) { showToast('任務已完成','success'); renderTaskList(); } else { showToast(res.error,'error'); }
+  });
+}
+function deleteTask(taskId) {
+  if (!confirm('確定要刪除這個任務嗎？刪除後無法復原。')) return;
+  gasPost('deleteTask', { lineUserId: state.user.lineUserId, task_id: taskId }, function(res) {
+    if (res.ok) { showToast('任務已刪除','success'); renderTaskList(); } else { showToast(res.error,'error'); }
   });
 }
 function openTaskModal() {
@@ -1549,8 +1614,8 @@ function loadReportForDate() {
     var box=document.getElementById('reportList');
     box.innerHTML=d.reports.length?d.reports.map(function(r,idx){
       var canEdit = state.user.role!=='sales' && reportEditableWithinDays(r.report_date, 3);
-      var editBtn = canEdit ? '<div class="list-item-actions"><button class="btn-mini" style="padding:4px 10px;font-size:11px;" onclick="openEditReportModal('+idx+')">✏️ 修改</button></div>' : '';
-      return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">'+escapeHtml(r.salesperson||r.created_by)+'</div><span class="list-item-meta">'+r.report_date+'</span></div><div class="list-item-meta"><span>接待 '+(r.visitor_count||0)+'</span><span>初訪 '+(r.first_visit_count||0)+'</span><span>回籠 '+(r.revisit_count||0)+'</span><span>成交 '+(r.deal_count||0)+'</span></div>'+(r.notes?'<div class="list-item-desc">'+escapeHtml(r.notes)+'</div>':'')+editBtn+'</div>';
+      var editBtn = canEdit ? '<button class="btn-mini" style="padding:4px 10px;font-size:11px;" onclick="openEditReportModal('+idx+')">✏️ 修改</button>' : '';
+      return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">'+escapeHtml(r.salesperson||r.created_by)+'</div><span class="list-item-meta">'+r.report_date+'</span></div><div class="list-item-meta"><span>接待 '+(r.visitor_count||0)+'</span><span>初訪 '+(r.first_visit_count||0)+'</span><span>回籠 '+(r.revisit_count||0)+'</span><span>成交 '+(r.deal_count||0)+'</span></div>'+(r.notes?'<div class="list-item-desc">'+escapeHtml(r.notes)+'</div>':'')+'<div class="list-item-actions">'+editBtn+'<button class="btn-mini danger" onclick="deleteReport(\''+r.report_id+'\')">刪除</button></div></div>';
     }).join(''):'<div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-text">當日尚未有日報提交</div></div>';
   });
 }
@@ -1598,6 +1663,14 @@ function saveEditReport() {
     if (res.ok) { showToast('日報已更新','success'); closeModal('editReportModal'); loadReportForDate(); }
     else { showToast(res.error,'error'); }
   }, function() { btn.disabled = false; btn.textContent = '儲 存 修 改'; showToast('連線失敗','error'); });
+}
+
+function deleteReport(reportId) {
+  if (!confirm('確定要刪除這筆日報嗎？刪除後無法復原。')) return;
+  gasPost('deleteDailyReport', { lineUserId: state.user.lineUserId, report_id: reportId }, function(res) {
+    if (res.ok) { showToast('日報已刪除', 'success'); loadReportForDate(); loadReportHistory(); }
+    else showToast(res.error, 'error');
+  }, function() { showToast('連線失敗', 'error'); });
 }
 
 /* ══ Daily Report History（本週累計／近1個月每日報表） ══ */
@@ -1670,11 +1743,15 @@ function renderReportHistoryList() {
   });
 
   // 近1個月完整日期清單（沒有資料的日子顯示 0，由新到舊排列）
+  // 今天還沒提交日報的話先不列出來，避免看起來像「今天來人數是 0」
+  var todayStrVal = todayStr();
   var allDays = [];
   var cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - 1);
   for (var d = new Date(); d >= cutoff; d.setDate(d.getDate() - 1)) {
-    allDays.push(dateToStr(d));
+    var ds = dateToStr(d);
+    if (ds === todayStrVal && !byDate[ds]) continue;
+    allDays.push(ds);
   }
 
   var days = state.reportHistoryExpanded ? allDays : allDays.slice(0, 7);
@@ -1735,13 +1812,20 @@ function renderMaintList() {
         if (m.status==='pending') act='<button class="btn-mini primary" onclick="updateMaint(\''+m.maintenance_id+'\',\'processing\')">開始處理</button>';
         else if (m.status==='processing') act='<button class="btn-mini primary" onclick="updateMaint(\''+m.maintenance_id+'\',\'done\')">標記完成</button>';
       }
-      return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">🔧 '+escapeHtml(m.issue_type)+(m.location?' @ '+escapeHtml(m.location):'')+'</div>'+sp+'</div><div class="list-item-desc">'+escapeHtml(m.description||'')+'</div><div class="list-item-meta"><span>👤 '+escapeHtml(m.reported_by||'')+'</span><span>📅 '+String(m.created_at||'').substring(0,10)+'</span></div>'+(act?'<div class="list-item-actions">'+act+'</div>':'')+'</div>';
+      act += '<button class="btn-mini danger" onclick="deleteMaint(\''+m.maintenance_id+'\')">刪除</button>';
+      return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">🔧 '+escapeHtml(m.issue_type)+(m.location?' @ '+escapeHtml(m.location):'')+'</div>'+sp+'</div><div class="list-item-desc">'+escapeHtml(m.description||'')+'</div><div class="list-item-meta"><span>👤 '+escapeHtml(m.reported_by||'')+'</span><span>📅 '+String(m.created_at||'').substring(0,10)+'</span></div><div class="list-item-actions">'+act+'</div></div>';
     }).join('');
   });
 }
 function updateMaint(id,status) {
   gasPost('updateMaintenanceStatus',{lineUserId:state.user.lineUserId,maintenance_id:id,status:status},function(res){
     if (res.ok) { showToast('狀態已更新','success'); renderMaintList(); } else { showToast(res.error,'error'); }
+  });
+}
+function deleteMaint(id) {
+  if (!confirm('確定要刪除這筆維修通報嗎？刪除後無法復原。')) return;
+  gasPost('deleteMaintenance',{lineUserId:state.user.lineUserId,maintenance_id:id},function(res){
+    if (res.ok) { showToast('維修通報已刪除','success'); renderMaintList(); } else { showToast(res.error,'error'); }
   });
 }
 function openMaintModal(){ openModal('maintModal'); }
