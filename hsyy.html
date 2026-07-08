@@ -1847,24 +1847,18 @@ function renderReportHistoryList() {
     (byDate[d] = byDate[d] || []).push(r);
   });
 
-  // 近1個月完整日期清單（沒有資料的日子顯示 0，由新到舊排列）
-  // 今天還沒提交日報的話先不列出來，避免看起來像「今天來人數是 0」
-  var todayStrVal = todayStr();
-  var allDays = [];
+  // 只列出「實際有提交日報」的日期（近1個月內），由新到舊排列；沒有提交過的日子不顯示、不補0
   var cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - 1);
-  for (var d = new Date(); d >= cutoff; d.setDate(d.getDate() - 1)) {
-    var ds = dateToStr(d);
-    if (ds === todayStrVal && !byDate[ds]) continue;
-    allDays.push(ds);
-  }
+  var cutoffStr = dateToStr(cutoff);
+  var allDays = Object.keys(byDate).filter(function(ds){ return ds >= cutoffStr; }).sort().reverse();
 
   var days = state.reportHistoryExpanded ? allDays : allDays.slice(0, 7);
 
-  var html = days.map(function(ds) {
+  var html = days.length ? days.map(function(ds) {
     var tot = sumReportFields(byDate[ds] || []);
     return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">' + ds + '</div></div><div class="list-item-meta"><span>初訪 ' + tot.first + '</span><span>回籠 ' + tot.revisit + '</span><span>成交 ' + tot.deal + '</span></div></div>';
-  }).join('');
+  }).join('') : '<div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-text">近1個月尚無日報紀錄</div></div>';
 
   if (!state.reportHistoryExpanded && allDays.length > 7) {
     html += '<button class="btn-mini" style="width:100%;padding:12px;" onclick="toggleReportHistoryExpanded()">選擇更多（近1個月）</button>';
@@ -2017,7 +2011,7 @@ function closeModal(id){ document.getElementById(id).classList.remove('show'); d
 
 /* ══ Helpers ══ */
 function showToast(msg,type){ var t=document.getElementById('toast'); t.textContent=msg; t.className='toast '+(type||'info'); setTimeout(function(){ t.classList.add('show'); },10); setTimeout(function(){ t.classList.remove('show'); },3000); }
-function todayStr(){ return new Date().toISOString().split('T')[0]; }
+function todayStr(){ return dateToStr(new Date()); }
 function getRadio(name){ var el=document.querySelector('input[name="'+name+'"]:checked'); return el?el.value:''; }
 function getChecks(name){ return Array.from(document.querySelectorAll('input[name="'+name+'"]:checked')).map(function(e){ return e.value; }); }
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
