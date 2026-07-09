@@ -192,6 +192,15 @@
   .list-tab{flex:1;padding:8px;text-align:center;font-size:13px;font-weight:400;color:var(--ink-faint);border-radius:7px;cursor:pointer;transition:all 0.15s;}
   .list-tab.active{background:var(--ink);color:#fff;font-weight:500;}
   .list-item{background:var(--surface);border-radius:10px;border:1px solid var(--border);padding:14px;margin-bottom:10px;}
+  .pending-sign-card{background:var(--gold-soft);border:1px solid var(--gold);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .pending-sign-card.overdue{background:var(--rust-soft);border-color:var(--rust);}
+  .pending-sign-main{flex:1;min-width:0;}
+  .pending-sign-unit{font-size:13px;font-weight:600;color:var(--ink);}
+  .pending-sign-meta{font-size:11px;color:var(--ink-light);margin-top:2px;}
+  .pending-sign-card.overdue .pending-sign-meta{color:var(--rust);font-weight:600;}
+  .pending-sign-date{font-size:11px;color:var(--ink-faint);white-space:nowrap;}
+  .pending-sign-card.overdue .pending-sign-date{color:var(--rust);font-weight:700;}
+  .pending-sign-signbtn{flex-shrink:0;padding:6px 12px;border:none;border-radius:8px;font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;background:var(--teal);color:#fff;}
   .list-item-row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;}
   .list-item-title{font-family:'Noto Serif TC',serif;font-size:14px;font-weight:600;flex:1;line-height:1.4;}
   .list-item-meta{font-size:11px;color:var(--ink-faint);letter-spacing:0.5px;display:flex;gap:10px;flex-wrap:wrap;}
@@ -364,6 +373,10 @@
           <div class="feature-card-title">假表排班</div>
           <div class="feature-card-desc" id="todayLeaveDesc">今日休假：載入中…</div>
         </div>
+      </div>
+      <div class="pending-sign-wrap hidden" id="pendingSignWrap">
+        <div class="section-tag" style="margin-top:14px;">待簽約提醒</div>
+        <div id="pendingSignList"></div>
       </div>
       <div class="section-tag">本月概況</div>
       <div class="stat-grid">
@@ -648,20 +661,54 @@
   </div>
 </div>
 
-<!-- 成交 Modal -->
+<!-- 成交／退戶明細 Modal -->
 <div class="modal-mask" id="dealModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">標記成交</div>
-    <div class="modal-subtitle">確認此客戶已成交</div>
+    <div class="modal-title" id="dealModalTitle">標記成交</div>
+    <div class="modal-subtitle" id="dealModalSubtitle">確認此客戶已成交，填寫交易明細</div>
     <input type="hidden" id="deal_custId">
+    <input type="hidden" id="deal_id">
+    <input type="hidden" id="deal_mode">
     <div class="field">
       <div class="field-label">成交戶別</div>
-      <input class="inp" type="text" id="deal_unit" placeholder="例：A棟15F A2（可留空）">
+      <input class="inp" type="text" id="deal_unit" placeholder="例：A棟15F A2">
+    </div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">房屋底價</div><input class="inp" type="number" id="deal_housePrice" placeholder="0" oninput="recalcDealPrice()"></div>
+      <div class="field"><div class="field-label">車位底價</div><input class="inp" type="number" id="deal_parkPrice" placeholder="0" oninput="recalcDealPrice()"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">溢價／折價</div><input class="inp" type="number" id="deal_premium" placeholder="折價請填負數" oninput="recalcDealPrice()"></div>
+      <div class="field"><div class="field-label">成交價</div><input class="inp" type="number" id="deal_price" placeholder="自動加總，可手動調整"></div>
+    </div>
+    <div class="field">
+      <div class="field-label">客戶</div>
+      <input class="inp" type="text" id="deal_custName" list="deal_custNameList" placeholder="從既有客戶挑選，或直接輸入姓名">
+      <datalist id="deal_custNameList"></datalist>
+    </div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">業務員</div><input class="inp" type="text" id="deal_salesName"></div>
+      <div class="field"><div class="field-label">訂金金額</div><input class="inp" type="number" id="deal_deposit" placeholder="0"></div>
+    </div>
+    <div class="field">
+      <div class="field-label">簽約狀態</div>
+      <div class="chips">
+        <label class="chip"><input type="radio" name="deal_contractStatus" value="待簽約" onchange="toggleDealSignDate()"><span class="chip-label">待簽約</span></label>
+        <label class="chip"><input type="radio" name="deal_contractStatus" value="已簽約" onchange="toggleDealSignDate()"><span class="chip-label">已簽約</span></label>
+      </div>
+    </div>
+    <div class="field" id="deal_signDateField">
+      <div class="field-label">預定簽約日期</div>
+      <input class="inp" type="date" id="deal_expectedSignDate">
+    </div>
+    <div class="field hidden" id="deal_refundReasonField">
+      <div class="field-label">退戶原因</div>
+      <textarea class="ta" id="deal_refundReason" placeholder="選填"></textarea>
     </div>
     <div style="display:flex;gap:10px;margin-top:18px;">
       <button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('dealModal')">取消</button>
-      <button class="btn-mini success" style="flex:2;padding:14px;font-weight:600;" onclick="confirmDeal()">確 認 成 交</button>
+      <button class="btn-mini success" style="flex:2;padding:14px;font-weight:600;" id="deal_confirmBtn" onclick="confirmDeal()">確 認 成 交</button>
     </div>
   </div>
 </div>
@@ -1047,6 +1094,42 @@ function renderHome() {
       el.textContent = '今日全員出勤 ✓';
     }
   });
+
+  loadPendingSignatures();
+}
+
+/* ══ 待簽約提醒 ══ */
+function loadPendingSignatures() {
+  var wrap = document.getElementById('pendingSignWrap');
+  var box  = document.getElementById('pendingSignList');
+  gasGet('getPendingSignatures', { lineUserId: state.user.lineUserId }, function(res) {
+    if (!res.ok || !res.data || !res.data.length) { wrap.classList.add('hidden'); box.innerHTML=''; return; }
+    wrap.classList.remove('hidden');
+    var today = todayStr();
+    var canAction = state.user.role !== 'sales';
+    box.innerHTML = res.data.map(function(d) {
+      var overdue = d.expected_sign_date && d.expected_sign_date < today;
+      var who = !canAction ? '' : ('<span>👤 ' + escapeHtml(d.salesperson||'') + '</span>');
+      var signBtn = canAction
+        ? '<button class="pending-sign-signbtn" onclick="quickMarkSigned(\'' + escapeHtml(d.deal_id) + '\')">標記已簽約</button>'
+        : '';
+      return '<div class="pending-sign-card' + (overdue?' overdue':'') + '">' +
+        '<div class="pending-sign-main">' +
+          '<div class="pending-sign-unit">' + escapeHtml(d.unit||'（未填戶別）') + (d.customer_name?' · '+escapeHtml(d.customer_name):'') + '</div>' +
+          '<div class="pending-sign-meta">' + (overdue?'⚠️ 已逾期未簽約　':'') + '預定簽約：' + escapeHtml(d.expected_sign_date||'未填') + (who?'　'+who:'') + '</div>' +
+        '</div>' +
+        signBtn +
+      '</div>';
+    }).join('');
+  });
+}
+
+function quickMarkSigned(dealId) {
+  if (!confirm('確定這筆已經完成簽約了嗎？')) return;
+  gasPost('saveDealDetail', { lineUserId: state.user.lineUserId, deal_id: dealId, contract_status: '已簽約' }, function(res) {
+    if (res.ok) { showToast('已標記簽約完成','success'); loadPendingSignatures(); }
+    else showToast(res.error,'error');
+  });
 }
 
 /* ══ 我的客戶 ══ */
@@ -1307,7 +1390,7 @@ function recentCustCardHTML(c) {
   var badgeText  = isRefund ? '🔙 退戶' : (isDone ? '✓ 已成交' : '未成交');
   var dealBadge = '<span class="cust-card-deal ' + badgeClass + '">' + badgeText + (c.deal_unit?' — '+escapeHtml(c.deal_unit):'') + '</span>';
   var dealBtn = !isDone && !isRefund && state.user.role !== 'sales'
-    ? '<button class="deal-btn" onclick="openDealModal(\'' + escapeHtml(c.customer_id) + '\')">標記成交</button>'
+    ? '<button class="deal-btn" onclick="openDealModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">標記成交</button>'
     : '';
   var refundBtn = isDone && state.user.role !== 'sales'
     ? '<button class="deal-btn" style="background:var(--rust);margin-left:6px;" onclick="markRefund(\'' + escapeHtml(c.customer_id) + '\')">🔙 標記退戶</button>'
@@ -1341,42 +1424,194 @@ function recentCustCardHTML(c) {
   '</div>';
 }
 
-function markRefund(custId) {
-  var reason = prompt('請輸入退戶原因（選填）：') || '';
-  if (reason === null) return;
-  if (!confirm('確定要把這筆客戶資料標記為「退戶」嗎？')) return;
-  gasPost('updateCustomerDeal', {
-    lineUserId: state.user.lineUserId,
-    customer_id: custId,
-    deal_status: '退戶',
-    reason: reason
-  }, function(res) {
-    if (res.ok) { showToast('已標記退戶','success'); loadRecentCustomers(); }
-    else showToast(res.error,'error');
-  });
+/* ══ 成交／退戶明細 Modal ══ */
+var DEAL_DETAIL_FIELDS = ['deal_unit','deal_housePrice','deal_parkPrice','deal_premium','deal_price','deal_custName','deal_salesName','deal_deposit','deal_expectedSignDate'];
+
+function toggleDealSignDate() {
+  var show = getRadio('deal_contractStatus') !== '已簽約';
+  document.getElementById('deal_signDateField').classList.toggle('hidden', !show);
 }
 
-function openDealModal(custId) {
-  document.getElementById('deal_custId').value = custId;
+function recalcDealPrice() {
+  var h = +document.getElementById('deal_housePrice').value || 0;
+  var p = +document.getElementById('deal_parkPrice').value || 0;
+  var pm = +document.getElementById('deal_premium').value || 0;
+  document.getElementById('deal_price').value = h + p + pm;
+}
+
+function populateDealCustomerList() {
+  var dl = document.getElementById('deal_custNameList');
+  var map = {};
+  var options = '';
+  var seen = {};
+  (state.recentCustomers || []).forEach(function(c) {
+    if (!c.customer_name) return;
+    var suffix = c.phone ? String(c.phone).slice(-3) : '';
+    var label = c.customer_name + (suffix ? '（' + suffix + '）' : '');
+    if (seen[label]) return;
+    seen[label] = true;
+    map[label] = c.customer_id;
+    options += '<option value="' + escapeHtml(label) + '">';
+  });
+  dl.innerHTML = options;
+  state.dealCustomerMap = map;
+}
+
+function setDealFieldsDisabled(disabled) {
+  DEAL_DETAIL_FIELDS.forEach(function(id){ document.getElementById(id).disabled = disabled; });
+  document.querySelectorAll('input[name="deal_contractStatus"]').forEach(function(r){ r.disabled = disabled; });
+}
+
+function openDealModal(custId, custName) {
+  document.getElementById('deal_mode').value = 'new';
+  document.getElementById('deal_id').value = '';
+  document.getElementById('deal_custId').value = custId || '';
   document.getElementById('deal_unit').value = '';
+  document.getElementById('deal_housePrice').value = '';
+  document.getElementById('deal_parkPrice').value = '';
+  document.getElementById('deal_premium').value = '';
+  document.getElementById('deal_price').value = '';
+  document.getElementById('deal_custName').value = custName || '';
+  document.getElementById('deal_salesName').value = state.user.displayName || '';
+  document.getElementById('deal_deposit').value = '';
+  document.getElementById('deal_expectedSignDate').value = '';
+  document.querySelectorAll('input[name="deal_contractStatus"]').forEach(function(r){ r.checked = (r.value === '待簽約'); });
+  setDealFieldsDisabled(false);
+  toggleDealSignDate();
+  document.getElementById('deal_refundReasonField').classList.add('hidden');
+  document.getElementById('dealModalTitle').textContent = '標記成交';
+  document.getElementById('dealModalSubtitle').textContent = '確認此客戶已成交，填寫交易明細';
+  var btn = document.getElementById('deal_confirmBtn');
+  btn.textContent = '確 認 成 交';
+  btn.className = 'btn-mini success';
+  btn.style.flex = '2'; btn.style.padding = '14px'; btn.style.fontWeight = '600';
+  populateDealCustomerList();
   openModal('dealModal');
 }
 
 function confirmDeal() {
+  if (document.getElementById('deal_mode').value === 'refund') { confirmRefund(); return; }
+
   var custId = document.getElementById('deal_custId').value;
-  var unit   = document.getElementById('deal_unit').value.trim();
-  gasPost('updateCustomerDeal', {
+  var custNameInput = document.getElementById('deal_custName').value.trim();
+  var mappedId = (state.dealCustomerMap || {})[custNameInput];
+  var finalCustId = custId || mappedId || '';
+  var unit = document.getElementById('deal_unit').value.trim();
+  var contractStatus = getRadio('deal_contractStatus') || '待簽約';
+  var expectedDate = document.getElementById('deal_expectedSignDate').value;
+  if (contractStatus === '待簽約' && !expectedDate) { showToast('請選擇預定簽約日期','error'); return; }
+
+  var btn = document.getElementById('deal_confirmBtn');
+  if (btn.disabled) return;
+  btn.disabled = true; btn.textContent = '處 理 中…';
+
+  gasPost('saveDealDetail', {
     lineUserId: state.user.lineUserId,
-    customer_id: custId,
-    deal_status: '已成交',
-    deal_unit: unit
+    deal_id: document.getElementById('deal_id').value || '',
+    customer_id: finalCustId,
+    customer_name: custNameInput,
+    unit: unit,
+    house_base_price: document.getElementById('deal_housePrice').value,
+    parking_base_price: document.getElementById('deal_parkPrice').value,
+    premium: document.getElementById('deal_premium').value,
+    deal_price: document.getElementById('deal_price').value,
+    deposit_amount: document.getElementById('deal_deposit').value,
+    contract_status: contractStatus,
+    expected_sign_date: expectedDate,
+    salesperson: document.getElementById('deal_salesName').value.trim()
   }, function(res) {
-    if (res.ok) {
-      showToast('已標記成交','success');
-      closeModal('dealModal');
-      loadRecentCustomers();
-    } else { showToast(res.error,'error'); }
+    if (!res.ok) { btn.disabled = false; btn.textContent = '確 認 成 交'; showToast(res.error,'error'); return; }
+    if (finalCustId) {
+      gasPost('updateCustomerDeal', { lineUserId: state.user.lineUserId, customer_id: finalCustId, deal_status: '已成交', deal_unit: unit }, function() {
+        finishDealSave();
+      });
+    } else {
+      finishDealSave();
+    }
+  }, function() { btn.disabled = false; btn.textContent = '確 認 成 交'; showToast('連線失敗','error'); });
+}
+
+function finishDealSave() {
+  var btn = document.getElementById('deal_confirmBtn');
+  btn.disabled = false; btn.textContent = '確 認 成 交';
+  closeModal('dealModal');
+  showToast('成交明細已儲存','success');
+  if (document.getElementById('recentCustomerList')) loadRecentCustomers();
+  loadPendingSignatures();
+  if (state.dealQueueRemaining > 0) {
+    state.dealQueueRemaining--;
+    if (state.dealQueueRemaining > 0) setTimeout(openNextQueuedDeal, 250);
+  }
+}
+
+function markRefund(custId) {
+  gasGet('getDealDetailByCustomer', { lineUserId: state.user.lineUserId, customer_id: custId }, function(res) {
+    var d = (res.ok && res.data) ? res.data : null;
+    document.getElementById('deal_mode').value = 'refund';
+    document.getElementById('deal_id').value = d ? d.deal_id : '';
+    document.getElementById('deal_custId').value = custId;
+    document.getElementById('deal_unit').value = d ? (d.unit||'') : '';
+    document.getElementById('deal_housePrice').value = d ? (d.house_base_price||'') : '';
+    document.getElementById('deal_parkPrice').value = d ? (d.parking_base_price||'') : '';
+    document.getElementById('deal_premium').value = d ? (d.premium||'') : '';
+    document.getElementById('deal_price').value = d ? (d.deal_price||'') : '';
+    document.getElementById('deal_custName').value = d ? (d.customer_name||'') : '';
+    document.getElementById('deal_salesName').value = d ? (d.salesperson||'') : '';
+    document.getElementById('deal_deposit').value = d ? (d.deposit_amount||'') : '';
+    document.getElementById('deal_expectedSignDate').value = d ? (d.expected_sign_date||'') : '';
+    document.querySelectorAll('input[name="deal_contractStatus"]').forEach(function(r){ r.checked = !!(d && r.value === d.contract_status); });
+    setDealFieldsDisabled(true);
+    document.getElementById('deal_signDateField').classList.toggle('hidden', !(d && d.contract_status === '待簽約'));
+    document.getElementById('deal_refundReasonField').classList.remove('hidden');
+    document.getElementById('deal_refundReason').value = '';
+    document.getElementById('dealModalTitle').textContent = '標記退戶';
+    document.getElementById('dealModalSubtitle').textContent = d ? '確認以下交易明細後標記退戶' : '這筆客戶沒有找到成交明細，仍可直接標記退戶';
+    var btn = document.getElementById('deal_confirmBtn');
+    btn.textContent = '確 認 退 戶';
+    btn.className = 'btn-mini danger';
+    btn.style.flex = '2'; btn.style.padding = '14px'; btn.style.fontWeight = '600';
+    openModal('dealModal');
   });
+}
+
+function confirmRefund() {
+  var dealId = document.getElementById('deal_id').value;
+  var custId = document.getElementById('deal_custId').value;
+  var reason = document.getElementById('deal_refundReason').value.trim();
+  if (!confirm('確定要把這筆客戶資料標記為「退戶」嗎？')) return;
+
+  var btn = document.getElementById('deal_confirmBtn');
+  if (btn.disabled) return;
+  btn.disabled = true; btn.textContent = '處 理 中…';
+
+  function afterRefund() {
+    btn.disabled = false; btn.textContent = '確 認 退 戶';
+    closeModal('dealModal');
+    showToast('已標記退戶','success');
+    loadRecentCustomers();
+    loadPendingSignatures();
+  }
+
+  gasPost('updateCustomerDeal', { lineUserId: state.user.lineUserId, customer_id: custId, deal_status: '退戶', reason: reason }, function(res) {
+    if (!res.ok) { btn.disabled = false; btn.textContent = '確 認 退 戶'; showToast(res.error,'error'); return; }
+    if (dealId) {
+      gasPost('markDealDetailRefund', { lineUserId: state.user.lineUserId, deal_id: dealId, reason: reason }, afterRefund, afterRefund);
+    } else {
+      afterRefund();
+    }
+  }, function() { btn.disabled = false; btn.textContent = '確 認 退 戶'; showToast('連線失敗','error'); });
+}
+
+/* 日報表提交成交數 > 0 時，依序跳出成交明細表單 */
+function queueDealDetailEntries(count) {
+  state.dealQueueRemaining = count;
+  openNextQueuedDeal();
+}
+
+function openNextQueuedDeal() {
+  if (!state.dealQueueRemaining || state.dealQueueRemaining <= 0) { state.dealQueueRemaining = 0; return; }
+  openDealModal('', '');
+  document.getElementById('dealModalSubtitle').textContent = '今日新增成交明細（還剩 ' + state.dealQueueRemaining + ' 筆待填）';
 }
 
 /* ══ Customer Form ══ */
@@ -1773,6 +2008,7 @@ function openReportModal() {
 function submitReport() {
   var btn=document.querySelector('#reportModal .btn-mini.primary');
   if (btn.disabled) return;
+  var dealCount = +document.getElementById('rep_deal').value || 0;
   btn.disabled=true; btn.textContent='送 出 中…';
   gasPost('appendDailyReport',{
     lineUserId:state.user.lineUserId,
@@ -1780,12 +2016,21 @@ function submitReport() {
     visitor_count:+document.getElementById('rep_visitor').value||0,
     first_visit_count:+document.getElementById('rep_first').value||0,
     revisit_count:+document.getElementById('rep_revisit').value||0,
-    deal_count:+document.getElementById('rep_deal').value||0,
+    deal_count:dealCount,
     transaction_units:document.getElementById('rep_units').value.trim(),
     notes:document.getElementById('rep_notes').value.trim()
   },function(res){
     btn.disabled=false; btn.textContent='提 交 日 報';
-    if (res.ok) { showToast('日報已提交','success'); closeModal('reportModal'); ['rep_units','rep_notes'].forEach(function(id){ document.getElementById(id).value=''; }); ['rep_visitor','rep_first','rep_revisit','rep_deal'].forEach(function(id){ document.getElementById(id).value='0'; }); renderReport(); }
+    if (res.ok) {
+      showToast('日報已提交','success'); closeModal('reportModal');
+      ['rep_units','rep_notes'].forEach(function(id){ document.getElementById(id).value=''; });
+      ['rep_visitor','rep_first','rep_revisit','rep_deal'].forEach(function(id){ document.getElementById(id).value='0'; });
+      renderReport();
+      if (dealCount > 0) {
+        showToast('請依序填寫 ' + dealCount + ' 筆成交明細','success');
+        queueDealDetailEntries(dealCount);
+      }
+    }
     else { showToast(res.error,'error'); }
   }, function(){ btn.disabled=false; btn.textContent='提 交 日 報'; showToast('連線失敗','error'); });
 }
