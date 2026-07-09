@@ -1,11 +1,30 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.5
+//  龍登 CRM — 華雄天地專用版 v9.6
 //  ★ 從 v9.0 開始，hstd 跟 hsyy 版本號會同步一起升，方便比對兩邊
 //    是不是都更新到最新版。v9.1 是 hstd 專屬的修正，hsyy 沒有那個
 //    bug 不用跟著更新；v9.2 這次 hstd/hsyy 都有更新，版本號重新對齊。
 //    v9.3 是華雄天地案場專屬的排假規則，hsyy 不用跟著更新。
 //    v9.4 這次 hstd/hsyy 都有更新（重大安全性修正），版本號重新對齊。
 //    v9.5 這次 hstd/hsyy 都有更新，版本號重新對齊。
+//    v9.6 目前只有 hstd 更新（成交明細模組），hsyy 還沒跟上。
+//  v9.6 變更：新增「成交明細」模組（Deal_Detail 分頁），回應主管提出的
+//    銷售報告需求：
+//    1. 新增 Deal_Detail 分頁，記錄每一筆成交的完整明細：戶別、房屋
+//       底價、車位底價、溢價／折價、成交價（三者加總，可手動調整）、
+//       客戶姓名、業務員、訂金金額、簽約狀態（待簽約／已簽約）、
+//       預定簽約日期。跟 Customer_Data 的 deal_status/deal_unit（客戶
+//       卡片小標籤）用 customer_id 對起來，互不取代。
+//    2. saveDealDetail：新增或更新一筆成交明細（有帶 deal_id 就是
+//       更新，沒帶就是新增）。管理員／主管在「近期客戶」點「標記成交」，
+//       或主管提交日報表時成交數 > 0，都會呼叫這支。
+//    3. getDealDetailByCustomer：依 customer_id 找出最新一筆成交明細，
+//       標記退戶時用來預先帶出原本填過的戶別/價格資料。
+//    4. markDealDetailRefund：把一筆成交明細標成退戶（跟
+//       updateCustomerDeal 一起呼叫，一個改 Customer_Data 的快速狀態，
+//       一個改這裡的完整交易紀錄）。
+//    5. getPendingSignatures：首頁「待簽約提醒」用，業務只看自己的，
+//       主管看同案場全部業務的，admin 看全部案場。已逾期未簽約的不會
+//       自動消失，要等狀態真的改成「已簽約」或被標記退戶才會消失。
 //  v8.5 變更：新增 getDailyReportRange（銷售日報 3~6 個月歷史／
 //             週比較／月比較 用），已接上 doGet 路由
 //  v8.6 變更：新增 Calendar_Notes 分頁與 getCalendarNotes／
@@ -120,6 +139,9 @@
 //  2. 部署 → 管理部署 → 編輯（鉛筆）→ 版本選「新版本」→ 部署
 //     ★ 用「編輯現有部署」，不要「新增部署」，這樣 exec 網址不會變，
 //       hstd.html 的 GAS_URL 不用再改
+//  ★ Deal_Detail 分頁不用手動建立，第一次呼叫 saveDealDetail
+//    （標記成交／提交有成交筆數的日報）時會自動建立，不用額外執行
+//    任何 ensure 函式
 // ============================================================
 
 // ==================== CONFIG ====================
@@ -143,7 +165,8 @@ const CONFIG = {
     AUDIT_LOG:      'Audit_Log',
     CHANGE_LOG:     'Customer_Change_Log',
     LEAVE_SCHEDULE: 'Leave_Schedule',
-    CALENDAR_NOTES: 'Calendar_Notes'
+    CALENDAR_NOTES: 'Calendar_Notes',
+    DEAL_DETAIL:    'Deal_Detail'
   },
 
   ROLES:  { SALES: 'sales', MANAGER: 'manager', ADMIN: 'admin' },
@@ -166,7 +189,8 @@ const CONFIG = {
 // ==================== Helpers ====================
 // 純日期欄位（yyyy-MM-dd）／時間戳欄位（yyyy-MM-dd HH:mm:ss）／強制文字欄位
 // 統一在這裡維護，讀取與寫入共用，避免各處各自維護一份漏掉欄位
-var DATE_ONLY_FIELDS  = ['visit_date','leave_date','report_date','due_date','note_date'];
+var DATE_ONLY_FIELDS  = ['visit_date','leave_date','report_date','due_date','note_date',
+                          'expected_sign_date','signed_date','refund_date'];
 var DATETIME_FIELDS   = ['created_at','updated_at','last_login_at','completed_at','changed_at','timestamp'];
 var TEXT_FORCE_FIELDS = ['phone'];
 
@@ -347,6 +371,14 @@ function doGet(e) {
         return jsonResponse(appendCustomerData(payload));
       case 'updateCustomerDeal':
         return jsonResponse(updateCustomerDeal(payload));
+      case 'saveDealDetail':
+        return jsonResponse(saveDealDetail(payload));
+      case 'getDealDetailByCustomer':
+        return jsonResponse(getDealDetailByCustomer(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId, customer_id: e.parameter.customer_id }));
+      case 'markDealDetailRefund':
+        return jsonResponse(markDealDetailRefund(payload));
+      case 'getPendingSignatures':
+        return jsonResponse(getPendingSignatures(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
       case 'appendTask':
         return jsonResponse(appendTask(payload));
       case 'updateTaskStatus':
@@ -427,6 +459,10 @@ function doPost(e) {
       case 'updateCustomerData':      return jsonResponse(updateCustomerData(payload));
       case 'deleteCustomerData':      return jsonResponse(deleteCustomerData(payload));
       case 'updateCustomerDeal':      return jsonResponse(updateCustomerDeal(payload));
+      case 'saveDealDetail':          return jsonResponse(saveDealDetail(payload));
+      case 'getDealDetailByCustomer': return jsonResponse(getDealDetailByCustomer(payload));
+      case 'markDealDetailRefund':    return jsonResponse(markDealDetailRefund(payload));
+      case 'getPendingSignatures':    return jsonResponse(getPendingSignatures(payload));
       case 'appendTask':              return jsonResponse(appendTask(payload));
       case 'updateTaskStatus':        return jsonResponse(updateTaskStatus(payload));
       case 'deleteTask':              return jsonResponse(deleteTask(payload));
@@ -726,6 +762,151 @@ function updateCustomerDeal(payload) {
       ctx.displayName + ' 變更成交狀態為「' + newStatus + '」: ' + payload.customer_id +
       (payload.reason ? '（原因：' + payload.reason + '）' : ''));
     return ok({ customer_id: payload.customer_id });
+  } catch (err) { return fail(err.message); }
+}
+
+// ==================== 成交明細模組（Deal_Detail） ====================
+// 存放每一筆成交/退戶的詳細資料：戶別、房屋底價、車位底價、溢價、成交價、
+// 訂金、簽約狀態（待簽約/已簽約）、預定簽約日期。跟 Customer_Data 的
+// deal_status/deal_unit（客戶卡片上的小標籤）是互補關係：Customer_Data
+// 存快速狀態，這裡存完整交易細節，兩者用 customer_id 對起來。
+function ensureDealDetailSheet() {
+  var ss = getCrmSS();
+  var name = CONFIG.SHEETS.DEAL_DETAIL;
+  var sh = ss.getSheetByName(name);
+  if (sh) return sh;
+  sh = ss.insertSheet(name);
+  var headers = ['deal_id','customer_id','customer_name','project_name','unit',
+    'house_base_price','parking_base_price','premium','deal_price','deposit_amount',
+    'contract_status','expected_sign_date','signed_date','salesperson','sales_line_user_id',
+    'status','refund_reason','refund_date','created_at','created_by','updated_at'];
+  sh.getRange(1,1,1,headers.length).setValues([headers]);
+  sh.getRange(1,1,1,headers.length).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
+  sh.setFrozenRows(1);
+  Logger.log('✓ Deal_Detail 分頁已建立');
+  return sh;
+}
+
+// 新增或更新一筆成交明細。有帶 deal_id 就是更新（會先讀出原本的資料當底，
+// payload 沒帶到的欄位不會被清空，例如「首頁提醒點一下標記已簽約」這種
+// 只想改簽約狀態、不想被迫重打一次房價的情境），沒帶就是新增一筆。
+function saveDealDetail(payload) {
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限，需主管以上');
+
+    ensureDealDetailSheet();
+
+    var existing = null;
+    if (payload.deal_id) {
+      existing = readSheetAsObjects(CONFIG.SHEETS.DEAL_DETAIL).filter(function(r) {
+        return String(r.deal_id) === String(payload.deal_id);
+      })[0];
+      if (!existing) return fail('找不到成交明細');
+    }
+    var base = existing || {};
+
+    function pick(key, fallback) {
+      return (payload[key] != null && payload[key] !== '') ? payload[key]
+        : (base[key] != null && base[key] !== '' ? base[key] : fallback);
+    }
+
+    var housePrice = +pick('house_base_price', 0) || 0;
+    var parkPrice  = +pick('parking_base_price', 0) || 0;
+    var premium    = +pick('premium', 0) || 0;
+    var dealPrice  = (payload.deal_price != null && payload.deal_price !== '')
+      ? (+payload.deal_price || 0) : (housePrice + parkPrice + premium);
+    var contractStatus = pick('contract_status', '待簽約') === '已簽約' ? '已簽約' : '待簽約';
+
+    var row = {
+      deal_id:              existing ? existing.deal_id : genId('DEAL'),
+      customer_id:          pick('customer_id', ''),
+      customer_name:        pick('customer_name', ''),
+      project_name:         base.project_name || ctx.projectName || '',
+      unit:                 pick('unit', ''),
+      house_base_price:     housePrice,
+      parking_base_price:   parkPrice,
+      premium:              premium,
+      deal_price:           dealPrice,
+      deposit_amount:       +pick('deposit_amount', 0) || 0,
+      contract_status:      contractStatus,
+      expected_sign_date:   contractStatus === '待簽約' ? pick('expected_sign_date', '') : '',
+      signed_date:          contractStatus === '已簽約' ? (base.signed_date || todayTW()) : '',
+      salesperson:          pick('salesperson', ctx.displayName || ''),
+      sales_line_user_id:   pick('sales_line_user_id', ctx.lineUserId),
+      status:               base.status || 'active',
+      refund_reason:        base.refund_reason || '',
+      refund_date:          base.refund_date || '',
+      created_at:           base.created_at || nowTW(),
+      created_by:           base.created_by || ctx.displayName || ctx.lineUserId,
+      updated_at:           nowTW()
+    };
+
+    if (existing) {
+      updateRowById(CONFIG.SHEETS.DEAL_DETAIL, 'deal_id', row.deal_id, row);
+    } else {
+      appendObjectToSheet(CONFIG.SHEETS.DEAL_DETAIL, row);
+    }
+
+    writeAuditLog(ctx.lineUserId, existing ? 'UPDATE' : 'CREATE', CONFIG.SHEETS.DEAL_DETAIL, row.deal_id,
+      ctx.displayName + ' 記錄成交明細：' + row.unit + ' / ' + row.customer_name);
+    return ok(row);
+  } catch (err) { return fail(err.message); }
+}
+
+// 依 customer_id 找最新一筆有效成交明細（標記退戶時，先帶出原本填過的
+// 戶別/價格資料讓使用者確認/調整，不用整筆重打）
+function getDealDetailByCustomer(payload) {
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (!payload.customer_id) return fail('customer_id 必填');
+    var rows = readSheetAsObjects(CONFIG.SHEETS.DEAL_DETAIL).filter(function(r) {
+      return String(r.customer_id) === String(payload.customer_id) && r.status === 'active';
+    });
+    rows.sort(function(a, b) { return String(b.created_at).localeCompare(String(a.created_at)); });
+    return ok(rows[0] || null);
+  } catch (err) { return fail(err.message); }
+}
+
+// 標記一筆成交明細為退戶（跟 updateCustomerDeal 一起呼叫，一個改
+// Customer_Data 的快速狀態，一個改這裡的完整交易紀錄）
+function markDealDetailRefund(payload) {
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限，需主管以上');
+    if (!payload.deal_id) return fail('deal_id 必填');
+    var found = updateRowById(CONFIG.SHEETS.DEAL_DETAIL, 'deal_id', payload.deal_id, {
+      status: '退戶',
+      refund_reason: payload.reason || '',
+      refund_date: todayTW(),
+      updated_at: nowTW()
+    });
+    if (!found) return fail('找不到成交明細');
+    writeAuditLog(ctx.lineUserId, 'UPDATE', CONFIG.SHEETS.DEAL_DETAIL, payload.deal_id,
+      ctx.displayName + ' 標記成交明細退戶：' + payload.deal_id);
+    return ok({ deal_id: payload.deal_id });
+  } catch (err) { return fail(err.message); }
+}
+
+// 待簽約提醒（首頁用）：業務只看自己的，主管看同案場全部業務的，
+// admin 看全部案場。已逾期（predicted_sign_date 已過但還沒簽約）
+// 前端會用紅字標示、持續顯示，不會因為日期過了就悄悄消失——
+// 只有真的改成「已簽約」或被標記退戶，才會從清單中消失。
+function getPendingSignatures(payload) {
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    var rows = readSheetAsObjects(CONFIG.SHEETS.DEAL_DETAIL).filter(function(r) {
+      if (r.status !== 'active' || r.contract_status !== '待簽約') return false;
+      if (ctx.role === CONFIG.ROLES.ADMIN) return true;
+      if (ctx.role === CONFIG.ROLES.MANAGER) return r.project_name === ctx.projectName;
+      return String(r.sales_line_user_id) === String(ctx.lineUserId);
+    });
+    rows.sort(function(a, b) { return String(a.expected_sign_date).localeCompare(String(b.expected_sign_date)); });
+    return ok(rows);
   } catch (err) { return fail(err.message); }
 }
 
