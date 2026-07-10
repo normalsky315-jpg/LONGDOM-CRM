@@ -2009,10 +2009,11 @@ function submitReport() {
   var btn=document.querySelector('#reportModal .btn-mini.primary');
   if (btn.disabled) return;
   var dealCount = +document.getElementById('rep_deal').value || 0;
+  var reportDate = document.getElementById('rep_date').value;
   btn.disabled=true; btn.textContent='送 出 中…';
   gasPost('appendDailyReport',{
     lineUserId:state.user.lineUserId,
-    report_date:document.getElementById('rep_date').value,
+    report_date:reportDate,
     visitor_count:+document.getElementById('rep_visitor').value||0,
     first_visit_count:+document.getElementById('rep_first').value||0,
     revisit_count:+document.getElementById('rep_revisit').value||0,
@@ -2026,13 +2027,33 @@ function submitReport() {
       ['rep_units','rep_notes'].forEach(function(id){ document.getElementById(id).value=''; });
       ['rep_visitor','rep_first','rep_revisit','rep_deal'].forEach(function(id){ document.getElementById(id).value='0'; });
       renderReport();
-      if (dealCount > 0) {
-        showToast('請依序填寫 ' + dealCount + ' 筆成交明細','success');
-        queueDealDetailEntries(dealCount);
-      }
+      if (dealCount > 0) checkTodaysDealsBeforeQueue(reportDate, dealCount);
     }
     else { showToast(res.error,'error'); }
   }, function(){ btn.disabled=false; btn.textContent='提 交 日 報'; showToast('連線失敗','error'); });
+}
+
+/* 交日報表前，先查這個人今天是否已經在「近期客戶」用「標記成交」
+   填過成交明細，有的話就不用重複跳窗詢問，只補問差額 */
+function checkTodaysDealsBeforeQueue(date, dealCount) {
+  gasGet('getDealDetailsForDate', { lineUserId: state.user.lineUserId, date: date }, function(res) {
+    var already = (res.ok && res.data) ? res.data.length : 0;
+    var remaining = Math.max(0, dealCount - already);
+    if (already > 0) {
+      showToast('今天已經有 ' + already + ' 筆成交是你稍早標記過的，不用重填', 'success');
+    }
+    if (already > dealCount) {
+      showToast('你稍早標記過的成交筆數（' + already + '）比日報填的成交數（' + dealCount + '）多，記得檢查數字', 'error');
+    }
+    if (remaining > 0) {
+      showToast('請依序填寫 ' + remaining + ' 筆成交明細', 'success');
+      queueDealDetailEntries(remaining);
+    }
+  }, function() {
+    // 查詢失敗就照舊全部詢問，避免漏填
+    showToast('請依序填寫 ' + dealCount + ' 筆成交明細', 'success');
+    queueDealDetailEntries(dealCount);
+  });
 }
 
 /* ══ Maintenance ══ */
