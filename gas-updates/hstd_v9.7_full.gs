@@ -1,12 +1,22 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.6
+//  龍登 CRM — 華雄天地專用版 v9.7
 //  ★ 從 v9.0 開始，hstd 跟 hsyy 版本號會同步一起升，方便比對兩邊
 //    是不是都更新到最新版。v9.1 是 hstd 專屬的修正，hsyy 沒有那個
 //    bug 不用跟著更新；v9.2 這次 hstd/hsyy 都有更新，版本號重新對齊。
 //    v9.3 是華雄天地案場專屬的排假規則，hsyy 不用跟著更新。
 //    v9.4 這次 hstd/hsyy 都有更新（重大安全性修正），版本號重新對齊。
 //    v9.5 這次 hstd/hsyy 都有更新，版本號重新對齊。
-//    v9.6 目前只有 hstd 更新（成交明細模組），hsyy 還沒跟上。
+//    v9.6～v9.7 目前只有 hstd 更新（成交明細模組），hsyy 還沒跟上。
+//  v9.7 變更：交日報表時，如果今天已經用「標記成交」記錄過成交明細，
+//    不會再重複跳窗詢問：
+//    1. Deal_Detail 新增 created_by_line_user_id 欄位（記錄「誰實際
+//       操作表單」，跟 salesperson 掛名欄位分開，掛名可能填別人）
+//    2. ensureDealDetailSheet 改成會自動幫既有分頁補上新欄位，不用
+//       手動改表頭
+//    3. 新增 getDealDetailsForDate：查某人某一天已經記錄過幾筆
+//    4. 交日報表若成交數 > 0，會先查今天是否已經記錄過，只補問
+//       差額（例如已經標記過 1 筆、日報填 2 筆，只會再跳窗問 1 筆）；
+//       如果已經記錄的比日報填的還多，會跳出提醒請你檢查數字
 //  v9.6 變更：新增「成交明細」模組（Deal_Detail 分頁），回應主管提出的
 //    銷售報告需求：
 //    1. 新增 Deal_Detail 分頁，記錄每一筆成交的完整明細：戶別、房屋
@@ -379,6 +389,8 @@ function doGet(e) {
         return jsonResponse(markDealDetailRefund(payload));
       case 'getPendingSignatures':
         return jsonResponse(getPendingSignatures(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
+      case 'getDealDetailsForDate':
+        return jsonResponse(getDealDetailsForDate(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId, date: e.parameter.date }));
       case 'appendTask':
         return jsonResponse(appendTask(payload));
       case 'updateTaskStatus':
@@ -463,6 +475,7 @@ function doPost(e) {
       case 'getDealDetailByCustomer': return jsonResponse(getDealDetailByCustomer(payload));
       case 'markDealDetailRefund':    return jsonResponse(markDealDetailRefund(payload));
       case 'getPendingSignatures':    return jsonResponse(getPendingSignatures(payload));
+      case 'getDealDetailsForDate':   return jsonResponse(getDealDetailsForDate(payload));
       case 'appendTask':              return jsonResponse(appendTask(payload));
       case 'updateTaskStatus':        return jsonResponse(updateTaskStatus(payload));
       case 'deleteTask':              return jsonResponse(deleteTask(payload));
@@ -770,20 +783,31 @@ function updateCustomerDeal(payload) {
 // 訂金、簽約狀態（待簽約/已簽約）、預定簽約日期。跟 Customer_Data 的
 // deal_status/deal_unit（客戶卡片上的小標籤）是互補關係：Customer_Data
 // 存快速狀態，這裡存完整交易細節，兩者用 customer_id 對起來。
+var DEAL_DETAIL_HEADERS = ['deal_id','customer_id','customer_name','project_name','unit',
+  'house_base_price','parking_base_price','premium','deal_price','deposit_amount',
+  'contract_status','expected_sign_date','signed_date','salesperson','sales_line_user_id',
+  'created_by_line_user_id','status','refund_reason','refund_date','created_at','created_by','updated_at'];
+
+// 會自動補齊缺少的欄位（例如之後版本新增欄位時，既有的 Deal_Detail 分頁
+// 不用手動改表頭），不會動到既有資料列
 function ensureDealDetailSheet() {
   var ss = getCrmSS();
   var name = CONFIG.SHEETS.DEAL_DETAIL;
   var sh = ss.getSheetByName(name);
-  if (sh) return sh;
-  sh = ss.insertSheet(name);
-  var headers = ['deal_id','customer_id','customer_name','project_name','unit',
-    'house_base_price','parking_base_price','premium','deal_price','deposit_amount',
-    'contract_status','expected_sign_date','signed_date','salesperson','sales_line_user_id',
-    'status','refund_reason','refund_date','created_at','created_by','updated_at'];
-  sh.getRange(1,1,1,headers.length).setValues([headers]);
-  sh.getRange(1,1,1,headers.length).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
-  sh.setFrozenRows(1);
-  Logger.log('✓ Deal_Detail 分頁已建立');
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    sh.getRange(1,1,1,DEAL_DETAIL_HEADERS.length).setValues([DEAL_DETAIL_HEADERS]);
+    sh.getRange(1,1,1,DEAL_DETAIL_HEADERS.length).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
+    sh.setFrozenRows(1);
+    Logger.log('✓ Deal_Detail 分頁已建立');
+    return sh;
+  }
+  var existing = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+  var missing = DEAL_DETAIL_HEADERS.filter(function(h){ return existing.indexOf(h) < 0; });
+  if (missing.length) {
+    sh.getRange(1, existing.length + 1, 1, missing.length).setValues([missing]);
+    sh.getRange(1, existing.length + 1, 1, missing.length).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
+  }
   return sh;
 }
 
@@ -835,6 +859,7 @@ function saveDealDetail(payload) {
       signed_date:          contractStatus === '已簽約' ? (base.signed_date || todayTW()) : '',
       salesperson:          pick('salesperson', ctx.displayName || ''),
       sales_line_user_id:   pick('sales_line_user_id', ctx.lineUserId),
+      created_by_line_user_id: base.created_by_line_user_id || ctx.lineUserId,
       status:               base.status || 'active',
       refund_reason:        base.refund_reason || '',
       refund_date:          base.refund_date || '',
@@ -906,6 +931,24 @@ function getPendingSignatures(payload) {
       return String(r.sales_line_user_id) === String(ctx.lineUserId);
     });
     rows.sort(function(a, b) { return String(a.expected_sign_date).localeCompare(String(b.expected_sign_date)); });
+    return ok(rows);
+  } catch (err) { return fail(err.message); }
+}
+
+// 查某一天「這個人自己已經記錄過」的成交明細筆數（用 created_by_line_user_id
+// 判斷，也就是誰實際操作表單記錄的，不是 salesperson 掛名欄位）。
+// 提交日報表時用來判斷：已經在「近期客戶」用「標記成交」填過的，
+// 交日報就不用再跳窗重填一次，避免同一筆成交被記錄兩次。
+function getDealDetailsForDate(payload) {
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    var date = String(payload.date || todayTW()).substring(0, 10);
+    var rows = readSheetAsObjects(CONFIG.SHEETS.DEAL_DETAIL).filter(function(r) {
+      if (r.status !== 'active') return false;
+      if (String(r.created_at).substring(0, 10) !== date) return false;
+      return String(r.created_by_line_user_id) === String(ctx.lineUserId);
+    });
     return ok(rows);
   } catch (err) { return fail(err.message); }
 }
