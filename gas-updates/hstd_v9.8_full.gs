@@ -1,12 +1,25 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.7
+//  龍登 CRM — 華雄天地專用版 v9.8
 //  ★ 從 v9.0 開始，hstd 跟 hsyy 版本號會同步一起升，方便比對兩邊
 //    是不是都更新到最新版。v9.1 是 hstd 專屬的修正，hsyy 沒有那個
 //    bug 不用跟著更新；v9.2 這次 hstd/hsyy 都有更新，版本號重新對齊。
 //    v9.3 是華雄天地案場專屬的排假規則，hsyy 不用跟著更新。
 //    v9.4 這次 hstd/hsyy 都有更新（重大安全性修正），版本號重新對齊。
 //    v9.5 這次 hstd/hsyy 都有更新，版本號重新對齊。
-//    v9.6～v9.7 目前只有 hstd 更新（成交明細模組），hsyy 還沒跟上。
+//    v9.6～v9.8 目前只有 hstd 更新（成交明細模組＋LINE問答），
+//    hsyy 還沒跟上。
+//  v9.8 變更：新增 LINE 官方帳號「簡單問答」功能。使用者直接在 LINE
+//    對話框輸入固定格式的文字（不是自由對話 AI，不用另外申請/付費
+//    任何 AI API），系統會直接查 Google Sheets 現有資料回答：
+//    ・查詢 王小明　→ 查客戶資料
+//    ・今日業績／本月業績　→ 接待/初訪/回籠/成交數字彙總
+//    ・待簽約　→ 待簽約清單（逾期的會標註⚠️）
+//    ・今日休假　→ 今天誰休假
+//    ・我的待辦　→ 自己的待處理任務
+//    ・問答／help　→ 顯示可用指令說明
+//    權限比照系統其他地方：業務只查得到自己的範圍，主管查得到同案場，
+//    admin 查得到全部案場。對未註冊的 LINE 使用者不會回應，避免對
+//    陌生訊息亂回。
 //  v9.7 變更：交日報表時，如果今天已經用「標記成交」記錄過成交明細，
 //    不會再重複跳窗詢問：
 //    1. Deal_Detail 新增 created_by_line_user_id 欄位（記錄「誰實際
@@ -1826,7 +1839,135 @@ function handleWebhookEvent(event) {
       sendLineReply(replyToken, '您的 LINE userId：\n' + userId);
       return;
     }
+    if (text === '問答' || text === '?' || text === '幫助' || text.toLowerCase() === 'help') {
+      sendLineReply(replyToken, QA_HELP_TEXT);
+      return;
+    }
+
+    var qaReply = handleQaCommand(text, userId);
+    if (qaReply != null) { sendLineReply(replyToken, qaReply); return; }
   } catch (err) { Logger.log('handleWebhookEvent error: ' + err); }
+}
+
+// ==================== 簡單問答（固定指令查資料庫，不是自由對話 AI） ====================
+// 用法：使用者在 LINE 官方帳號輸入固定格式的文字，系統直接查 Google
+// Sheets 現有資料回答，不需要串接任何外部 AI 服務、不用額外費用。
+// 只回答查詢者「有權限看」的範圍：業務只看自己的，主管看同案場，
+// admin 看全部案場，跟系統其他地方的權限邏輯一致。
+var QA_HELP_TEXT =
+  '📱 可以問我的問題（請照格式輸入）：\n\n' +
+  '・查詢 王小明　→ 查客戶資料\n' +
+  '・今日業績　→ 今天的接待/成交數字\n' +
+  '・本月業績　→ 這個月累計數字\n' +
+  '・待簽約　→ 待簽約清單\n' +
+  '・今日休假　→ 今天誰休假\n' +
+  '・我的待辦　→ 我的待處理任務\n\n' +
+  '輸入「問答」隨時可以再看到這份說明。';
+
+function handleQaCommand(text, userId) {
+  var ctx = getUserContext(userId);
+  if (!ctx) return null; // 還不是已註冊使用者，不回應，避免對陌生訊息亂回
+
+  if (text === '今日業績' || text === '今天業績') return qaPerformance(ctx, 'today');
+  if (text === '本月業績' || text === '這個月業績') return qaPerformance(ctx, 'month');
+  if (text === '待簽約') return qaPendingSignatures(ctx);
+  if (text === '今日休假' || text === '誰休假' || text === '今天誰休假') return qaTodayLeave();
+  if (text === '我的待辦' || text === '待辦' || text === '我的任務') return qaMyTasks(ctx);
+
+  var m = text.match(/^查詢?\s*(.+)$/);
+  if (m && m[1]) return qaSearchCustomer(m[1].trim(), ctx);
+
+  return null;
+}
+
+function qaSumReportFields(rows) {
+  var t = { visitor: 0, first: 0, revisit: 0, deal: 0 };
+  rows.forEach(function(r) {
+    t.visitor += (+r.visitor_count || 0);
+    t.first   += (+r.first_visit_count || 0);
+    t.revisit += (+r.revisit_count || 0);
+    t.deal    += (+r.deal_count || 0);
+  });
+  return t;
+}
+
+function qaPerformance(ctx, range) {
+  var label, matches;
+  if (range === 'today') {
+    var d = todayTW();
+    label = '今日業績（' + d + '）';
+    matches = function(r) { return String(r.report_date).substring(0,10) === d; };
+  } else {
+    var ym = todayTW().substring(0,7);
+    label = '本月業績（' + ym + '）';
+    matches = function(r) { return String(r.report_date).substring(0,7) === ym; };
+  }
+  var rows = readSheetAsObjects(CONFIG.SHEETS.DAILY_REPORT).filter(function(r) {
+    if (!matches(r)) return false;
+    if (ctx.role === CONFIG.ROLES.ADMIN) return true;
+    return r.project_name === ctx.projectName;
+  });
+  if (!rows.length) return '📊 ' + label + '\n目前還沒有日報資料。';
+  var t = qaSumReportFields(rows);
+  return '📊 ' + label + '\n接待：' + t.visitor + '　初訪：' + t.first + '　回籠：' + t.revisit + '　成交：' + t.deal;
+}
+
+function qaPendingSignatures(ctx) {
+  var rows = readSheetAsObjects(CONFIG.SHEETS.DEAL_DETAIL).filter(function(r) {
+    if (r.status !== 'active' || r.contract_status !== '待簽約') return false;
+    if (ctx.role === CONFIG.ROLES.ADMIN) return true;
+    if (ctx.role === CONFIG.ROLES.MANAGER) return r.project_name === ctx.projectName;
+    return String(r.sales_line_user_id) === String(ctx.lineUserId);
+  });
+  if (!rows.length) return '📋 目前沒有待簽約的案件。';
+  rows.sort(function(a,b){ return String(a.expected_sign_date).localeCompare(String(b.expected_sign_date)); });
+  var lines = rows.slice(0, 10).map(function(d) {
+    var overdue = d.expected_sign_date && d.expected_sign_date < todayTW();
+    return (overdue ? '⚠️ ' : '・') + (d.unit || '（未填戶別）') + '　預定：' + (d.expected_sign_date || '未填') + '　' + (d.salesperson || '');
+  });
+  var extra = rows.length > 10 ? '\n…還有 ' + (rows.length - 10) + ' 筆' : '';
+  return '📋 待簽約清單（共 ' + rows.length + ' 筆）\n\n' + lines.join('\n') + extra;
+}
+
+function qaTodayLeave() {
+  var today = todayTW();
+  var rows = readSheetAsObjects(CONFIG.SHEETS.LEAVE_SCHEDULE).filter(function(r) {
+    return String(r.leave_date).substring(0,10) === today;
+  });
+  if (!rows.length) return '📅 今日休假（' + today + '）\n今日全員出勤 ✓';
+  var names = rows.map(function(r){ return r.display_name || r.line_user_id; });
+  return '📅 今日休假（' + today + '）\n' + names.join('、');
+}
+
+function qaMyTasks(ctx) {
+  var rows = readSheetAsObjects(CONFIG.SHEETS.TASK).filter(function(r) {
+    return r.status === CONFIG.STATUS.PENDING && String(r.assigned_to_line_user_id) === String(ctx.lineUserId);
+  });
+  if (!rows.length) return '✅ 你目前沒有待處理的任務。';
+  var lines = rows.slice(0, 10).map(function(t) {
+    return '・' + t.title + (t.due_date ? '（期限：' + t.due_date + '）' : '');
+  });
+  var extra = rows.length > 10 ? '\n…還有 ' + (rows.length - 10) + ' 項' : '';
+  return '📝 你的待辦（共 ' + rows.length + ' 項）\n\n' + lines.join('\n') + extra;
+}
+
+function qaSearchCustomer(keyword, ctx) {
+  if (!keyword) return '請輸入要查詢的客戶姓名，例如：查詢 王小明';
+  var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER).filter(function(r) {
+    if (String(r.customer_name || '').indexOf(keyword) < 0) return false;
+    if (ctx.role === CONFIG.ROLES.ADMIN) return true;
+    if (ctx.role === CONFIG.ROLES.MANAGER) return r.project_name === ctx.projectName;
+    return String(r.sales_line_user_id) === String(ctx.lineUserId);
+  });
+  if (!rows.length) return '🔍 查無「' + keyword + '」的客戶資料（只會查得到你有權限看的範圍）。';
+  rows.sort(function(a,b){ return String(b.visit_date||'').localeCompare(String(a.visit_date||'')); });
+  var top = rows.slice(0, 5);
+  var lines = top.map(function(c) {
+    var status = c.deal_status === '退戶' ? '🔙退戶' : (c.deal_status === '已成交' ? '✓已成交' : '未成交');
+    return '・' + c.customer_name + '（' + (c.phone || '無電話') + '）\n  訪客日期：' + String(c.visit_date||'').substring(0,10) + '　狀態：' + status + '　業務：' + (c.sales_name || '');
+  });
+  var extra = rows.length > 5 ? '\n\n…還有 ' + (rows.length - 5) + ' 筆，請用更精確的姓名查詢' : '';
+  return '🔍 查詢「' + keyword + '」找到 ' + rows.length + ' 筆：\n\n' + lines.join('\n\n') + extra;
 }
 
 // ==================== Daily Triggers ====================
