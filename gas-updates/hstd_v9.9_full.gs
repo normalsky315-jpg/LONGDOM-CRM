@@ -1,5 +1,13 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.8
+//  龍登 CRM — 華雄天地專用版 v9.9
+//  v9.9 變更：LINE 問答功能一直沒反應，但 doPost 執行紀錄又是「已完成」
+//    無錯誤——原因是 sendLineReply 原本用 muteHttpExceptions:true 把
+//    LINE API 回傳的錯誤內容整個吞掉了，看不到真正原因。這次加上：
+//    1. sendLineReply 呼叫失敗時（HTTP 非 200）會把狀態碼跟錯誤內容
+//       寫進 Logger，執行紀錄點開來就看得到
+//    2. handleQaCommand 查無使用者、或文字沒對應到任何指令時，也會
+//       寫一筆 Logger 紀錄，方便判斷是「LINE 帳號還沒註冊」還是
+//       「打的指令文字不對」
 //  ★ 從 v9.0 開始，hstd 跟 hsyy 版本號會同步一起升，方便比對兩邊
 //    是不是都更新到最新版。v9.1 是 hstd 專屬的修正，hsyy 沒有那個
 //    bug 不用跟著更新；v9.2 這次 hstd/hsyy 都有更新，版本號重新對齊。
@@ -1812,14 +1820,18 @@ function sendLinePushToAll(text) {
 function sendLineReply(replyToken, text) {
   try {
     var token = getProp(CONFIG.PROP_KEYS.LINE_TOKEN);
-    if (!token) return;
-    UrlFetchApp.fetch('https://api.line.me/v2/bot/message/reply', {
+    if (!token) { Logger.log('sendLineReply: LINE_CHANNEL_ACCESS_TOKEN 未設定，無法回覆'); return; }
+    var resp = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/reply', {
       method: 'post',
       contentType: 'application/json',
       headers: { Authorization: 'Bearer ' + token },
       payload: JSON.stringify({ replyToken: replyToken, messages: [{ type: 'text', text: String(text) }] }),
       muteHttpExceptions: true
     });
+    var code = resp.getResponseCode();
+    if (code !== 200) {
+      Logger.log('sendLineReply 失敗，HTTP ' + code + '：' + resp.getContentText());
+    }
   } catch (err) { Logger.log('sendLineReply error: ' + err); }
 }
 
@@ -1866,7 +1878,7 @@ var QA_HELP_TEXT =
 
 function handleQaCommand(text, userId) {
   var ctx = getUserContext(userId);
-  if (!ctx) return null; // 還不是已註冊使用者，不回應，避免對陌生訊息亂回
+  if (!ctx) { Logger.log('handleQaCommand: 查無使用者 userId=' + userId + '，不回應'); return null; }
 
   if (text === '今日業績' || text === '今天業績') return qaPerformance(ctx, 'today');
   if (text === '本月業績' || text === '這個月業績') return qaPerformance(ctx, 'month');
@@ -1877,6 +1889,7 @@ function handleQaCommand(text, userId) {
   var m = text.match(/^查詢?\s*(.+)$/);
   if (m && m[1]) return qaSearchCustomer(m[1].trim(), ctx);
 
+  Logger.log('handleQaCommand: 文字「' + text + '」沒有對應到任何指令，不回應');
   return null;
 }
 
