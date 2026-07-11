@@ -1,5 +1,8 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.9
+//  龍登 CRM — 華雄天地專用版 v9.10
+//  v9.10 變更：新增 testQaCommand()——不用透過 LINE 傳訊息就能測試問答
+//    功能，直接在 Apps Script 編輯器手動執行、立刻在下方執行記錄看到
+//    結果，避免要一直在「執行項目」清單裡找特定那筆紀錄展開查看
 //  v9.9 變更：LINE 問答功能一直沒反應，但 doPost 執行紀錄又是「已完成」
 //    無錯誤——原因是 sendLineReply 原本用 muteHttpExceptions:true 把
 //    LINE API 回傳的錯誤內容整個吞掉了，看不到真正原因。這次加上：
@@ -2187,6 +2190,24 @@ function testCheckProps() {
     var v = getProp(k);
     Logger.log(k + ' = ' + (v ? '已設定（' + v.substring(0,4) + '…）' : '❌ 未設定'));
   });
+}
+
+// ★ LINE 問答除錯用：不用透過 LINE 傳訊息，直接在編輯器裡執行這個函式
+// 就能立刻看到結果。把下面 YOUR_LINE_USER_ID 換成你自己的 LINE userId
+// （對 LINE 官方帳號輸入「我的ID」就會回傳，或是查 User_Role_Table
+// 分頁裡你自己那一列的 line_user_id 欄位），儲存後執行，看下面
+// 「執行記錄」跳出來的內容
+function testQaCommand() {
+  var myLineUserId = 'YOUR_LINE_USER_ID';
+  var ctx = getUserContext(myLineUserId);
+  if (!ctx) {
+    Logger.log('❌ 查無使用者。可能原因：myLineUserId 還是預設的 YOUR_LINE_USER_ID 沒換掉，' +
+      '或是這個 userId 在 User_Role_Table 裡沒有 active 狀態的紀錄。');
+    return;
+  }
+  Logger.log('✓ 查到使用者：' + ctx.displayName + '（' + ctx.role + '／' + ctx.projectName + '）');
+  var reply = handleQaCommand('今日休假', myLineUserId);
+  Logger.log('handleQaCommand 回傳結果：\n' + reply);
 }
 
 // ★ 以下執行完後建議從程式碼中刪除，避免 Token 外洩
