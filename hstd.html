@@ -616,7 +616,7 @@
 <div class="modal-mask" id="taskModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">新增任務</div><div class="modal-subtitle">建立後可指派並追蹤完成狀態</div><div class="field"><div class="field-label">任務類型</div><select class="sel" id="task_type"><option value="sales_task">📋 銷售跟進</option><option value="site_issue">⚠️ 現場問題</option><option value="reminder">🔔 提醒</option><option value="daily_follow">👥 客戶追蹤</option><option value="maintenance">🔧 維修</option></select></div><div class="field"><div class="field-label">任務標題 <span class="req">*</span></div><input class="inp" type="text" id="task_title" placeholder="例：聯絡王先生確認再訪日期"></div><div class="field"><div class="field-label">詳細說明</div><textarea class="ta" id="task_desc" placeholder="補充資訊…"></textarea></div><div class="field-row"><div class="field"><div class="field-label">優先度</div><select class="sel" id="task_priority"><option value="normal">一般</option><option value="high">高</option><option value="urgent">緊急</option><option value="low">低</option></select></div><div class="field"><div class="field-label">截止日期</div><input class="inp" type="date" id="task_due"></div></div><div class="field"><div class="field-label">指派對象</div><select class="sel" id="task_assign"><option value="">不指定</option></select></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('taskModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitTask()">建 立 任 務</button></div></div></div>
 <div class="modal-mask" id="reportModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">提交日報</div><div class="modal-subtitle">當日業績資料填寫</div><div class="field"><div class="field-label">日期</div><input class="inp" type="date" id="rep_date"></div><div class="field-row"><div class="field"><div class="field-label">接待總組數</div><input class="inp" type="number" id="rep_visitor" min="0" value="0"></div><div class="field"><div class="field-label">初訪</div><input class="inp" type="number" id="rep_first" min="0" value="0"></div></div><div class="field-row"><div class="field"><div class="field-label">回籠</div><input class="inp" type="number" id="rep_revisit" min="0" value="0"></div><div class="field"><div class="field-label">成交</div><input class="inp" type="number" id="rep_deal" min="0" value="0"></div></div><div class="field"><div class="field-label">成交戶別</div><input class="inp" type="text" id="rep_units" placeholder="A3-12F"></div><div class="field"><div class="field-label">備註</div><textarea class="ta" id="rep_notes" placeholder="特殊事項…"></textarea></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('reportModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitReport()">提 交 日 報</button></div></div></div>
 <div class="modal-mask" id="editReportModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">修改日報</div><div class="modal-subtitle" id="editRepMeta">僅限提交後3天內可修改</div><div class="field-row"><div class="field"><div class="field-label">接待總組數</div><input class="inp" type="number" id="erep_visitor" min="0"></div><div class="field"><div class="field-label">初訪</div><input class="inp" type="number" id="erep_first" min="0"></div></div><div class="field-row"><div class="field"><div class="field-label">回籠</div><input class="inp" type="number" id="erep_revisit" min="0"></div><div class="field"><div class="field-label">成交</div><input class="inp" type="number" id="erep_deal" min="0"></div></div><div class="field"><div class="field-label">成交戶別</div><input class="inp" type="text" id="erep_units" placeholder="A3-12F"></div><div class="field"><div class="field-label">備註</div><textarea class="ta" id="erep_notes" placeholder="特殊事項…"></textarea></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('editReportModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="saveEditReport()">儲 存 修 改</button></div></div></div>
-<div class="modal-mask" id="maintModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">維修通報</div><div class="modal-subtitle">通報後將自動推播給主管</div><div class="field"><div class="field-label">問題類型 <span class="req">*</span></div><select class="sel" id="maint_type"><option value="">請選擇</option><option>燈具/電路</option><option>水管/漏水</option><option>空調</option><option>家具/門窗</option><option>清潔</option><option>樣品屋外觀</option><option>其他</option></select></div><div class="field"><div class="field-label">位置 / 戶別</div><input class="inp" type="text" id="maint_location" placeholder="例：A棟3F樣品屋客廳"></div><div class="field"><div class="field-label">問題描述 <span class="req">*</span></div><textarea class="ta" id="maint_desc" placeholder="詳細描述狀況…"></textarea></div><div class="field"><div class="field-label">優先度</div><select class="sel" id="maint_priority"><option value="normal">一般</option><option value="high" selected>高</option><option value="urgent">緊急</option></select></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('maintModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitMaint()">送 出 通 報</button></div></div></div>
+<div class="modal-mask" id="maintModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">維修通報</div><div class="modal-subtitle">通報後將自動推播給主管</div><div class="field"><div class="field-label">問題類型 <span class="req">*</span></div><select class="sel" id="maint_type"><option value="">請選擇</option><option>燈具/電路</option><option>水管/漏水</option><option>空調</option><option>家具/門窗</option><option>清潔</option><option>樣品屋外觀</option><option>其他</option></select></div><div class="field"><div class="field-label">位置 / 戶別</div><input class="inp" type="text" id="maint_location" placeholder="例：A棟3F樣品屋客廳"></div><div class="field"><div class="field-label">問題描述 <span class="req">*</span></div><textarea class="ta" id="maint_desc" placeholder="詳細描述狀況…"></textarea></div><div class="field"><div class="field-label">優先度</div><select class="sel" id="maint_priority"><option value="normal">一般</option><option value="high" selected>高</option><option value="urgent">緊急</option></select></div><div class="field"><div class="field-label">現場照片（選填）</div><input class="inp" type="file" accept="image/*" capture="environment" id="maint_photo" onchange="previewMaintPhoto(event)"><div id="maint_photoPreview" style="margin-top:8px;"></div></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('maintModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitMaint()">送 出 通 報</button></div></div></div>
 
 <!-- 主管排假 Modal -->
 <div class="modal-mask" id="leaveAssignModal">
@@ -914,6 +914,23 @@ function gasPost(action, payload, onSuccess, onFail) {
     .then(function(r){ return r.json(); })
     .then(function(data){ if (onSuccess) onSuccess(data); })
     .catch(function(err){ console.error('gasPost', action, err); if (onFail) onFail(err); });
+}
+
+/* ══ 真正的 POST，專門給資料量大的呼叫用（例如上傳照片）══
+   一般 gasPost 是把 payload 塞進網址參數，網址長度有上限，塞不下
+   一張照片的 base64 資料。這裡改成真正的 POST body，並用
+   text/plain 當 Content-Type（避免瀏覽器觸發 CORS 預檢請求，
+   GAS 網頁應用程式沒有處理 OPTIONS 預檢的能力，用 application/json
+   當 Content-Type 會直接被瀏覽器擋下來）。 */
+function gasPostJson(action, payload, onSuccess, onFail) {
+  fetch(GAS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: action, payload: payload || {} })
+  })
+    .then(function(r){ return r.json(); })
+    .then(function(data){ if (onSuccess) onSuccess(data); })
+    .catch(function(err){ console.error('gasPostJson', action, err); if (onFail) onFail(err); });
 }
 
 /* ══ Screen 切換 ══ */
@@ -2073,7 +2090,8 @@ function renderMaintList() {
         else if (m.status==='processing') act='<button class="btn-mini primary" onclick="updateMaint(\''+m.maintenance_id+'\',\'done\')">標記完成</button>';
       }
       act += '<button class="btn-mini danger" onclick="deleteMaint(\''+m.maintenance_id+'\')">刪除</button>';
-      return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">🔧 '+escapeHtml(m.issue_type)+(m.location?' @ '+escapeHtml(m.location):'')+'</div>'+sp+'</div><div class="list-item-desc">'+escapeHtml(m.description||'')+'</div><div class="list-item-meta"><span>👤 '+escapeHtml(m.reported_by||'')+'</span><span>📅 '+String(m.created_at||'').substring(0,10)+'</span></div><div class="list-item-actions">'+act+'</div></div>';
+      var photo = m.photo_url ? '<a href="'+escapeHtml(m.photo_url)+'" target="_blank" rel="noopener"><img src="'+escapeHtml(m.photo_url)+'" style="max-width:100px;max-height:100px;border-radius:8px;margin-top:8px;display:block;"></a>' : '';
+      return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">🔧 '+escapeHtml(m.issue_type)+(m.location?' @ '+escapeHtml(m.location):'')+'</div>'+sp+'</div><div class="list-item-desc">'+escapeHtml(m.description||'')+'</div>'+photo+'<div class="list-item-meta"><span>👤 '+escapeHtml(m.reported_by||'')+'</span><span>📅 '+String(m.created_at||'').substring(0,10)+'</span></div><div class="list-item-actions">'+act+'</div></div>';
     }).join('');
   });
 }
@@ -2088,7 +2106,41 @@ function deleteMaint(id) {
     if (res.ok) { showToast('維修通報已刪除','success'); renderMaintList(); } else { showToast(res.error,'error'); }
   });
 }
-function openMaintModal(){ openModal('maintModal'); }
+var maintPhotoBase64 = null;
+
+function openMaintModal(){
+  maintPhotoBase64 = null;
+  document.getElementById('maint_photo').value = '';
+  document.getElementById('maint_photoPreview').innerHTML = '';
+  openModal('maintModal');
+}
+
+/* 拍照/選圖後，先縮圖壓縮成長邊最多1000px、JPEG品質0.7，
+   避免傳輸資料量太大、上傳太慢或佔用太多雲端硬碟空間 */
+function previewMaintPhoto(evt) {
+  var file = evt.target.files && evt.target.files[0];
+  var preview = document.getElementById('maint_photoPreview');
+  if (!file) { maintPhotoBase64 = null; preview.innerHTML = ''; return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      var maxSize = 1000;
+      var scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      var canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      var c2d = canvas.getContext('2d');
+      c2d.drawImage(img, 0, 0, canvas.width, canvas.height);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+      maintPhotoBase64 = dataUrl.split(',')[1];
+      preview.innerHTML = '<img src="' + dataUrl + '" style="max-width:120px;max-height:120px;border-radius:8px;">';
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 function submitMaint() {
   var type=document.getElementById('maint_type').value;
   var desc=document.getElementById('maint_desc').value.trim();
@@ -2096,15 +2148,41 @@ function submitMaint() {
   var btn=document.querySelector('#maintModal .btn-mini.primary');
   if (btn.disabled) return;
   btn.disabled=true; btn.textContent='送 出 中…';
-  gasPost('appendMaintenance',{
-    lineUserId:state.user.lineUserId, issue_type:type,
-    location:document.getElementById('maint_location').value.trim(),
-    description:desc, priority:document.getElementById('maint_priority').value
-  },function(res){
-    btn.disabled=false; btn.textContent='送 出 通 報';
-    if (res.ok) { showToast('維修通報已送出','success'); closeModal('maintModal'); ['maint_location','maint_desc'].forEach(function(id){ document.getElementById(id).value=''; }); document.getElementById('maint_type').value=''; renderMaintList(); }
-    else { showToast(res.error,'error'); }
-  }, function(){ btn.disabled=false; btn.textContent='送 出 通 報'; showToast('連線失敗','error'); });
+
+  function finishSubmit(photoUrl) {
+    gasPost('appendMaintenance',{
+      lineUserId:state.user.lineUserId, issue_type:type,
+      location:document.getElementById('maint_location').value.trim(),
+      description:desc, priority:document.getElementById('maint_priority').value,
+      photo_url: photoUrl || ''
+    },function(res){
+      btn.disabled=false; btn.textContent='送 出 通 報';
+      if (res.ok) {
+        showToast('維修通報已送出','success'); closeModal('maintModal');
+        ['maint_location','maint_desc'].forEach(function(id){ document.getElementById(id).value=''; });
+        document.getElementById('maint_type').value='';
+        document.getElementById('maint_photo').value='';
+        document.getElementById('maint_photoPreview').innerHTML='';
+        maintPhotoBase64 = null;
+        renderMaintList();
+      }
+      else { showToast(res.error,'error'); }
+    }, function(){ btn.disabled=false; btn.textContent='送 出 通 報'; showToast('連線失敗','error'); });
+  }
+
+  if (maintPhotoBase64) {
+    btn.textContent = '上 傳 照 片 中…';
+    gasPostJson('uploadMaintenancePhoto', {
+      lineUserId: state.user.lineUserId,
+      photo_base64: maintPhotoBase64,
+      mime_type: 'image/jpeg'
+    }, function(res) {
+      if (res.ok) { finishSubmit(res.data.photo_url); }
+      else { btn.disabled=false; btn.textContent='送 出 通 報'; showToast('照片上傳失敗：'+res.error,'error'); }
+    }, function(){ btn.disabled=false; btn.textContent='送 出 通 報'; showToast('照片上傳連線失敗','error'); });
+  } else {
+    finishSubmit('');
+  }
 }
 
 /* ══ User Management ══ */
