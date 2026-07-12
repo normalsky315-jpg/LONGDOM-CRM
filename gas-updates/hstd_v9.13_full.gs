@@ -1,5 +1,16 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.12
+//  龍登 CRM — 華雄天地專用版 v9.13
+//  v9.13 變更：v9.12 加的除錯推播（回覆失敗時才推播）也完全沒有動靜，
+//    代表問題可能發生在 handleWebhookEvent 判斷「是不是文字訊息」
+//    之前，或是 doPost 收到的內容格式跟預期的不一樣，兩種情況都不會
+//    走到任何一句 Logger 或原本加的除錯推播。這次改成「不管三七
+//    二十一」都推播：
+//    1. handleWebhookEvent 一進來就先把整包收到的原始事件內容推播
+//       出來（不再等判斷式過了才推播）
+//    2. doPost 如果收到的內容格式不是預期的 LINE webhook 格式
+//       （沒有 events 陣列），也會推播原始內容出來看
+//    ★ 這樣不管卡在哪一步，都會收到至少一則除錯推播，可以看到
+//      LINE 平台實際送過來的資料長什麼樣子
 //  v9.12 變更：testLinePush() 已確認推播 Token 正常（兩個目標都成功
 //    送出），但一直卡在 Apps Script 編輯器很難看到 webhook 觸發那次
 //    執行的 Logger 內容。既然推播確定可行，乾脆讓失敗直接「推播」
@@ -501,6 +512,11 @@ function doPost(e) {
       body.events.forEach(handleWebhookEvent);
       return ContentService.createTextOutput('OK').setMimeType(ContentService.MimeType.TEXT);
     }
+
+    // ★ 暫時除錯用：如果進到這裡，代表收到的 POST 內容裡沒有
+    // 「events」這個陣列（跟 LINE webhook 平常的格式不一樣），
+    // 把原始內容推播出來看看到底收到什麼
+    sendLinePushToAll('🐛除錯：doPost 收到非預期格式\n' + e.postData.contents.substring(0, 800));
 
     var action  = body.action;
     var payload = body.payload || {};
@@ -1890,6 +1906,10 @@ function sendLineReply(replyToken, text) {
 // ==================== Webhook ====================
 function handleWebhookEvent(event) {
   try {
+    // ★ 暫時除錯用：不管三七二十一，先把收到的原始事件內容整包推播
+    // 出來看看，這樣不管卡在下面哪一個判斷式，都躲不掉、一定看得到
+    sendLinePushToAll('🐛除錯：收到 webhook 事件\n' + JSON.stringify(event).substring(0, 800));
+
     if (event.type !== 'message' || event.message.type !== 'text') return;
     var text       = String(event.message.text || '').trim();
     var replyToken = event.replyToken;
