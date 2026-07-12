@@ -1,5 +1,9 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.14
+//  龍登 CRM — 華雄天地專用版 v9.15
+//  v9.15 變更：LINE 問答的 bug 已經確認修好，把 v9.12/v9.13 加的暫時
+//    除錯推播全部拿掉（收到webhook就推播、回覆失敗推播、查無使用者
+//    推播），避免 LINE 平台重試遞送舊訊息時一直跳出除錯訊息干擾正常
+//    使用。Logger 紀錄（不會推播、只會留在執行紀錄裡）仍然保留。
 //  v9.14 變更：★ 真正找到問題了 ★ v9.13 的除錯推播成功收到，內容
 //    顯示使用者實際傳的是「我的ID」（沒有空格），但程式碼裡寫的判斷
 //    式是 `'我的 ID'`（中間多一個空格），字串對不起來，系統看不懂，
@@ -525,11 +529,6 @@ function doPost(e) {
       body.events.forEach(handleWebhookEvent);
       return ContentService.createTextOutput('OK').setMimeType(ContentService.MimeType.TEXT);
     }
-
-    // ★ 暫時除錯用：如果進到這裡，代表收到的 POST 內容裡沒有
-    // 「events」這個陣列（跟 LINE webhook 平常的格式不一樣），
-    // 把原始內容推播出來看看到底收到什麼
-    sendLinePushToAll('🐛除錯：doPost 收到非預期格式\n' + e.postData.contents.substring(0, 800));
 
     var action  = body.action;
     var payload = body.payload || {};
@@ -1893,11 +1892,7 @@ function sendLinePushToAll(text) {
 function sendLineReply(replyToken, text) {
   try {
     var token = getProp(CONFIG.PROP_KEYS.LINE_TOKEN);
-    if (!token) {
-      Logger.log('sendLineReply: LINE_CHANNEL_ACCESS_TOKEN 未設定，無法回覆');
-      sendLinePushToAll('🐛除錯：sendLineReply 沒有設定 Token，無法回覆訊息');
-      return;
-    }
+    if (!token) { Logger.log('sendLineReply: LINE_CHANNEL_ACCESS_TOKEN 未設定，無法回覆'); return; }
     var resp = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/reply', {
       method: 'post',
       contentType: 'application/json',
@@ -1908,21 +1903,13 @@ function sendLineReply(replyToken, text) {
     var code = resp.getResponseCode();
     if (code !== 200) {
       Logger.log('sendLineReply 失敗，HTTP ' + code + '：' + resp.getContentText());
-      sendLinePushToAll('🐛除錯：sendLineReply 失敗\nHTTP ' + code + '\n' + resp.getContentText().substring(0, 300));
     }
-  } catch (err) {
-    Logger.log('sendLineReply error: ' + err);
-    sendLinePushToAll('🐛除錯：sendLineReply 發生例外：' + err);
-  }
+  } catch (err) { Logger.log('sendLineReply error: ' + err); }
 }
 
 // ==================== Webhook ====================
 function handleWebhookEvent(event) {
   try {
-    // ★ 暫時除錯用：不管三七二十一，先把收到的原始事件內容整包推播
-    // 出來看看，這樣不管卡在下面哪一個判斷式，都躲不掉、一定看得到
-    sendLinePushToAll('🐛除錯：收到 webhook 事件\n' + JSON.stringify(event).substring(0, 800));
-
     if (event.type !== 'message' || event.message.type !== 'text') return;
     var text       = String(event.message.text || '').trim();
     // 固定指令比對前先去掉所有空白、轉小寫，避免使用者打「我的ID」
@@ -1967,11 +1954,7 @@ var QA_HELP_TEXT =
 
 function handleQaCommand(text, userId) {
   var ctx = getUserContext(userId);
-  if (!ctx) {
-    Logger.log('handleQaCommand: 查無使用者 userId=' + userId + '，不回應');
-    sendLinePushToAll('🐛除錯：LINE 問答查無使用者\nuserId=' + userId + '\n（這個帳號在 User_Role_Table 沒有 active 狀態的紀錄）');
-    return null;
-  }
+  if (!ctx) { Logger.log('handleQaCommand: 查無使用者 userId=' + userId + '，不回應'); return null; }
 
   var norm = text.replace(/\s+/g, '');
   if (norm === '今日業績' || norm === '今天業績') return qaPerformance(ctx, 'today');
