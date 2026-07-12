@@ -1,5 +1,15 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.15
+//  龍登 CRM — 華雄天地專用版 v9.16
+//  v9.16 變更：維修通報新增現場拍照上傳功能：
+//    1. 新增 uploadMaintenancePhoto：接收前端傳來的 base64 照片資料，
+//       存進 Google Drive 的「維修通報照片」資料夾（沒有的話自動
+//       建立），回傳可公開檢視的網址。因為照片資料量大，這支只接受
+//       真正的 POST 呼叫（前端改用 gasPostJson，不能用原本 GET+
+//       payload 網址參數那一套，網址長度會爆掉），已接上 doPost 路由
+//    2. ensureMaintenancePhotoColumn：確保 Maintenance_Report 分頁
+//       有 photo_url 這個欄位，既有分頁沒有的話會自動補上，不影響
+//       既有資料
+//    3. appendMaintenance 送出前會先呼叫 ensureMaintenancePhotoColumn
 //  v9.15 變更：LINE 問答的 bug 已經確認修好，把 v9.12/v9.13 加的暫時
 //    除錯推播全部拿掉（收到webhook就推播、回覆失敗推播、查無使用者
 //    推播），避免 LINE 平台重試遞送舊訊息時一直跳出除錯訊息干擾正常
@@ -552,6 +562,7 @@ function doPost(e) {
       case 'appendDailyReport':       return jsonResponse(appendDailyReport(payload));
       case 'deleteDailyReport':       return jsonResponse(deleteDailyReport(payload));
       case 'appendMaintenance':       return jsonResponse(appendMaintenance(payload));
+      case 'uploadMaintenancePhoto':  return jsonResponse(uploadMaintenancePhoto(payload));
       case 'updateMaintenanceStatus': return jsonResponse(updateMaintenanceStatus(payload));
       case 'deleteMaintenance':       return jsonResponse(deleteMaintenance(payload));
       case 'getUserList':             return jsonResponse(getUserList(payload));
@@ -1440,6 +1451,44 @@ function getDailyReportRange(payload) {
 }
 
 // ==================== Maintenance Module ====================
+// 確保 Maintenance_Report 分頁有 photo_url 這個欄位（既有分頁可能是
+// 更早之前建立的，沒有這個欄位），沒有的話自動補上，不會動到既有資料
+function ensureMaintenancePhotoColumn() {
+  var sh = getSheet(CONFIG.SHEETS.MAINTENANCE);
+  if (!sh) return;
+  var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  if (headers.indexOf('photo_url') >= 0) return;
+  sh.getRange(1, headers.length + 1).setValue('photo_url');
+}
+
+// 上傳維修通報的現場照片：base64 圖片資料先存進 Google Drive，
+// 回傳可公開檢視的網址，前端再把這個網址帶進 appendMaintenance 的
+// photo_url 欄位。因為圖片資料量大，這支一定要透過真正的 POST
+// （gasPostJson）呼叫，不能走原本 GET+payload 那一套（網址長度會爆掉）。
+function uploadMaintenancePhoto(payload) {
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (!payload.photo_base64) return fail('缺少照片資料');
+
+    var mimeType = payload.mime_type || 'image/jpeg';
+    var ext = mimeType.indexOf('png') >= 0 ? 'png' : 'jpg';
+    var bytes = Utilities.base64Decode(payload.photo_base64);
+    var blob = Utilities.newBlob(bytes, mimeType, 'maint_' + Date.now() + '.' + ext);
+
+    var folderName = '維修通報照片';
+    var folders = DriveApp.getFoldersByName(folderName);
+    var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+
+    var file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    var url = 'https://drive.google.com/uc?export=view&id=' + file.getId();
+    writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.MAINTENANCE, file.getId(), ctx.displayName + ' 上傳維修照片');
+    return ok({ photo_url: url });
+  } catch (err) { return fail('照片上傳失敗：' + err.message); }
+}
+
 function appendMaintenance(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
@@ -1450,6 +1499,8 @@ function appendMaintenance(payload) {
     var projectName = ctx.role === CONFIG.ROLES.ADMIN
       ? (payload.project_name || ctx.projectName || '') : ctx.projectName;
     if (!projectName) return fail('案場未指定');
+
+    ensureMaintenancePhotoColumn();
 
     var maintId = genId('MAINT');
     appendObjectToSheet(CONFIG.SHEETS.MAINTENANCE, {
