@@ -1,5 +1,16 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.11
+//  龍登 CRM — 華雄天地專用版 v9.12
+//  v9.12 變更：testLinePush() 已確認推播 Token 正常（兩個目標都成功
+//    送出），但一直卡在 Apps Script 編輯器很難看到 webhook 觸發那次
+//    執行的 Logger 內容。既然推播確定可行，乾脆讓失敗直接「推播」
+//    出來，不用再去翻執行紀錄：
+//    1. sendLineReply 失敗（沒Token／HTTP非200／例外）時，除了寫
+//       Logger，也會額外推播一則「🐛除錯：...」訊息給 LINE_PUSH_TARGET
+//    2. handleQaCommand 查無使用者時，同樣會推播除錯訊息（沒有對應到
+//       任何指令的情況，因為一般聊天訊息本來就常常不會命中任何指令，
+//       這種不會推播，避免正常使用時被除錯訊息洗版）
+//    ★ 這是暫時性的除錯功能，等問題排除後可以再考慮拿掉，避免長期
+//      每次回覆失敗都額外推播一則訊息造成干擾
 //  v9.11 變更：連「我的ID」這種不查資料庫的最簡單指令都收不到回覆，
 //    代表問題出在「送出訊息」這個動作本身，不是問答邏輯。新增：
 //    1. sendLinePush 也加上 HTTP 狀態碼記錄（跟 sendLineReply 一樣），
@@ -1853,7 +1864,11 @@ function sendLinePushToAll(text) {
 function sendLineReply(replyToken, text) {
   try {
     var token = getProp(CONFIG.PROP_KEYS.LINE_TOKEN);
-    if (!token) { Logger.log('sendLineReply: LINE_CHANNEL_ACCESS_TOKEN 未設定，無法回覆'); return; }
+    if (!token) {
+      Logger.log('sendLineReply: LINE_CHANNEL_ACCESS_TOKEN 未設定，無法回覆');
+      sendLinePushToAll('🐛除錯：sendLineReply 沒有設定 Token，無法回覆訊息');
+      return;
+    }
     var resp = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/reply', {
       method: 'post',
       contentType: 'application/json',
@@ -1864,8 +1879,12 @@ function sendLineReply(replyToken, text) {
     var code = resp.getResponseCode();
     if (code !== 200) {
       Logger.log('sendLineReply 失敗，HTTP ' + code + '：' + resp.getContentText());
+      sendLinePushToAll('🐛除錯：sendLineReply 失敗\nHTTP ' + code + '\n' + resp.getContentText().substring(0, 300));
     }
-  } catch (err) { Logger.log('sendLineReply error: ' + err); }
+  } catch (err) {
+    Logger.log('sendLineReply error: ' + err);
+    sendLinePushToAll('🐛除錯：sendLineReply 發生例外：' + err);
+  }
 }
 
 // ==================== Webhook ====================
@@ -1911,7 +1930,11 @@ var QA_HELP_TEXT =
 
 function handleQaCommand(text, userId) {
   var ctx = getUserContext(userId);
-  if (!ctx) { Logger.log('handleQaCommand: 查無使用者 userId=' + userId + '，不回應'); return null; }
+  if (!ctx) {
+    Logger.log('handleQaCommand: 查無使用者 userId=' + userId + '，不回應');
+    sendLinePushToAll('🐛除錯：LINE 問答查無使用者\nuserId=' + userId + '\n（這個帳號在 User_Role_Table 沒有 active 狀態的紀錄）');
+    return null;
+  }
 
   if (text === '今日業績' || text === '今天業績') return qaPerformance(ctx, 'today');
   if (text === '本月業績' || text === '這個月業績') return qaPerformance(ctx, 'month');
