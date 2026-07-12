@@ -1,5 +1,12 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.10
+//  龍登 CRM — 華雄天地專用版 v9.11
+//  v9.11 變更：連「我的ID」這種不查資料庫的最簡單指令都收不到回覆，
+//    代表問題出在「送出訊息」這個動作本身，不是問答邏輯。新增：
+//    1. sendLinePush 也加上 HTTP 狀態碼記錄（跟 sendLineReply 一樣），
+//       之前失敗會被 muteHttpExceptions 吞掉看不到原因
+//    2. testLinePush()：手動執行就能測試推播 Token 是否正常，不用
+//       等真的收到 LINE 訊息、不用透過 replyToken（回覆用的
+//       token 是一次性、跟著訊息走，沒辦法手動測；推播沒有這個限制）
 //  v9.10 變更：新增 testQaCommand()——不用透過 LINE 傳訊息就能測試問答
 //    功能，直接在 Apps Script 編輯器手動執行、立刻在下方執行記錄看到
 //    結果，避免要一直在「執行項目」清單裡找特定那筆紀錄展開查看
@@ -1799,15 +1806,38 @@ function writeAuditLog(lineUserId, action, targetSheet, targetId, detail) {
 function sendLinePush(toId, text) {
   try {
     var token = getProp(CONFIG.PROP_KEYS.LINE_TOKEN);
-    if (!token) return;
-    UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+    if (!token) { Logger.log('sendLinePush: LINE_CHANNEL_ACCESS_TOKEN 未設定，無法推播'); return; }
+    var resp = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
       method: 'post',
       contentType: 'application/json',
       headers: { Authorization: 'Bearer ' + token },
       payload: JSON.stringify({ to: toId, messages: [{ type: 'text', text: String(text) }] }),
       muteHttpExceptions: true
     });
+    var code = resp.getResponseCode();
+    if (code !== 200) {
+      Logger.log('sendLinePush 失敗，HTTP ' + code + '：' + resp.getContentText());
+    } else {
+      Logger.log('sendLinePush 成功送出給 ' + toId);
+    }
   } catch (err) { Logger.log('sendLinePush error: ' + err); }
+}
+
+// ★ 手動測試推播功能是否正常：不用等 LINE 傳訊息進來，直接執行這個
+// 函式，就會推播一則測試訊息給 LINE_PUSH_TARGET 設定的對象。執行完
+// 看下面「執行記錄」：
+//   ・如果寫「sendLinePush 成功送出給 ...」→ Token／頻道都正常，
+//     去 LINE 看看是不是真的收到這則測試訊息（如果記錄說成功、但
+//     LINE 上完全沒收到，代表 LINE_PUSH_TARGET 這個 userId 填錯，
+//     或者你的 LINE 帳號沒有加這個官方帳號好友）
+//   ・如果寫「sendLinePush 失敗，HTTP ...」→ 把完整錯誤內容截圖給我
+function testLinePush() {
+  var raw = getProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET);
+  if (!raw) { Logger.log('❌ LINE_PUSH_TARGET 未設定，無法測試'); return; }
+  var targets = String(raw).split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
+  targets.forEach(function(id) {
+    sendLinePush(id, '🔔 這是 testLinePush() 的測試訊息，如果你在 LINE 收到這則，代表推播 Token 正常運作。');
+  });
 }
 
 // ★ 支援多個推播對象：LINE_PUSH_TARGET 可用逗號分隔多個 userId
