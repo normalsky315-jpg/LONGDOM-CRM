@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>吉隆天曜 CRM</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700&family=Noto+Sans+TC:wght@300;400;500&display=swap" rel="stylesheet">
-<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js" defer></script>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
   :root {
     --cream:#FAF8F4; --ink:#1A1A2E; --ink-light:#4A4A6A; --ink-faint:#8A8AA0;
@@ -192,6 +192,15 @@
   .list-tab{flex:1;padding:8px;text-align:center;font-size:13px;font-weight:400;color:var(--ink-faint);border-radius:7px;cursor:pointer;transition:all 0.15s;}
   .list-tab.active{background:var(--ink);color:#fff;font-weight:500;}
   .list-item{background:var(--surface);border-radius:10px;border:1px solid var(--border);padding:14px;margin-bottom:10px;}
+  .pending-sign-card{background:var(--gold-soft);border:1px solid var(--gold);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .pending-sign-card.overdue{background:var(--rust-soft);border-color:var(--rust);}
+  .pending-sign-main{flex:1;min-width:0;}
+  .pending-sign-unit{font-size:13px;font-weight:600;color:var(--ink);}
+  .pending-sign-meta{font-size:11px;color:var(--ink-light);margin-top:2px;}
+  .pending-sign-card.overdue .pending-sign-meta{color:var(--rust);font-weight:600;}
+  .pending-sign-date{font-size:11px;color:var(--ink-faint);white-space:nowrap;}
+  .pending-sign-card.overdue .pending-sign-date{color:var(--rust);font-weight:700;}
+  .pending-sign-signbtn{flex-shrink:0;padding:6px 12px;border:none;border-radius:8px;font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;background:var(--teal);color:#fff;}
   .list-item-row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;}
   .list-item-title{font-family:'Noto Serif TC',serif;font-size:14px;font-weight:600;flex:1;line-height:1.4;}
   .list-item-meta{font-size:11px;color:var(--ink-faint);letter-spacing:0.5px;display:flex;gap:10px;flex-wrap:wrap;}
@@ -277,21 +286,6 @@
   <div class="spinner"></div>
   <div class="loading-text">LOADING</div>
 </div>
-<!-- 緊急保險：2 秒後若仍停在 loading，強制跳登入 -->
-<script>
-(function(){
-  var _t = setTimeout(function(){
-    var ls = document.getElementById('loadingScreen');
-    if (!ls || !ls.classList.contains('active')) return;
-    document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); s.style.display='none'; });
-    var login = document.getElementById('loginScreen');
-    if (login){ login.classList.add('active'); login.style.display='flex'; }
-    // 補載入專案列表（gasGet 可能尚未定義，延遲執行）
-    setTimeout(function(){ if(typeof showLogin==='function') showLogin(); }, 100);
-  }, 2000);
-  window._emergencyTimer = _t;
-})();
-</script>
 
 <!-- Login -->
 <div class="screen" id="loginScreen">
@@ -380,6 +374,14 @@
           <div class="feature-card-desc" id="todayLeaveDesc">今日休假：載入中…</div>
         </div>
       </div>
+      <div class="pending-sign-wrap hidden" id="pendingSignWrap">
+        <div class="section-tag" style="margin-top:14px;">待簽約提醒</div>
+        <div id="pendingSignList"></div>
+      </div>
+      <div class="pending-sign-wrap hidden" id="taskReminderWrap">
+        <div class="section-tag" style="margin-top:14px;">任務提醒</div>
+        <div id="taskReminderList"></div>
+      </div>
       <div class="section-tag">本月概況</div>
       <div class="stat-grid">
         <div class="stat-card"><div class="stat-num" id="statVisitor">—</div><div class="stat-label">接待</div></div>
@@ -415,9 +417,7 @@
         <div class="field-row">
           <div class="field"><div class="field-label">訪客日期</div><input class="inp" type="date" id="cust_visitDate"></div>
           <div class="field"><div class="field-label">接待人員</div>
-            <!-- 業務：顯示自己名字鎖定；主管：可選 -->
-            <input class="inp hidden" type="text" id="cust_sales_display" disabled>
-            <select class="sel hidden" id="cust_sales_sel"><option value="">不指定</option></select>
+            <input class="inp" type="text" id="cust_sales_display" disabled>
           </div>
         </div>
         <div class="field"><div class="field-label">訪客類別</div><div class="chips"><label class="chip"><input type="radio" name="cust_visitType" value="初訪"><span class="chip-label">初訪</span></label><label class="chip"><input type="radio" name="cust_visitType" value="回籠"><span class="chip-label">回籠</span></label></div></div>
@@ -586,6 +586,7 @@
         <div style="text-align:center;">
           <div id="leaveWeekLabel" style="font-family:'Noto Serif TC',serif;font-size:15px;font-weight:700;color:var(--ink);"></div>
           <div id="leaveQuotaLabel" style="font-size:11px;color:var(--ink-faint);margin-top:2px;"></div>
+          <div style="font-size:10px;color:var(--ink-faint);margin-top:2px;">（每日休假人數上限兩人）</div>
         </div>
         <button id="leaveNextWeek" onclick="leaveWeekNav(1)" style="width:36px;height:36px;border:none;background:var(--border);border-radius:8px;font-size:18px;cursor:pointer;color:var(--ink);">›</button>
       </div>
@@ -619,7 +620,7 @@
 <div class="modal-mask" id="taskModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">新增任務</div><div class="modal-subtitle">建立後可指派並追蹤完成狀態</div><div class="field"><div class="field-label">任務類型</div><select class="sel" id="task_type"><option value="sales_task">📋 銷售跟進</option><option value="site_issue">⚠️ 現場問題</option><option value="reminder">🔔 提醒</option><option value="daily_follow">👥 客戶追蹤</option><option value="maintenance">🔧 維修</option></select></div><div class="field"><div class="field-label">任務標題 <span class="req">*</span></div><input class="inp" type="text" id="task_title" placeholder="例：聯絡王先生確認再訪日期"></div><div class="field"><div class="field-label">詳細說明</div><textarea class="ta" id="task_desc" placeholder="補充資訊…"></textarea></div><div class="field-row"><div class="field"><div class="field-label">優先度</div><select class="sel" id="task_priority"><option value="normal">一般</option><option value="high">高</option><option value="urgent">緊急</option><option value="low">低</option></select></div><div class="field"><div class="field-label">截止日期</div><input class="inp" type="date" id="task_due"></div></div><div class="field"><div class="field-label">指派對象</div><select class="sel" id="task_assign"><option value="">不指定</option></select></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('taskModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitTask()">建 立 任 務</button></div></div></div>
 <div class="modal-mask" id="reportModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">提交日報</div><div class="modal-subtitle">當日業績資料填寫</div><div class="field"><div class="field-label">日期</div><input class="inp" type="date" id="rep_date"></div><div class="field-row"><div class="field"><div class="field-label">接待總組數</div><input class="inp" type="number" id="rep_visitor" min="0" value="0"></div><div class="field"><div class="field-label">初訪</div><input class="inp" type="number" id="rep_first" min="0" value="0"></div></div><div class="field-row"><div class="field"><div class="field-label">回籠</div><input class="inp" type="number" id="rep_revisit" min="0" value="0"></div><div class="field"><div class="field-label">成交</div><input class="inp" type="number" id="rep_deal" min="0" value="0"></div></div><div class="field"><div class="field-label">成交戶別</div><input class="inp" type="text" id="rep_units" placeholder="A3-12F"></div><div class="field"><div class="field-label">備註</div><textarea class="ta" id="rep_notes" placeholder="特殊事項…"></textarea></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('reportModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitReport()">提 交 日 報</button></div></div></div>
 <div class="modal-mask" id="editReportModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">修改日報</div><div class="modal-subtitle" id="editRepMeta">僅限提交後3天內可修改</div><div class="field-row"><div class="field"><div class="field-label">接待總組數</div><input class="inp" type="number" id="erep_visitor" min="0"></div><div class="field"><div class="field-label">初訪</div><input class="inp" type="number" id="erep_first" min="0"></div></div><div class="field-row"><div class="field"><div class="field-label">回籠</div><input class="inp" type="number" id="erep_revisit" min="0"></div><div class="field"><div class="field-label">成交</div><input class="inp" type="number" id="erep_deal" min="0"></div></div><div class="field"><div class="field-label">成交戶別</div><input class="inp" type="text" id="erep_units" placeholder="A3-12F"></div><div class="field"><div class="field-label">備註</div><textarea class="ta" id="erep_notes" placeholder="特殊事項…"></textarea></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('editReportModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="saveEditReport()">儲 存 修 改</button></div></div></div>
-<div class="modal-mask" id="maintModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">維修通報</div><div class="modal-subtitle">通報後將自動推播給主管</div><div class="field"><div class="field-label">問題類型 <span class="req">*</span></div><select class="sel" id="maint_type"><option value="">請選擇</option><option>燈具/電路</option><option>水管/漏水</option><option>空調</option><option>家具/門窗</option><option>清潔</option><option>樣品屋外觀</option><option>其他</option></select></div><div class="field"><div class="field-label">位置 / 戶別</div><input class="inp" type="text" id="maint_location" placeholder="例：A棟3F樣品屋客廳"></div><div class="field"><div class="field-label">問題描述 <span class="req">*</span></div><textarea class="ta" id="maint_desc" placeholder="詳細描述狀況…"></textarea></div><div class="field"><div class="field-label">優先度</div><select class="sel" id="maint_priority"><option value="normal">一般</option><option value="high" selected>高</option><option value="urgent">緊急</option></select></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('maintModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitMaint()">送 出 通 報</button></div></div></div>
+<div class="modal-mask" id="maintModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">維修通報</div><div class="modal-subtitle">通報後將自動推播給主管</div><div class="field"><div class="field-label">問題類型 <span class="req">*</span></div><select class="sel" id="maint_type"><option value="">請選擇</option><option>燈具/電路</option><option>水管/漏水</option><option>空調</option><option>家具/門窗</option><option>清潔</option><option>樣品屋外觀</option><option>其他</option></select></div><div class="field"><div class="field-label">位置 / 戶別</div><input class="inp" type="text" id="maint_location" placeholder="例：A棟3F樣品屋客廳"></div><div class="field"><div class="field-label">問題描述 <span class="req">*</span></div><textarea class="ta" id="maint_desc" placeholder="詳細描述狀況…"></textarea></div><div class="field"><div class="field-label">優先度</div><select class="sel" id="maint_priority"><option value="normal">一般</option><option value="high" selected>高</option><option value="urgent">緊急</option></select></div><div class="field"><div class="field-label">現場照片（選填）</div><input class="inp" type="file" accept="image/*" capture="environment" id="maint_photo" onchange="previewMaintPhoto(event)"><div id="maint_photoPreview" style="margin-top:8px;"></div></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('maintModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitMaint()">送 出 通 報</button></div></div></div>
 
 <!-- 主管排假 Modal -->
 <div class="modal-mask" id="leaveAssignModal">
@@ -664,20 +665,54 @@
   </div>
 </div>
 
-<!-- 成交 Modal -->
+<!-- 成交／退戶明細 Modal -->
 <div class="modal-mask" id="dealModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">標記成交</div>
-    <div class="modal-subtitle">確認此客戶已成交</div>
+    <div class="modal-title" id="dealModalTitle">標記成交</div>
+    <div class="modal-subtitle" id="dealModalSubtitle">確認此客戶已成交，填寫交易明細</div>
     <input type="hidden" id="deal_custId">
+    <input type="hidden" id="deal_id">
+    <input type="hidden" id="deal_mode">
     <div class="field">
       <div class="field-label">成交戶別</div>
-      <input class="inp" type="text" id="deal_unit" placeholder="例：A棟15F A2（可留空）">
+      <input class="inp" type="text" id="deal_unit" placeholder="例：A棟15F A2">
+    </div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">房屋底價</div><input class="inp" type="number" id="deal_housePrice" placeholder="0" oninput="recalcDealPrice()"></div>
+      <div class="field"><div class="field-label">車位底價</div><input class="inp" type="number" id="deal_parkPrice" placeholder="0" oninput="recalcDealPrice()"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">溢價／折價</div><input class="inp" type="number" id="deal_premium" placeholder="折價請填負數" oninput="recalcDealPrice()"></div>
+      <div class="field"><div class="field-label">成交價</div><input class="inp" type="number" id="deal_price" placeholder="自動加總，可手動調整"></div>
+    </div>
+    <div class="field">
+      <div class="field-label">客戶</div>
+      <input class="inp" type="text" id="deal_custName" list="deal_custNameList" placeholder="從既有客戶挑選，或直接輸入姓名">
+      <datalist id="deal_custNameList"></datalist>
+    </div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">業務員</div><input class="inp" type="text" id="deal_salesName"></div>
+      <div class="field"><div class="field-label">訂金金額</div><input class="inp" type="number" id="deal_deposit" placeholder="0"></div>
+    </div>
+    <div class="field">
+      <div class="field-label">簽約狀態</div>
+      <div class="chips">
+        <label class="chip"><input type="radio" name="deal_contractStatus" value="待簽約" onchange="toggleDealSignDate()"><span class="chip-label">待簽約</span></label>
+        <label class="chip"><input type="radio" name="deal_contractStatus" value="已簽約" onchange="toggleDealSignDate()"><span class="chip-label">已簽約</span></label>
+      </div>
+    </div>
+    <div class="field" id="deal_signDateField">
+      <div class="field-label">預定簽約日期</div>
+      <input class="inp" type="date" id="deal_expectedSignDate">
+    </div>
+    <div class="field hidden" id="deal_refundReasonField">
+      <div class="field-label">退戶原因</div>
+      <textarea class="ta" id="deal_refundReason" placeholder="選填"></textarea>
     </div>
     <div style="display:flex;gap:10px;margin-top:18px;">
       <button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('dealModal')">取消</button>
-      <button class="btn-mini success" style="flex:2;padding:14px;font-weight:600;" onclick="confirmDeal()">確 認 成 交</button>
+      <button class="btn-mini success" style="flex:2;padding:14px;font-weight:600;" id="deal_confirmBtn" onclick="confirmDeal()">確 認 成 交</button>
     </div>
   </div>
 </div>
@@ -749,7 +784,7 @@ var TTL_DAYS    = 365;
 var STORAGE_KEY = 'long_dorn_crm_jltx';
 
 var state = {
-  liffProfile: { userId: '', displayName: '' },
+  liffProfile: null,
   user: null,
   projects: [],
   industries: [],
@@ -788,88 +823,52 @@ function initFontSize() {
 window.addEventListener('DOMContentLoaded', function(){ initFontSize(); initApp(); });
 
 async function initApp() {
-  // ── 快速路徑：有完整 session 直接進 app ──
-  var saved = loadSession();
-  if (saved && saved.lineUserId && saved.userData) {
-    clearTimeout(window._emergencyTimer);
-    state.liffProfile = { userId: saved.lineUserId, displayName: saved.userData.displayName || '' };
-    onLoginSuccess(saved.userData);
-    return;
-  }
+  // ★ 修正：不再從 localStorage 讀取 userData 直接登入
+  // 每次開啟都必須向 GAS 驗證 role，確保角色變更即時生效
 
-  // ── 非 LINE App 環境（一般瀏覽器）直接跳密碼登入 ──
-  var isInLine = /Line\//i.test(navigator.userAgent);
-  if (!isInLine) {
-    clearTimeout(window._emergencyTimer);
-    state.liffProfile = { userId: '', displayName: '' };
-    proceedAfterProfile();
-    return;
-  }
-
-  // ── LINE App 環境：走 LIFF 流程 ──
-  var liffOk = false;
   try {
-    // 等 liff 物件真正存在（defer 載入時可能還沒好）
-    var liffWait = 0;
-    while (typeof liff === 'undefined' && liffWait < 5000) {
-      await new Promise(function(r){ setTimeout(r, 200); });
-      liffWait += 200;
-    }
-    if (typeof liff === 'undefined') throw new Error('liff_not_loaded');
-
     await Promise.race([
       liff.init({ liffId: LIFF_ID }),
-      new Promise(function(_, reject){
-        setTimeout(function(){ reject(new Error('liff_timeout')); }, 8000);
-      })
+      new Promise(function(_, reject){ setTimeout(function(){ reject(new Error('timeout')); }, 6000); })
     ]);
-    liffOk = true;
+    if (liff.isLoggedIn()) {
+      try { state.liffProfile = await liff.getProfile(); } catch(e){}
+    } else {
+      liff.login();
+      return;
+    }
   } catch(err) {
     console.warn('LIFF init failed or timeout:', err.message);
+    // LIFF 失敗時，嘗試用 localStorage 的 lineUserId 繼續
     state.liffProfile = { userId: '', displayName: '' };
   }
 
-  if (liffOk) {
-    if (!liff.isLoggedIn()) {
-      try { liff.login(); } catch(e){ clearTimeout(window._emergencyTimer); showLogin(); return; }
-      setTimeout(function(){ clearTimeout(window._emergencyTimer); showLogin(); }, 5000);
-      return;
-    }
-    try { state.liffProfile = await liff.getProfile(); } catch(e){
-      state.liffProfile = { userId: '', displayName: '' };
-    }
-  }
-
-  clearTimeout(window._emergencyTimer);
   proceedAfterProfile();
 }
 
 function proceedAfterProfile() {
   var saved = loadSession();
   if (saved && saved.lineUserId) {
-    // checkAutoLogin 加逾時保護：GAS 沒回應 10 秒就清 session 跳登入
-    var settled = false;
-    var fallback = setTimeout(function() {
-      if (settled) return;
-      settled = true;
-      console.warn('checkAutoLogin timeout, falling back to login');
+    // ★ 加上 timeout 保護：GAS 超過 8 秒沒回應就跳登入畫面，不卡 loading
+    var timedOut = false;
+    var timer = setTimeout(function() {
+      timedOut = true;
+      console.warn('checkAutoLogin timeout, fallback to login');
       clearSession();
       showLogin();
-    }, 10000);
+    }, 8000);
 
     gasGet('checkAutoLogin', { lineUserId: saved.lineUserId }, function(res) {
-      if (settled) return;
-      settled = true;
-      clearTimeout(fallback);
+      if (timedOut) return;
+      clearTimeout(timer);
       if (res.ok) {
         if (res.data.status === 'pending') { showScreen('pendingScreen'); return; }
         saveSession(saved.lineUserId, res.data);
         onLoginSuccess(res.data);
       } else { clearSession(); showLogin(); }
     }, function() {
-      if (settled) return;
-      settled = true;
-      clearTimeout(fallback);
+      if (timedOut) return;
+      clearTimeout(timer);
       clearSession();
       showLogin();
     });
@@ -877,10 +876,12 @@ function proceedAfterProfile() {
 }
 
 /* ══ Session ══ */
-// ★ 修正：只存 lineUserId，不存 userData/role，避免 role 快取問題
+// ★ 修正：只存 lineUserId，不存 userData/role
+// role 每次登入都從 GAS 重新抓，確保角色變更即時生效
 function saveSession(userId, userData) {
   try {
     var obj = { lineUserId: userId, expiresAt: Date.now() + TTL_DAYS*24*3600*1000 };
+    // 故意不儲存 userData，避免 role 快取問題
     localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
   } catch(e){}
 }
@@ -896,39 +897,6 @@ function loadSession() {
 function clearSession() { try { localStorage.removeItem(STORAGE_KEY); } catch(e){} }
 
 /* ══ API：GET ══ */
-function gasFetch(url, onSuccess, onFail) {
-  var done = false;
-  var timer = setTimeout(function(){
-    if (done) return;
-    done = true;
-    var err = new Error('連線逾時（10秒）');
-    err.name = 'AbortError';
-    if (onFail) onFail(err);
-    else console.warn('gasFetch timeout:', url);
-  }, 10000);
-
-  fetch(url)
-    .then(function(r){
-      if (done) return;
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    })
-    .then(function(data){
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      if (onSuccess) onSuccess(data);
-    })
-    .catch(function(err){
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      console.error('gasFetch', url, err);
-      if (onFail) onFail(err);
-      else console.warn('gasFetch uncaught error:', err);
-    });
-}
-
 function gasGet(action, params, onSuccess, onFail) {
   var url = GAS_URL + '?action=' + encodeURIComponent(action);
   if (params) {
@@ -936,14 +904,37 @@ function gasGet(action, params, onSuccess, onFail) {
       if (params[k] != null) url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
     });
   }
-  gasFetch(url, onSuccess, onFail);
+  fetch(url)
+    .then(function(r){ return r.json(); })
+    .then(function(data){ if (onSuccess) onSuccess(data); })
+    .catch(function(err){ console.error('gasGet', action, err); if (onFail) onFail(err); });
 }
 
 /* ══ API：POST → 改用 GET+payload 避免 CORS ══ */
 function gasPost(action, payload, onSuccess, onFail) {
   var url = GAS_URL + '?action=' + encodeURIComponent(action)
             + '&payload=' + encodeURIComponent(JSON.stringify(payload || {}));
-  gasFetch(url, onSuccess, onFail);
+  fetch(url)
+    .then(function(r){ return r.json(); })
+    .then(function(data){ if (onSuccess) onSuccess(data); })
+    .catch(function(err){ console.error('gasPost', action, err); if (onFail) onFail(err); });
+}
+
+/* ══ 真正的 POST，專門給資料量大的呼叫用（例如上傳照片）══
+   一般 gasPost 是把 payload 塞進網址參數，網址長度有上限，塞不下
+   一張照片的 base64 資料。這裡改成真正的 POST body，並用
+   text/plain 當 Content-Type（避免瀏覽器觸發 CORS 預檢請求，
+   GAS 網頁應用程式沒有處理 OPTIONS 預檢的能力，用 application/json
+   當 Content-Type 會直接被瀏覽器擋下來）。 */
+function gasPostJson(action, payload, onSuccess, onFail) {
+  fetch(GAS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: action, payload: payload || {} })
+  })
+    .then(function(r){ return r.json(); })
+    .then(function(data){ if (onSuccess) onSuccess(data); })
+    .catch(function(err){ console.error('gasPostJson', action, err); if (onFail) onFail(err); });
 }
 
 /* ══ Screen 切換 ══ */
@@ -980,15 +971,14 @@ function showLogin() {
 }
 
 function doLogin() {
-  var pwd = document.getElementById('loginPwd').value.trim();
+  var pwd = document.getElementById('loginPwd').value;
   var btn = document.getElementById('loginBtn');
-  var errEl = document.getElementById('loginErr');
-  if (errEl) errEl.classList.remove('show');
+  document.getElementById('loginErr').classList.remove('show');
   if (!pwd) { showLoginErr('請輸入密碼'); return; }
 
   btn.disabled = true; btn.textContent = '驗證中…';
 
-  var selectedProject = document.getElementById('loginProjectSel') ? document.getElementById('loginProjectSel').value : '';
+  var selectedProject = document.getElementById('loginProjectSel').value;
 
   gasPost('verifyAccess', {
     lineUserId: state.liffProfile ? state.liffProfile.userId : '',
@@ -997,13 +987,12 @@ function doLogin() {
     selectedProject: selectedProject
   }, function(res) {
     btn.disabled = false; btn.textContent = '進 入 系 統';
-    if (!res || !res.ok) { showLoginErr((res && res.error) ? res.error : '驗證失敗，請確認密碼'); return; }
+    if (!res.ok) { showLoginErr(res.error || '驗證失敗'); return; }
 
     var d = res.data;
     if (d.status === 'pending') {
       if (!selectedProject) {
-        var wrap = document.getElementById('loginProjectWrap');
-        if (wrap) wrap.classList.remove('hidden');
+        document.getElementById('loginProjectWrap').classList.remove('hidden');
         showLoginErr('請選擇您所屬的案場，再按一次進入');
         return;
       }
@@ -1014,12 +1003,9 @@ function doLogin() {
 
     saveSession(d.lineUserId || (state.liffProfile && state.liffProfile.userId) || '', d);
     onLoginSuccess(d);
-  }, function(err) {
+  }, function() {
     btn.disabled = false; btn.textContent = '進 入 系 統';
-    var msg = '連線失敗';
-    if (err && err.name === 'AbortError') msg = '連線逾時（10秒），請確認網路後再試';
-    else if (err && err.message) msg = '連線失敗：' + err.message;
-    showLoginErr(msg);
+    showLoginErr('連線失敗，請確認網路後再試');
   });
 }
 
@@ -1030,11 +1016,8 @@ function showLoginErr(msg) {
 
 function onLoginSuccess(user) {
   state.user = user;
-  clearTimeout(window._emergencyTimer);
   showScreen('appScreen');
-  route(location.hash || '#/home');
-  loadGlobalData(function(){});
-  showToast((user.displayName || '您') + ' 登入成功 ✓', 'success');
+  loadGlobalData(function(){ route(location.hash || '#/home'); });
 }
 
 function logout() {
@@ -1084,7 +1067,9 @@ function renderHome() {
   document.getElementById('homeGreeting').textContent = (u.displayName || '您') + ' 您好';
   var rl = { sales:'業務', manager:'主管', admin:'Admin' }[u.role] || u.role;
   document.getElementById('homeContext').innerHTML =
-    '<span class="role-badge ' + u.role + '">' + rl + '</span><span>' + (u.projectName||'全部案場') + '</span>';
+    '<span class="role-badge ' + u.role + '">' + rl + '</span>' +
+    (u.jobTitle ? '<span>' + escapeHtml(u.jobTitle) + '</span>' : '') +
+    '<span>' + (u.projectName||'全部案場') + '</span>';
 
   if (u.role !== 'sales') {
     document.getElementById('reportFeature').classList.remove('hidden');
@@ -1129,6 +1114,65 @@ function renderHome() {
     } else {
       el.textContent = '今日全員出勤 ✓';
     }
+  });
+
+  loadPendingSignatures();
+  loadTaskReminders();
+}
+
+/* ══ 任務提醒 ══ */
+function loadTaskReminders() {
+  var wrap = document.getElementById('taskReminderWrap');
+  var box  = document.getElementById('taskReminderList');
+  gasGet('getTasks', { lineUserId: state.user.lineUserId, status: 'pending' }, function(res) {
+    if (!res.ok || !res.data || !res.data.length) { wrap.classList.add('hidden'); box.innerHTML=''; return; }
+    wrap.classList.remove('hidden');
+    var today = todayStr();
+    box.innerHTML = res.data.map(function(t) {
+      var overdue = t.due_date && t.due_date < today;
+      var who = state.user.role === 'sales' ? '' : ('<span>👤 ' + escapeHtml(t.assigned_to||'') + '</span>');
+      return '<div class="pending-sign-card' + (overdue?' overdue':'') + '">' +
+        '<div class="pending-sign-main">' +
+          '<div class="pending-sign-unit">' + escapeHtml(t.title||'') + '</div>' +
+          '<div class="pending-sign-meta">' + (overdue?'⚠️ 已逾期　':'') + (t.due_date?'期限：'+escapeHtml(t.due_date):'無期限') + (who?'　'+who:'') + '</div>' +
+        '</div>' +
+        '<button class="pending-sign-signbtn" onclick="completeTask(\'' + escapeHtml(t.task_id) + '\')">標記完成</button>' +
+      '</div>';
+    }).join('');
+  });
+}
+
+/* ══ 待簽約提醒 ══ */
+function loadPendingSignatures() {
+  var wrap = document.getElementById('pendingSignWrap');
+  var box  = document.getElementById('pendingSignList');
+  gasGet('getPendingSignatures', { lineUserId: state.user.lineUserId }, function(res) {
+    if (!res.ok || !res.data || !res.data.length) { wrap.classList.add('hidden'); box.innerHTML=''; return; }
+    wrap.classList.remove('hidden');
+    var today = todayStr();
+    var canAction = state.user.role !== 'sales';
+    box.innerHTML = res.data.map(function(d) {
+      var overdue = d.expected_sign_date && d.expected_sign_date < today;
+      var who = !canAction ? '' : ('<span>👤 ' + escapeHtml(d.salesperson||'') + '</span>');
+      var signBtn = canAction
+        ? '<button class="pending-sign-signbtn" onclick="quickMarkSigned(\'' + escapeHtml(d.deal_id) + '\')">標記已簽約</button>'
+        : '';
+      return '<div class="pending-sign-card' + (overdue?' overdue':'') + '">' +
+        '<div class="pending-sign-main">' +
+          '<div class="pending-sign-unit">' + escapeHtml(d.unit||'（未填戶別）') + (d.customer_name?' · '+escapeHtml(d.customer_name):'') + '</div>' +
+          '<div class="pending-sign-meta">' + (overdue?'⚠️ 已逾期未簽約　':'') + '預定簽約：' + escapeHtml(d.expected_sign_date||'未填') + (who?'　'+who:'') + '</div>' +
+        '</div>' +
+        signBtn +
+      '</div>';
+    }).join('');
+  });
+}
+
+function quickMarkSigned(dealId) {
+  if (!confirm('確定這筆已經完成簽約了嗎？')) return;
+  gasPost('saveDealDetail', { lineUserId: state.user.lineUserId, deal_id: dealId, contract_status: '已簽約' }, function(res) {
+    if (res.ok) { showToast('已標記簽約完成','success'); loadPendingSignatures(); }
+    else showToast(res.error,'error');
   });
 }
 
@@ -1390,7 +1434,7 @@ function recentCustCardHTML(c) {
   var badgeText  = isRefund ? '🔙 退戶' : (isDone ? '✓ 已成交' : '未成交');
   var dealBadge = '<span class="cust-card-deal ' + badgeClass + '">' + badgeText + (c.deal_unit?' — '+escapeHtml(c.deal_unit):'') + '</span>';
   var dealBtn = !isDone && !isRefund && state.user.role !== 'sales'
-    ? '<button class="deal-btn" onclick="openDealModal(\'' + escapeHtml(c.customer_id) + '\')">標記成交</button>'
+    ? '<button class="deal-btn" onclick="openDealModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">標記成交</button>'
     : '';
   var refundBtn = isDone && state.user.role !== 'sales'
     ? '<button class="deal-btn" style="background:var(--rust);margin-left:6px;" onclick="markRefund(\'' + escapeHtml(c.customer_id) + '\')">🔙 標記退戶</button>'
@@ -1424,42 +1468,194 @@ function recentCustCardHTML(c) {
   '</div>';
 }
 
-function markRefund(custId) {
-  var reason = prompt('請輸入退戶原因（選填）：') || '';
-  if (reason === null) return;
-  if (!confirm('確定要把這筆客戶資料標記為「退戶」嗎？')) return;
-  gasPost('updateCustomerDeal', {
-    lineUserId: state.user.lineUserId,
-    customer_id: custId,
-    deal_status: '退戶',
-    reason: reason
-  }, function(res) {
-    if (res.ok) { showToast('已標記退戶','success'); loadRecentCustomers(); }
-    else showToast(res.error,'error');
-  });
+/* ══ 成交／退戶明細 Modal ══ */
+var DEAL_DETAIL_FIELDS = ['deal_unit','deal_housePrice','deal_parkPrice','deal_premium','deal_price','deal_custName','deal_salesName','deal_deposit','deal_expectedSignDate'];
+
+function toggleDealSignDate() {
+  var show = getRadio('deal_contractStatus') !== '已簽約';
+  document.getElementById('deal_signDateField').classList.toggle('hidden', !show);
 }
 
-function openDealModal(custId) {
-  document.getElementById('deal_custId').value = custId;
+function recalcDealPrice() {
+  var h = +document.getElementById('deal_housePrice').value || 0;
+  var p = +document.getElementById('deal_parkPrice').value || 0;
+  var pm = +document.getElementById('deal_premium').value || 0;
+  document.getElementById('deal_price').value = h + p + pm;
+}
+
+function populateDealCustomerList() {
+  var dl = document.getElementById('deal_custNameList');
+  var map = {};
+  var options = '';
+  var seen = {};
+  (state.recentCustomers || []).forEach(function(c) {
+    if (!c.customer_name) return;
+    var suffix = c.phone ? String(c.phone).slice(-3) : '';
+    var label = c.customer_name + (suffix ? '（' + suffix + '）' : '');
+    if (seen[label]) return;
+    seen[label] = true;
+    map[label] = c.customer_id;
+    options += '<option value="' + escapeHtml(label) + '">';
+  });
+  dl.innerHTML = options;
+  state.dealCustomerMap = map;
+}
+
+function setDealFieldsDisabled(disabled) {
+  DEAL_DETAIL_FIELDS.forEach(function(id){ document.getElementById(id).disabled = disabled; });
+  document.querySelectorAll('input[name="deal_contractStatus"]').forEach(function(r){ r.disabled = disabled; });
+}
+
+function openDealModal(custId, custName) {
+  document.getElementById('deal_mode').value = 'new';
+  document.getElementById('deal_id').value = '';
+  document.getElementById('deal_custId').value = custId || '';
   document.getElementById('deal_unit').value = '';
+  document.getElementById('deal_housePrice').value = '';
+  document.getElementById('deal_parkPrice').value = '';
+  document.getElementById('deal_premium').value = '';
+  document.getElementById('deal_price').value = '';
+  document.getElementById('deal_custName').value = custName || '';
+  document.getElementById('deal_salesName').value = state.user.displayName || '';
+  document.getElementById('deal_deposit').value = '';
+  document.getElementById('deal_expectedSignDate').value = '';
+  document.querySelectorAll('input[name="deal_contractStatus"]').forEach(function(r){ r.checked = (r.value === '待簽約'); });
+  setDealFieldsDisabled(false);
+  toggleDealSignDate();
+  document.getElementById('deal_refundReasonField').classList.add('hidden');
+  document.getElementById('dealModalTitle').textContent = '標記成交';
+  document.getElementById('dealModalSubtitle').textContent = '確認此客戶已成交，填寫交易明細';
+  var btn = document.getElementById('deal_confirmBtn');
+  btn.textContent = '確 認 成 交';
+  btn.className = 'btn-mini success';
+  btn.style.flex = '2'; btn.style.padding = '14px'; btn.style.fontWeight = '600';
+  populateDealCustomerList();
   openModal('dealModal');
 }
 
 function confirmDeal() {
+  if (document.getElementById('deal_mode').value === 'refund') { confirmRefund(); return; }
+
   var custId = document.getElementById('deal_custId').value;
-  var unit   = document.getElementById('deal_unit').value.trim();
-  gasPost('updateCustomerDeal', {
+  var custNameInput = document.getElementById('deal_custName').value.trim();
+  var mappedId = (state.dealCustomerMap || {})[custNameInput];
+  var finalCustId = custId || mappedId || '';
+  var unit = document.getElementById('deal_unit').value.trim();
+  var contractStatus = getRadio('deal_contractStatus') || '待簽約';
+  var expectedDate = document.getElementById('deal_expectedSignDate').value;
+  if (contractStatus === '待簽約' && !expectedDate) { showToast('請選擇預定簽約日期','error'); return; }
+
+  var btn = document.getElementById('deal_confirmBtn');
+  if (btn.disabled) return;
+  btn.disabled = true; btn.textContent = '處 理 中…';
+
+  gasPost('saveDealDetail', {
     lineUserId: state.user.lineUserId,
-    customer_id: custId,
-    deal_status: '已成交',
-    deal_unit: unit
+    deal_id: document.getElementById('deal_id').value || '',
+    customer_id: finalCustId,
+    customer_name: custNameInput,
+    unit: unit,
+    house_base_price: document.getElementById('deal_housePrice').value,
+    parking_base_price: document.getElementById('deal_parkPrice').value,
+    premium: document.getElementById('deal_premium').value,
+    deal_price: document.getElementById('deal_price').value,
+    deposit_amount: document.getElementById('deal_deposit').value,
+    contract_status: contractStatus,
+    expected_sign_date: expectedDate,
+    salesperson: document.getElementById('deal_salesName').value.trim()
   }, function(res) {
-    if (res.ok) {
-      showToast('已標記成交','success');
-      closeModal('dealModal');
-      loadRecentCustomers();
-    } else { showToast(res.error,'error'); }
+    if (!res.ok) { btn.disabled = false; btn.textContent = '確 認 成 交'; showToast(res.error,'error'); return; }
+    if (finalCustId) {
+      gasPost('updateCustomerDeal', { lineUserId: state.user.lineUserId, customer_id: finalCustId, deal_status: '已成交', deal_unit: unit }, function() {
+        finishDealSave();
+      });
+    } else {
+      finishDealSave();
+    }
+  }, function() { btn.disabled = false; btn.textContent = '確 認 成 交'; showToast('連線失敗','error'); });
+}
+
+function finishDealSave() {
+  var btn = document.getElementById('deal_confirmBtn');
+  btn.disabled = false; btn.textContent = '確 認 成 交';
+  closeModal('dealModal');
+  showToast('成交明細已儲存','success');
+  if (document.getElementById('recentCustomerList')) loadRecentCustomers();
+  loadPendingSignatures();
+  if (state.dealQueueRemaining > 0) {
+    state.dealQueueRemaining--;
+    if (state.dealQueueRemaining > 0) setTimeout(openNextQueuedDeal, 250);
+  }
+}
+
+function markRefund(custId) {
+  gasGet('getDealDetailByCustomer', { lineUserId: state.user.lineUserId, customer_id: custId }, function(res) {
+    var d = (res.ok && res.data) ? res.data : null;
+    document.getElementById('deal_mode').value = 'refund';
+    document.getElementById('deal_id').value = d ? d.deal_id : '';
+    document.getElementById('deal_custId').value = custId;
+    document.getElementById('deal_unit').value = d ? (d.unit||'') : '';
+    document.getElementById('deal_housePrice').value = d ? (d.house_base_price||'') : '';
+    document.getElementById('deal_parkPrice').value = d ? (d.parking_base_price||'') : '';
+    document.getElementById('deal_premium').value = d ? (d.premium||'') : '';
+    document.getElementById('deal_price').value = d ? (d.deal_price||'') : '';
+    document.getElementById('deal_custName').value = d ? (d.customer_name||'') : '';
+    document.getElementById('deal_salesName').value = d ? (d.salesperson||'') : '';
+    document.getElementById('deal_deposit').value = d ? (d.deposit_amount||'') : '';
+    document.getElementById('deal_expectedSignDate').value = d ? (d.expected_sign_date||'') : '';
+    document.querySelectorAll('input[name="deal_contractStatus"]').forEach(function(r){ r.checked = !!(d && r.value === d.contract_status); });
+    setDealFieldsDisabled(true);
+    document.getElementById('deal_signDateField').classList.toggle('hidden', !(d && d.contract_status === '待簽約'));
+    document.getElementById('deal_refundReasonField').classList.remove('hidden');
+    document.getElementById('deal_refundReason').value = '';
+    document.getElementById('dealModalTitle').textContent = '標記退戶';
+    document.getElementById('dealModalSubtitle').textContent = d ? '確認以下交易明細後標記退戶' : '這筆客戶沒有找到成交明細，仍可直接標記退戶';
+    var btn = document.getElementById('deal_confirmBtn');
+    btn.textContent = '確 認 退 戶';
+    btn.className = 'btn-mini danger';
+    btn.style.flex = '2'; btn.style.padding = '14px'; btn.style.fontWeight = '600';
+    openModal('dealModal');
   });
+}
+
+function confirmRefund() {
+  var dealId = document.getElementById('deal_id').value;
+  var custId = document.getElementById('deal_custId').value;
+  var reason = document.getElementById('deal_refundReason').value.trim();
+  if (!confirm('確定要把這筆客戶資料標記為「退戶」嗎？')) return;
+
+  var btn = document.getElementById('deal_confirmBtn');
+  if (btn.disabled) return;
+  btn.disabled = true; btn.textContent = '處 理 中…';
+
+  function afterRefund() {
+    btn.disabled = false; btn.textContent = '確 認 退 戶';
+    closeModal('dealModal');
+    showToast('已標記退戶','success');
+    loadRecentCustomers();
+    loadPendingSignatures();
+  }
+
+  gasPost('updateCustomerDeal', { lineUserId: state.user.lineUserId, customer_id: custId, deal_status: '退戶', reason: reason }, function(res) {
+    if (!res.ok) { btn.disabled = false; btn.textContent = '確 認 退 戶'; showToast(res.error,'error'); return; }
+    if (dealId) {
+      gasPost('markDealDetailRefund', { lineUserId: state.user.lineUserId, deal_id: dealId, reason: reason }, afterRefund, afterRefund);
+    } else {
+      afterRefund();
+    }
+  }, function() { btn.disabled = false; btn.textContent = '確 認 退 戶'; showToast('連線失敗','error'); });
+}
+
+/* 日報表提交成交數 > 0 時，依序跳出成交明細表單 */
+function queueDealDetailEntries(count) {
+  state.dealQueueRemaining = count;
+  openNextQueuedDeal();
+}
+
+function openNextQueuedDeal() {
+  if (!state.dealQueueRemaining || state.dealQueueRemaining <= 0) { state.dealQueueRemaining = 0; return; }
+  openDealModal('', '');
+  document.getElementById('dealModalSubtitle').textContent = '今日新增成交明細（還剩 ' + state.dealQueueRemaining + ' 筆待填）';
 }
 
 /* ══ Customer Form ══ */
@@ -1478,17 +1674,10 @@ function renderCustomerForm() {
   projSel.onchange = onCustProjectChange;
   document.getElementById('cust_visitDate').value = todayStr();
 
-  // 接待人員：業務鎖定自己，主管可選
+  // ★ 接待人員：所有角色一律鎖定自己，不顯示下拉
   var salesDisplay = document.getElementById('cust_sales_display');
-  var salesSel     = document.getElementById('cust_sales_sel');
-  if (state.user.role === 'sales') {
-    salesDisplay.value = state.user.displayName;
-    salesDisplay.classList.remove('hidden');
-    salesSel.classList.add('hidden');
-  } else {
-    salesDisplay.classList.add('hidden');
-    salesSel.classList.remove('hidden');
-  }
+  salesDisplay.value = state.user.displayName;
+  salesDisplay.classList.remove('hidden');
 
   var dc = document.getElementById('cust_distChips');
   if (!dc.children.length) {
@@ -1517,14 +1706,7 @@ function renderCustomerForm() {
 }
 
 function onCustProjectChange() {
-  var proj = document.getElementById('cust_project').value;
-  var sel  = document.getElementById('cust_sales_sel');
-  sel.innerHTML = '<option value="">不指定</option>';
-  if (!proj) return;
-  if (state.salesByProject[proj]) { fillSalesSelect(sel, state.salesByProject[proj]); return; }
-  gasGet('getSalesByProject', { project: proj }, function(res) {
-    if (res.ok) { state.salesByProject[proj] = res.data; fillSalesSelect(sel, res.data); }
-  });
+  // 接待人員固定為自己，不需要撈案場業務清單
 }
 
 function fillSalesSelect(sel, list) {
@@ -1586,17 +1768,9 @@ function submitCustomer() {
   if (again === '確認日期') again = document.getElementById('cust_againDate').value||'未填日期';
   else if (again === '其他') { var ov7=document.getElementById('cust_againOther').value.trim(); again=ov7?'其他：'+ov7:'其他'; }
 
-  // 接待業務
-  var salesLineUserId = '', salesName = '';
-  if (state.user.role === 'sales') {
-    salesLineUserId = state.user.lineUserId;
-    salesName = state.user.displayName;
-  } else {
-    var salesSel = document.getElementById('cust_sales_sel');
-    var salesOpt = salesSel.options[salesSel.selectedIndex];
-    salesLineUserId = salesSel.value;
-    salesName = salesOpt ? (salesOpt.dataset.name || salesOpt.textContent) : '';
-  }
+  // 接待業務：固定帶入自己，所有角色一律如此
+  var salesLineUserId = state.user.lineUserId;
+  var salesName       = state.user.displayName;
 
   btn.disabled=true; btn.textContent='送 出 中…';
   gasPost('appendCustomerData', {
@@ -1655,7 +1829,7 @@ function taskRowHTML(t) {
 function completeTask(taskId) {
   if (!confirm('確認將此任務標記為完成？')) return;
   gasPost('updateTaskStatus', { lineUserId: state.user.lineUserId, task_id: taskId, status: 'done' }, function(res) {
-    if (res.ok) { showToast('任務已完成','success'); renderTaskList(); } else { showToast(res.error,'error'); }
+    if (res.ok) { showToast('任務已完成','success'); renderTaskList(); loadTaskReminders(); } else { showToast(res.error,'error'); }
   });
 }
 function deleteTask(taskId) {
@@ -1668,7 +1842,7 @@ function openTaskModal() {
   var sel=document.getElementById('task_assign'); sel.innerHTML='<option value="">不指定</option>';
   var proj=state.user.projectName;
   if (proj) {
-    var load=function(list){ list.forEach(function(s){ var o=document.createElement('option'); o.value=s.lineUserId; o.dataset.name=s.name; o.textContent=s.name; sel.appendChild(o); }); };
+    var load=function(list){ list.forEach(function(s){ var o=document.createElement('option'); o.value=s.lineUserId; o.dataset.name=s.name; o.textContent=s.name+(s.jobTitle?'（'+s.jobTitle+'）':''); sel.appendChild(o); }); };
     if (state.salesByProject[proj]) load(state.salesByProject[proj]);
     else gasGet('getSalesByProject',{project:proj},function(res){ if(res.ok){state.salesByProject[proj]=res.data;load(res.data);} });
   }
@@ -1878,21 +2052,52 @@ function openReportModal() {
 function submitReport() {
   var btn=document.querySelector('#reportModal .btn-mini.primary');
   if (btn.disabled) return;
+  var dealCount = +document.getElementById('rep_deal').value || 0;
+  var reportDate = document.getElementById('rep_date').value;
   btn.disabled=true; btn.textContent='送 出 中…';
   gasPost('appendDailyReport',{
     lineUserId:state.user.lineUserId,
-    report_date:document.getElementById('rep_date').value,
+    report_date:reportDate,
     visitor_count:+document.getElementById('rep_visitor').value||0,
     first_visit_count:+document.getElementById('rep_first').value||0,
     revisit_count:+document.getElementById('rep_revisit').value||0,
-    deal_count:+document.getElementById('rep_deal').value||0,
+    deal_count:dealCount,
     transaction_units:document.getElementById('rep_units').value.trim(),
     notes:document.getElementById('rep_notes').value.trim()
   },function(res){
     btn.disabled=false; btn.textContent='提 交 日 報';
-    if (res.ok) { showToast('日報已提交','success'); closeModal('reportModal'); ['rep_units','rep_notes'].forEach(function(id){ document.getElementById(id).value=''; }); ['rep_visitor','rep_first','rep_revisit','rep_deal'].forEach(function(id){ document.getElementById(id).value='0'; }); renderReport(); }
+    if (res.ok) {
+      showToast('日報已提交','success'); closeModal('reportModal');
+      ['rep_units','rep_notes'].forEach(function(id){ document.getElementById(id).value=''; });
+      ['rep_visitor','rep_first','rep_revisit','rep_deal'].forEach(function(id){ document.getElementById(id).value='0'; });
+      renderReport();
+      if (dealCount > 0) checkTodaysDealsBeforeQueue(reportDate, dealCount);
+    }
     else { showToast(res.error,'error'); }
   }, function(){ btn.disabled=false; btn.textContent='提 交 日 報'; showToast('連線失敗','error'); });
+}
+
+/* 交日報表前，先查這個人今天是否已經在「近期客戶」用「標記成交」
+   填過成交明細，有的話就不用重複跳窗詢問，只補問差額 */
+function checkTodaysDealsBeforeQueue(date, dealCount) {
+  gasGet('getDealDetailsForDate', { lineUserId: state.user.lineUserId, date: date }, function(res) {
+    var already = (res.ok && res.data) ? res.data.length : 0;
+    var remaining = Math.max(0, dealCount - already);
+    if (already > 0) {
+      showToast('今天已經有 ' + already + ' 筆成交是你稍早標記過的，不用重填', 'success');
+    }
+    if (already > dealCount) {
+      showToast('你稍早標記過的成交筆數（' + already + '）比日報填的成交數（' + dealCount + '）多，記得檢查數字', 'error');
+    }
+    if (remaining > 0) {
+      showToast('請依序填寫 ' + remaining + ' 筆成交明細', 'success');
+      queueDealDetailEntries(remaining);
+    }
+  }, function() {
+    // 查詢失敗就照舊全部詢問，避免漏填
+    showToast('請依序填寫 ' + dealCount + ' 筆成交明細', 'success');
+    queueDealDetailEntries(dealCount);
+  });
 }
 
 /* ══ Maintenance ══ */
@@ -1912,7 +2117,8 @@ function renderMaintList() {
         else if (m.status==='processing') act='<button class="btn-mini primary" onclick="updateMaint(\''+m.maintenance_id+'\',\'done\')">標記完成</button>';
       }
       act += '<button class="btn-mini danger" onclick="deleteMaint(\''+m.maintenance_id+'\')">刪除</button>';
-      return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">🔧 '+escapeHtml(m.issue_type)+(m.location?' @ '+escapeHtml(m.location):'')+'</div>'+sp+'</div><div class="list-item-desc">'+escapeHtml(m.description||'')+'</div><div class="list-item-meta"><span>👤 '+escapeHtml(m.reported_by||'')+'</span><span>📅 '+String(m.created_at||'').substring(0,10)+'</span></div><div class="list-item-actions">'+act+'</div></div>';
+      var photo = m.photo_url ? '<a href="'+escapeHtml(m.photo_url)+'" target="_blank" rel="noopener"><img src="'+escapeHtml(m.photo_url)+'" style="max-width:100px;max-height:100px;border-radius:8px;margin-top:8px;display:block;"></a>' : '';
+      return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">🔧 '+escapeHtml(m.issue_type)+(m.location?' @ '+escapeHtml(m.location):'')+'</div>'+sp+'</div><div class="list-item-desc">'+escapeHtml(m.description||'')+'</div>'+photo+'<div class="list-item-meta"><span>👤 '+escapeHtml(m.reported_by||'')+'</span><span>📅 '+String(m.created_at||'').substring(0,10)+'</span></div><div class="list-item-actions">'+act+'</div></div>';
     }).join('');
   });
 }
@@ -1927,7 +2133,41 @@ function deleteMaint(id) {
     if (res.ok) { showToast('維修通報已刪除','success'); renderMaintList(); } else { showToast(res.error,'error'); }
   });
 }
-function openMaintModal(){ openModal('maintModal'); }
+var maintPhotoBase64 = null;
+
+function openMaintModal(){
+  maintPhotoBase64 = null;
+  document.getElementById('maint_photo').value = '';
+  document.getElementById('maint_photoPreview').innerHTML = '';
+  openModal('maintModal');
+}
+
+/* 拍照/選圖後，先縮圖壓縮成長邊最多1000px、JPEG品質0.7，
+   避免傳輸資料量太大、上傳太慢或佔用太多雲端硬碟空間 */
+function previewMaintPhoto(evt) {
+  var file = evt.target.files && evt.target.files[0];
+  var preview = document.getElementById('maint_photoPreview');
+  if (!file) { maintPhotoBase64 = null; preview.innerHTML = ''; return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      var maxSize = 1000;
+      var scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      var canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      var c2d = canvas.getContext('2d');
+      c2d.drawImage(img, 0, 0, canvas.width, canvas.height);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+      maintPhotoBase64 = dataUrl.split(',')[1];
+      preview.innerHTML = '<img src="' + dataUrl + '" style="max-width:120px;max-height:120px;border-radius:8px;">';
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 function submitMaint() {
   var type=document.getElementById('maint_type').value;
   var desc=document.getElementById('maint_desc').value.trim();
@@ -1935,15 +2175,41 @@ function submitMaint() {
   var btn=document.querySelector('#maintModal .btn-mini.primary');
   if (btn.disabled) return;
   btn.disabled=true; btn.textContent='送 出 中…';
-  gasPost('appendMaintenance',{
-    lineUserId:state.user.lineUserId, issue_type:type,
-    location:document.getElementById('maint_location').value.trim(),
-    description:desc, priority:document.getElementById('maint_priority').value
-  },function(res){
-    btn.disabled=false; btn.textContent='送 出 通 報';
-    if (res.ok) { showToast('維修通報已送出','success'); closeModal('maintModal'); ['maint_location','maint_desc'].forEach(function(id){ document.getElementById(id).value=''; }); document.getElementById('maint_type').value=''; renderMaintList(); }
-    else { showToast(res.error,'error'); }
-  }, function(){ btn.disabled=false; btn.textContent='送 出 通 報'; showToast('連線失敗','error'); });
+
+  function finishSubmit(photoUrl) {
+    gasPost('appendMaintenance',{
+      lineUserId:state.user.lineUserId, issue_type:type,
+      location:document.getElementById('maint_location').value.trim(),
+      description:desc, priority:document.getElementById('maint_priority').value,
+      photo_url: photoUrl || ''
+    },function(res){
+      btn.disabled=false; btn.textContent='送 出 通 報';
+      if (res.ok) {
+        showToast('維修通報已送出','success'); closeModal('maintModal');
+        ['maint_location','maint_desc'].forEach(function(id){ document.getElementById(id).value=''; });
+        document.getElementById('maint_type').value='';
+        document.getElementById('maint_photo').value='';
+        document.getElementById('maint_photoPreview').innerHTML='';
+        maintPhotoBase64 = null;
+        renderMaintList();
+      }
+      else { showToast(res.error,'error'); }
+    }, function(){ btn.disabled=false; btn.textContent='送 出 通 報'; showToast('連線失敗','error'); });
+  }
+
+  if (maintPhotoBase64) {
+    btn.textContent = '上 傳 照 片 中…';
+    gasPostJson('uploadMaintenancePhoto', {
+      lineUserId: state.user.lineUserId,
+      photo_base64: maintPhotoBase64,
+      mime_type: 'image/jpeg'
+    }, function(res) {
+      if (res.ok) { finishSubmit(res.data.photo_url); }
+      else { btn.disabled=false; btn.textContent='送 出 通 報'; showToast('照片上傳失敗：'+res.error,'error'); }
+    }, function(){ btn.disabled=false; btn.textContent='送 出 通 報'; showToast('照片上傳連線失敗','error'); });
+  } else {
+    finishSubmit('');
+  }
 }
 
 /* ══ User Management ══ */
@@ -2242,18 +2508,27 @@ function leaveCellClick(ds) {
         leaveState.toDelete[myLeave.leave_id] = true;
       }
     } else {
-      var curMonth  = ds.substring(0,7);
-      var usedCount = leaveState.allLeaves.filter(function(r) {
-        return String(r.line_user_id) === String(myUid) &&
-               String(r.leave_date).substring(0,7) === curMonth;
-      }).length;
-      var addCount = Object.keys(leaveState.selected).filter(function(d) {
-        return leaveState.selected[d] && leaveState.selected[d].uid === myUid &&
-               d.substring(0,7) === curMonth;
-      }).length;
       if (leaveState.selected[ds]) {
         delete leaveState.selected[ds];
       } else {
+        var dow = new Date(ds + 'T00:00:00').getDay(); // 0=日 6=六
+        if (dow === 0 || dow === 6) {
+          showToast('六、日休假需經主管排假，請聯繫主管', 'error'); return;
+        }
+        var dayCount = leaveState.allLeaves.filter(function(r) {
+          return String(r.leave_date).substring(0,10) === ds;
+        }).length;
+        if (dayCount >= 2) { showToast(ds + ' 當日休假人數已達上限（2 人），請改選其他日期', 'error'); return; }
+
+        var curMonth  = ds.substring(0,7);
+        var usedCount = leaveState.allLeaves.filter(function(r) {
+          return String(r.line_user_id) === String(myUid) &&
+                 String(r.leave_date).substring(0,7) === curMonth;
+        }).length;
+        var addCount = Object.keys(leaveState.selected).filter(function(d) {
+          return leaveState.selected[d] && leaveState.selected[d].uid === myUid &&
+                 d.substring(0,7) === curMonth;
+        }).length;
         if (usedCount + addCount >= 8) { showToast('本月已達休假上限（8 天）', 'error'); return; }
         leaveState.selected[ds] = { uid: myUid, name: myName };
       }
@@ -2307,6 +2582,16 @@ function openLeaveAssignModal(ds, dayLeaves) {
         leaveState.toDelete[existLv.leave_id] = true;
       } else {
         // 標記新增（配額檢查）
+        var dow = new Date(ds + 'T00:00:00').getDay(); // 0=日 6=六（主管排假不受六日禁休限制）
+        if (dow !== 0 && dow !== 6) {
+          var dayCount = dayLeaves.length + Object.keys(leaveState.selected).filter(function(d) {
+            return leaveState.selected[d] && d === ds;
+          }).length;
+          if (dayCount >= 2) {
+            showToast(ds + ' 當日休假人數已達上限（2 人）', 'error');
+            return;
+          }
+        }
         var curMonth  = ds.substring(0,7);
         var usedCount = leaveState.allLeaves.filter(function(r) {
           return String(r.line_user_id) === String(u.uid) &&
@@ -2406,6 +2691,7 @@ function submitLeaveSelection() {
         dates:               g.dates
       }, function(res) {
         if (!res.ok) showToast('新增失敗（' + g.name + '）：' + res.error, 'error');
+        else if (res.data && res.data.message) showToast(g.name + '：' + res.data.message, 'error');
         resolve();
       }, function() { showToast('連線失敗', 'error'); resolve(); });
     }));
