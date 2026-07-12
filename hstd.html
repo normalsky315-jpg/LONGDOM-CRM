@@ -378,6 +378,10 @@
         <div class="section-tag" style="margin-top:14px;">待簽約提醒</div>
         <div id="pendingSignList"></div>
       </div>
+      <div class="pending-sign-wrap hidden" id="taskReminderWrap">
+        <div class="section-tag" style="margin-top:14px;">任務提醒</div>
+        <div id="taskReminderList"></div>
+      </div>
       <div class="section-tag">本月概況</div>
       <div class="stat-grid">
         <div class="stat-card"><div class="stat-num" id="statVisitor">—</div><div class="stat-label">接待</div></div>
@@ -1113,6 +1117,29 @@ function renderHome() {
   });
 
   loadPendingSignatures();
+  loadTaskReminders();
+}
+
+/* ══ 任務提醒 ══ */
+function loadTaskReminders() {
+  var wrap = document.getElementById('taskReminderWrap');
+  var box  = document.getElementById('taskReminderList');
+  gasGet('getTasks', { lineUserId: state.user.lineUserId, status: 'pending' }, function(res) {
+    if (!res.ok || !res.data || !res.data.length) { wrap.classList.add('hidden'); box.innerHTML=''; return; }
+    wrap.classList.remove('hidden');
+    var today = todayStr();
+    box.innerHTML = res.data.map(function(t) {
+      var overdue = t.due_date && t.due_date < today;
+      var who = state.user.role === 'sales' ? '' : ('<span>👤 ' + escapeHtml(t.assigned_to||'') + '</span>');
+      return '<div class="pending-sign-card' + (overdue?' overdue':'') + '">' +
+        '<div class="pending-sign-main">' +
+          '<div class="pending-sign-unit">' + escapeHtml(t.title||'') + '</div>' +
+          '<div class="pending-sign-meta">' + (overdue?'⚠️ 已逾期　':'') + (t.due_date?'期限：'+escapeHtml(t.due_date):'無期限') + (who?'　'+who:'') + '</div>' +
+        '</div>' +
+        '<button class="pending-sign-signbtn" onclick="completeTask(\'' + escapeHtml(t.task_id) + '\')">標記完成</button>' +
+      '</div>';
+    }).join('');
+  });
 }
 
 /* ══ 待簽約提醒 ══ */
@@ -1802,7 +1829,7 @@ function taskRowHTML(t) {
 function completeTask(taskId) {
   if (!confirm('確認將此任務標記為完成？')) return;
   gasPost('updateTaskStatus', { lineUserId: state.user.lineUserId, task_id: taskId, status: 'done' }, function(res) {
-    if (res.ok) { showToast('任務已完成','success'); renderTaskList(); } else { showToast(res.error,'error'); }
+    if (res.ok) { showToast('任務已完成','success'); renderTaskList(); loadTaskReminders(); } else { showToast(res.error,'error'); }
   });
 }
 function deleteTask(taskId) {
