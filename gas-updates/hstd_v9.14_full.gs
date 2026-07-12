@@ -1,5 +1,18 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.13
+//  龍登 CRM — 華雄天地專用版 v9.14
+//  v9.14 變更：★ 真正找到問題了 ★ v9.13 的除錯推播成功收到，內容
+//    顯示使用者實際傳的是「我的ID」（沒有空格），但程式碼裡寫的判斷
+//    式是 `'我的 ID'`（中間多一個空格），字串對不起來，系統看不懂，
+//    完全是文字比對的問題，跟部署/webhook設定無關（先前那些都是
+//    真的部署問題，但這個才是最後讓「我的ID」完全沒反應的真正原因）：
+//    1. handleWebhookEvent 的固定指令改成先去除所有空白、轉小寫再
+//       比對（「我的id」「我的 ID」「MyID」都能對上）
+//    2. handleQaCommand 的固定詞（今日業績、待簽約等）也一併加上
+//       去空白比對，避免同樣的問題發生在其他指令上；「查詢 xxx」
+//       這種需要保留空白分隔關鍵字的指令維持原樣，不受影響
+//  ★ 除錯用的推播（收到 webhook 事件就推播、查無使用者推播等）暫時
+//    保留，等這次確認「我的ID」等指令都正常回應後，下一版會拿掉，
+//    避免長期每則訊息都額外推播一次造成干擾
 //  v9.13 變更：v9.12 加的除錯推播（回覆失敗時才推播）也完全沒有動靜，
 //    代表問題可能發生在 handleWebhookEvent 判斷「是不是文字訊息」
 //    之前，或是 doPost 收到的內容格式跟預期的不一樣，兩種情況都不會
@@ -1912,18 +1925,22 @@ function handleWebhookEvent(event) {
 
     if (event.type !== 'message' || event.message.type !== 'text') return;
     var text       = String(event.message.text || '').trim();
+    // 固定指令比對前先去掉所有空白、轉小寫，避免使用者打「我的ID」
+    // 沒有空格，卻對不到程式碼裡寫的「我的 ID」(中間有空格) 這種
+    // 純粹因為打字差異就完全不回應的情況
+    var norm       = text.replace(/\s+/g, '').toLowerCase();
     var replyToken = event.replyToken;
     var userId     = event.source.userId;
 
-    if (text === '案場維修通報' || text === '維修通報') {
+    if (norm === '案場維修通報' || norm === '維修通報') {
       sendLineReply(replyToken, '🔧 維修通報入口\n請點擊圖文選單的「維修通報」開啟系統填寫。');
       return;
     }
-    if (text === '我的 ID' || text === '我的id' || text === 'myid') {
+    if (norm === '我的id' || norm === 'myid') {
       sendLineReply(replyToken, '您的 LINE userId：\n' + userId);
       return;
     }
-    if (text === '問答' || text === '?' || text === '幫助' || text.toLowerCase() === 'help') {
+    if (norm === '問答' || norm === '?' || norm === '幫助' || norm === 'help') {
       sendLineReply(replyToken, QA_HELP_TEXT);
       return;
     }
@@ -1956,11 +1973,12 @@ function handleQaCommand(text, userId) {
     return null;
   }
 
-  if (text === '今日業績' || text === '今天業績') return qaPerformance(ctx, 'today');
-  if (text === '本月業績' || text === '這個月業績') return qaPerformance(ctx, 'month');
-  if (text === '待簽約') return qaPendingSignatures(ctx);
-  if (text === '今日休假' || text === '誰休假' || text === '今天誰休假') return qaTodayLeave();
-  if (text === '我的待辦' || text === '待辦' || text === '我的任務') return qaMyTasks(ctx);
+  var norm = text.replace(/\s+/g, '');
+  if (norm === '今日業績' || norm === '今天業績') return qaPerformance(ctx, 'today');
+  if (norm === '本月業績' || norm === '這個月業績') return qaPerformance(ctx, 'month');
+  if (norm === '待簽約') return qaPendingSignatures(ctx);
+  if (norm === '今日休假' || norm === '誰休假' || norm === '今天誰休假') return qaTodayLeave();
+  if (norm === '我的待辦' || norm === '待辦' || norm === '我的任務') return qaMyTasks(ctx);
 
   var m = text.match(/^查詢?\s*(.+)$/);
   if (m && m[1]) return qaSearchCustomer(m[1].trim(), ctx);
