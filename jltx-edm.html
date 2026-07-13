@@ -24,19 +24,12 @@
      no-JS browsers and non-executing crawlers/link-preview bots still see
      full content; JS opts elements into the hidden→fade-in state) ── */
   .reveal{opacity:1;transform:none;}
-  html.js-reveal .reveal{opacity:0;transform:translateY(24px);transition:opacity 0.8s ease,transform 0.8s ease;}
+  html.js-reveal .reveal{opacity:0;transform:translateY(20px);transition:opacity 0.9s ease,transform 0.9s ease;}
   html.js-reveal .reveal.in{opacity:1;transform:translateY(0);}
-
-  /* ── Top nav ── */
-  .nav{position:fixed;top:0;left:0;right:0;z-index:60;display:flex;align-items:center;justify-content:space-between;
-       padding:14px 20px;background:rgba(11,15,28,0.0);transition:background 0.3s,padding 0.3s,box-shadow 0.3s;}
-  .nav.solid{background:rgba(11,15,28,0.92);backdrop-filter:blur(6px);padding:10px 20px;box-shadow:0 2px 12px rgba(0,0,0,0.2);}
-  .nav-logo{font-family:'Noto Serif TC',serif;font-weight:700;color:var(--gold-soft);font-size:16px;letter-spacing:3px;}
-  .nav-cta{padding:8px 16px;border:1px solid var(--gold);border-radius:20px;color:var(--gold-soft);font-size:12px;letter-spacing:1px;text-decoration:none;white-space:nowrap;}
 
   /* ── Hero ── */
   .hero{position:relative;min-height:100vh;background:linear-gradient(180deg,var(--navy-deep) 0%,var(--navy) 55%,var(--navy-soft) 100%);
-        display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:100px 28px 80px;overflow:hidden;}
+        display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:70px 28px 80px;overflow:hidden;}
   .hero-clouds{position:absolute;inset:0;opacity:0.5;pointer-events:none;}
   .hero-mountains{position:absolute;left:0;right:0;bottom:0;opacity:0.9;pointer-events:none;}
   .hero-content{position:relative;z-index:2;}
@@ -49,71 +42,79 @@
   .hero-scroll::after{content:'';width:1px;height:34px;background:linear-gradient(180deg,var(--gold),transparent);animation:scrollLine 1.8s ease-in-out infinite;}
   @keyframes scrollLine{0%{opacity:0;transform:scaleY(0.3);transform-origin:top;}50%{opacity:1;transform:scaleY(1);transform-origin:top;}100%{opacity:0;transform:scaleY(0.3);transform-origin:bottom;}}
 
-  /* ── Section shells ── */
-  .sec{position:relative;padding:76px 28px;}
+  /* ── Section shells (text blocks keep gutters; photo blocks go edge-to-edge) ── */
+  .sec{position:relative;padding:56px 28px;}
   .sec-cream{background:var(--cream);}
   .sec-navy{background:linear-gradient(180deg,var(--navy) 0%,var(--navy-soft) 100%);color:rgba(255,255,255,0.88);}
-  .sec-watermark{position:absolute;top:20px;left:50%;transform:translateX(-50%);font-family:'Noto Serif TC',serif;font-weight:700;
-                 font-size:64px;letter-spacing:4px;color:var(--ink);opacity:0.04;white-space:nowrap;pointer-events:none;}
+  .sec-watermark{position:absolute;top:14px;left:50%;transform:translateX(-50%);font-family:'Noto Serif TC',serif;font-weight:700;
+                 font-size:58px;letter-spacing:4px;color:var(--ink);opacity:0.04;white-space:nowrap;pointer-events:none;}
   .sec-navy .sec-watermark{color:#fff;opacity:0.06;}
   .sec-eyebrow{text-align:center;font-size:11px;letter-spacing:5px;color:var(--gold);margin-bottom:14px;position:relative;z-index:1;}
-  .sec-title{text-align:center;font-family:'Noto Serif TC',serif;font-weight:700;font-size:24px;letter-spacing:3px;margin-bottom:10px;position:relative;z-index:1;}
-  .sec-title-en{text-align:center;font-size:11px;letter-spacing:2px;color:var(--ink-faint);margin-bottom:36px;position:relative;z-index:1;}
+  .sec-title{text-align:center;font-family:'Noto Serif TC',serif;font-weight:700;font-size:23px;letter-spacing:3px;margin-bottom:10px;position:relative;z-index:1;}
+  .sec-title-en{text-align:center;font-size:11px;letter-spacing:2px;color:var(--ink-faint);margin-bottom:30px;position:relative;z-index:1;}
   .sec-navy .sec-title-en{color:rgba(255,255,255,0.4);}
-  .sec-body{position:relative;z-index:1;font-size:14px;color:var(--ink-light);text-align:center;max-width:420px;margin:0 auto 36px;}
+  .sec-body{position:relative;z-index:1;font-size:13.5px;color:var(--ink-light);text-align:center;max-width:420px;margin:0 auto;}
   .sec-navy .sec-body{color:rgba(255,255,255,0.68);}
 
   /* divider ornament */
-  .ornament{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:30px;position:relative;z-index:1;}
+  .ornament{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:26px;position:relative;z-index:1;}
   .ornament::before,.ornament::after{content:'';width:34px;height:1px;background:var(--gold-line);}
   .ornament-dot{width:5px;height:5px;border-radius:50%;background:var(--gold);}
 
-  /* ── Feature grid (Bustling) ── */
-  .feat-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;position:relative;z-index:1;}
-  .feat-card{background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.25);border-radius:14px;padding:22px 16px;text-align:center;}
-  .sec-cream .feat-card{background:var(--surface);border-color:var(--border);box-shadow:0 2px 10px rgba(26,26,46,0.05);}
-  .feat-icon{width:38px;height:38px;margin:0 auto 12px;}
-  .feat-name{font-size:13px;font-weight:500;letter-spacing:1px;margin-bottom:4px;}
-  .feat-desc{font-size:11.5px;color:var(--ink-faint);}
-  .sec-navy .feat-desc{color:rgba(255,255,255,0.45);}
+  /* ── Photo placeholders: full-bleed, no radius/shadow, matches the
+     poster-style photo blocks in the reference layout. Swap the
+     background-image on .ph (or drop a real <img> in) once real
+     photography is supplied — the frame/label auto-hide once a real
+     photo covers the block. ── */
+  .ph{position:relative;width:100%;overflow:hidden;background:linear-gradient(135deg,#EFE9DA,#DDD3BA);}
+  .ph.dark{background:linear-gradient(135deg,#1B2438,#0F1626);}
+  .ph::before{content:'';position:absolute;inset:10px;border:1px dashed rgba(138,109,63,0.4);pointer-events:none;}
+  .ph.dark::before{border-color:rgba(201,168,76,0.35);}
+  .ph-label{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+            color:rgba(74,58,36,0.5);font-size:10.5px;letter-spacing:1.5px;text-align:center;padding:0 24px;}
+  .ph.dark .ph-label{color:rgba(244,235,200,0.4);}
+  .ph-icon{width:26px;height:26px;opacity:0.55;}
+  .ph-skyline{aspect-ratio:5/6;}
+  .ph-wide{aspect-ratio:16/10;}
+  .ph-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px;}
+  .ph-grid .ph{aspect-ratio:1/1;}
+  .ph-tall{aspect-ratio:4/5;}
 
-  /* ── School list ── */
-  .school-list{display:flex;flex-direction:column;gap:10px;position:relative;z-index:1;max-width:420px;margin:0 auto;}
-  .school-row{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;}
-  .school-tag{flex-shrink:0;width:52px;height:52px;border-radius:50%;background:var(--gold-soft);color:#8A6D3F;display:flex;align-items:center;justify-content:center;
-             font-family:'Noto Serif TC',serif;font-weight:700;font-size:13px;}
+  /* ── Flat feature strip (Bustling) — editorial list, no card chrome ── */
+  .feat-strip{position:relative;z-index:1;border-top:1px solid rgba(201,168,76,0.25);}
+  .feat-row{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:15px 0;border-bottom:1px solid rgba(201,168,76,0.25);}
+  .feat-name{font-size:13.5px;font-weight:500;letter-spacing:1px;}
+  .feat-desc{font-size:11.5px;color:rgba(255,255,255,0.45);white-space:nowrap;}
+
+  /* ── School list — flat rows, no card chrome ── */
+  .school-list{position:relative;z-index:1;border-top:1px solid var(--border);}
+  .school-row{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:15px 4px;border-bottom:1px solid var(--border);}
   .school-info-name{font-size:13.5px;font-weight:500;color:var(--ink);}
-  .school-info-desc{font-size:11.5px;color:var(--ink-faint);margin-top:2px;}
+  .school-info-desc{font-size:11.5px;color:var(--ink-faint);white-space:nowrap;}
 
-  /* ── Noble/Space feature list ── */
-  .stat-row{display:flex;justify-content:center;gap:36px;margin-bottom:40px;position:relative;z-index:1;}
+  /* ── Noble/Space stats + feature strip ── */
+  .stat-row{display:flex;justify-content:center;gap:36px;margin:34px 0;position:relative;z-index:1;}
   .stat{text-align:center;}
   .stat-num{font-family:'Noto Serif TC',serif;font-weight:700;font-size:26px;color:var(--gold-soft);}
   .stat-label{font-size:11px;letter-spacing:1px;color:rgba(255,255,255,0.5);margin-top:4px;}
-  .space-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:rgba(201,168,76,0.2);border:1px solid rgba(201,168,76,0.2);border-radius:14px;overflow:hidden;position:relative;z-index:1;}
-  .space-item{background:var(--navy);padding:20px 16px;text-align:center;}
-  .space-item-title{font-size:12.5px;letter-spacing:1px;color:var(--gold-soft);margin-bottom:6px;}
-  .space-item-desc{font-size:11px;color:rgba(255,255,255,0.5);}
 
-  /* ── Floor plan card ── */
-  .plan-card{position:relative;z-index:1;background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:28px 24px;max-width:420px;margin:0 auto;box-shadow:0 8px 30px rgba(26,26,46,0.08);}
-  .plan-badge{display:inline-block;background:var(--ink);color:#fff;font-size:11px;letter-spacing:2px;padding:5px 14px;border-radius:20px;margin-bottom:16px;}
-  .plan-name{font-family:'Noto Serif TC',serif;font-weight:700;font-size:20px;margin-bottom:4px;}
-  .plan-sub{font-size:12px;color:var(--ink-faint);margin-bottom:20px;}
-  .plan-stats{display:flex;border-top:1px solid var(--border);padding-top:16px;gap:12px;}
-  .plan-stat{flex:1;text-align:center;}
-  .plan-stat-num{font-family:'Noto Serif TC',serif;font-weight:700;font-size:18px;color:var(--ink);}
-  .plan-stat-label{font-size:10.5px;color:var(--ink-faint);margin-top:3px;letter-spacing:0.5px;}
+  /* ── Floor plan block ── */
+  .plan-badge{display:block;text-align:center;font-size:11px;letter-spacing:3px;color:var(--gold);margin-bottom:8px;position:relative;z-index:1;}
+  .plan-stats{position:relative;z-index:1;display:flex;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-top:0;}
+  .plan-stat{flex:1;text-align:center;padding:18px 8px;}
+  .plan-stat+.plan-stat{border-left:1px solid var(--border);}
+  .plan-stat-num{font-family:'Noto Serif TC',serif;font-weight:700;font-size:19px;color:var(--ink);}
+  .plan-stat-label{font-size:10.5px;color:var(--ink-faint);margin-top:4px;letter-spacing:0.5px;}
 
   /* ── Final CTA banner ── */
-  .cta-banner{background:linear-gradient(135deg,var(--navy-deep),var(--navy));padding:64px 28px;text-align:center;position:relative;}
+  .cta-banner{background:linear-gradient(135deg,var(--navy-deep),var(--navy));padding:60px 28px;text-align:center;position:relative;}
   .cta-title{font-family:'Noto Serif TC',serif;font-weight:700;font-size:21px;color:#fff;letter-spacing:2px;margin-bottom:10px;}
   .cta-sub{font-size:12px;color:rgba(255,255,255,0.55);margin-bottom:26px;letter-spacing:1px;}
   .cta-phone{display:inline-flex;align-items:center;gap:10px;color:var(--gold-soft);font-family:'Noto Serif TC',serif;font-size:22px;font-weight:700;
             letter-spacing:1px;text-decoration:none;padding:14px 26px;border:1px solid var(--gold);border-radius:30px;}
 
-  /* ── Inquiry form ── */
-  .form-sec{background:var(--cream);padding:64px 20px 100px;}
+  /* ── Inquiry form (kept as a card — it's a UI control, not a poster block) ── */
+  .form-sec{background:var(--cream);padding:60px 20px 100px;}
   .form-card{max-width:460px;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:28px 22px;box-shadow:0 8px 30px rgba(26,26,46,0.06);}
   .form-head{text-align:center;margin-bottom:26px;}
   .form-head-title{font-family:'Noto Serif TC',serif;font-weight:700;font-size:19px;margin-bottom:6px;}
@@ -151,7 +152,7 @@
   .success-sub{font-size:12.5px;color:var(--ink-faint);line-height:1.8;}
   .form-body.hidden{display:none;}
 
-  /* ── Sticky mobile CTA ── */
+  /* ── Sticky mobile CTA (functional overlay — doesn't disturb the poster flow) ── */
   .sticky-cta{position:fixed;left:0;right:0;bottom:0;z-index:70;background:rgba(11,15,28,0.94);backdrop-filter:blur(6px);
              padding:12px 20px max(12px,env(safe-area-inset-bottom));display:flex;gap:10px;align-items:center;
              transform:translateY(100%);transition:transform 0.3s ease;box-shadow:0 -4px 20px rgba(0,0,0,0.25);}
@@ -160,15 +161,10 @@
   .sticky-cta-btn{padding:11px 20px;background:var(--gold);color:var(--navy-deep);border-radius:24px;font-size:13px;font-weight:700;letter-spacing:1px;
                   text-decoration:none;white-space:nowrap;}
 
-  footer{background:var(--navy-deep);color:rgba(255,255,255,0.35);text-align:center;padding:26px 20px 40px;font-size:10.5px;letter-spacing:1px;}
+  footer{background:var(--navy-deep);color:rgba(255,255,255,0.35);text-align:center;padding:24px 20px 40px;font-size:10.5px;letter-spacing:1px;}
 </style>
 </head>
 <body>
-
-<nav class="nav" id="nav">
-  <div class="nav-logo">吉隆天曜</div>
-  <a class="nav-cta" href="#inquiry">立即諮詢</a>
-</nav>
 
 <div class="wrap">
 
@@ -204,6 +200,14 @@
     </p>
   </section>
 
+  <!-- Photo: city skyline -->
+  <div class="ph ph-skyline reveal">
+    <div class="ph-label">
+      <svg class="ph-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 21h18M5 21V9l4-3 4 3v12M13 21V5l4-2 4 2v16" stroke="currentColor" stroke-width="1.2"/></svg>
+      建案空拍 / 城市天際線照片<br>PHOTO — 請替換為實際照片
+    </div>
+  </div>
+
   <!-- Bustling -->
   <section class="sec sec-navy reveal">
     <div class="sec-watermark en">Bustling</div>
@@ -215,13 +219,21 @@
       鄰近主要幹道與大眾運輸，通勤往返市中心快速便利，
       生活所需皆在轉身之間。
     </p>
-    <div class="feat-grid">
-      <div class="feat-card"><div class="feat-name">商圈聚落</div><div class="feat-desc">餐飲 · 超市 · 咖啡廳</div></div>
-      <div class="feat-card"><div class="feat-name">交通樞紐</div><div class="feat-desc">幹道 · 公車 · 便捷通勤</div></div>
-      <div class="feat-card"><div class="feat-name">綠意公園</div><div class="feat-desc">步行可達 · 假日休閒</div></div>
-      <div class="feat-card"><div class="feat-name">生活機能</div><div class="feat-desc">醫療 · 金融 · 一應俱全</div></div>
+    <div class="feat-strip">
+      <div class="feat-row"><span class="feat-name">商圈聚落</span><span class="feat-desc">餐飲 · 超市 · 咖啡廳</span></div>
+      <div class="feat-row"><span class="feat-name">交通樞紐</span><span class="feat-desc">幹道 · 公車 · 便捷通勤</span></div>
+      <div class="feat-row"><span class="feat-name">綠意公園</span><span class="feat-desc">步行可達 · 假日休閒</span></div>
+      <div class="feat-row"><span class="feat-name">生活機能</span><span class="feat-desc">醫療 · 金融 · 一應俱全</span></div>
     </div>
   </section>
+
+  <!-- Photo: 2x2 street/lifestyle collage -->
+  <div class="ph-grid reveal">
+    <div class="ph"><div class="ph-label">街景照片<br>PHOTO</div></div>
+    <div class="ph"><div class="ph-label">商圈照片<br>PHOTO</div></div>
+    <div class="ph"><div class="ph-label">生活機能照片<br>PHOTO</div></div>
+    <div class="ph"><div class="ph-label">交通機能照片<br>PHOTO</div></div>
+  </div>
 
   <!-- Top Schools -->
   <section class="sec sec-cream reveal">
@@ -234,12 +246,20 @@
       接送安心、通學安全，讓家長不必為學區奔波。
     </p>
     <div class="school-list">
-      <div class="school-row"><div class="school-tag">幼</div><div><div class="school-info-name">鄰近優質幼兒園</div><div class="school-info-desc">步行可達，接送便利</div></div></div>
-      <div class="school-row"><div class="school-tag">國小</div><div><div class="school-info-name">學區國小</div><div class="school-info-desc">依實際學區劃分為準</div></div></div>
-      <div class="school-row"><div class="school-tag">國中</div><div><div class="school-info-name">學區國中</div><div class="school-info-desc">依實際學區劃分為準</div></div></div>
-      <div class="school-row"><div class="school-tag">高中</div><div><div class="school-info-name">周邊高中職</div><div class="school-info-desc">升學資源完整銜接</div></div></div>
+      <div class="school-row"><span class="school-info-name">鄰近優質幼兒園</span><span class="school-info-desc">步行可達，接送便利</span></div>
+      <div class="school-row"><span class="school-info-name">學區國小</span><span class="school-info-desc">依實際學區劃分為準</span></div>
+      <div class="school-row"><span class="school-info-name">學區國中</span><span class="school-info-desc">依實際學區劃分為準</span></div>
+      <div class="school-row"><span class="school-info-name">周邊高中職</span><span class="school-info-desc">升學資源完整銜接</span></div>
     </div>
   </section>
+
+  <!-- Photo: family / community -->
+  <div class="ph ph-wide reveal">
+    <div class="ph-label">
+      <svg class="ph-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="8" r="3" stroke="currentColor" stroke-width="1.2"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7" stroke="currentColor" stroke-width="1.2"/></svg>
+      家庭生活情境照片<br>PHOTO — 請替換為實際照片
+    </div>
+  </div>
 
   <!-- Noble / Space -->
   <section class="sec sec-navy reveal">
@@ -255,30 +275,42 @@
       <div class="stat"><div class="stat-num">4</div><div class="stat-label en">戶 / 2 電梯</div></div>
       <div class="stat"><div class="stat-num">5</div><div class="stat-label en">戶 / 2 電梯</div></div>
     </div>
-    <div class="space-grid">
-      <div class="space-item"><div class="space-item-title">棟距尺度</div><div class="space-item-desc">開闊棟距，光線通透</div></div>
-      <div class="space-item"><div class="space-item-title">建材選用</div><div class="space-item-desc">精選建材，安心耐用</div></div>
-      <div class="space-item"><div class="space-item-title">格局規劃</div><div class="space-item-desc">方正格局，坪效極大化</div></div>
-      <div class="space-item"><div class="space-item-title">公設比例</div><div class="space-item-desc">低公設，實際使用更多</div></div>
+    <div class="feat-strip">
+      <div class="feat-row"><span class="feat-name">棟距尺度</span><span class="feat-desc">開闊棟距 · 光線通透</span></div>
+      <div class="feat-row"><span class="feat-name">建材選用</span><span class="feat-desc">精選建材 · 安心耐用</span></div>
+      <div class="feat-row"><span class="feat-name">格局規劃</span><span class="feat-desc">方正格局 · 坪效極大化</span></div>
+      <div class="feat-row"><span class="feat-name">公設比例</span><span class="feat-desc">低公設 · 使用更多</span></div>
     </div>
   </section>
+
+  <!-- Photo: interior -->
+  <div class="ph ph-tall reveal">
+    <div class="ph-label">
+      <svg class="ph-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="18" height="14" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M3 21h18M9 21v-4M15 21v-4" stroke="currentColor" stroke-width="1.2"/></svg>
+      客廳室內實景照片<br>PHOTO — 請替換為實際照片
+    </div>
+  </div>
 
   <!-- Floor plan -->
   <section class="sec sec-cream reveal">
     <div class="sec-eyebrow en">THE IDEAL LIVING SPACE</div>
     <h2 class="sec-title">最好住的3房</h2>
     <div class="sec-title-en">理想尺度 一次到位</div>
-    <div class="plan-card">
-      <span class="plan-badge">静巷邊間 A1</span>
-      <div class="plan-name">3房2廳2衛</div>
-      <div class="plan-sub">格局方正 · 三面採光 · 雙套衛浴</div>
-      <div class="plan-stats">
-        <div class="plan-stat"><div class="plan-stat-num">約34.46</div><div class="plan-stat-label">坪 / PING</div></div>
-        <div class="plan-stat"><div class="plan-stat-num">3</div><div class="plan-stat-label">房</div></div>
-        <div class="plan-stat"><div class="plan-stat-num">2+2</div><div class="plan-stat-label">廳 / 衛</div></div>
-      </div>
-    </div>
   </section>
+  <div class="ph ph-wide reveal">
+    <div class="ph-label">
+      <svg class="ph-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4" width="18" height="16" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M3 12h18M11 4v8M11 16v4" stroke="currentColor" stroke-width="1.2"/></svg>
+      平面圖<br>FLOOR PLAN — 請替換為實際平面圖
+    </div>
+  </div>
+  <div class="sec sec-cream reveal" style="padding-top:22px;">
+    <span class="plan-badge en">靜巷邊間 A1 · 3房2廳2衛</span>
+    <div class="plan-stats">
+      <div class="plan-stat"><div class="plan-stat-num">約34.46</div><div class="plan-stat-label">坪 / PING</div></div>
+      <div class="plan-stat"><div class="plan-stat-num">3</div><div class="plan-stat-label">房</div></div>
+      <div class="plan-stat"><div class="plan-stat-num">2+2</div><div class="plan-stat-label">廳 / 衛</div></div>
+    </div>
+  </div>
 
   <!-- CTA banner -->
   <div class="cta-banner reveal">
@@ -370,14 +402,11 @@
 <script>
 var GAS_URL = 'https://script.google.com/macros/s/AKfycby3sq5K_dXgwgZNn_HbOmia9Ek20HwTM-0qkcl5g0aNsS7VS0GkdVqsRp-Lpw-SGM-I/exec';
 
-/* ── nav solid bg on scroll ── */
-var nav = document.getElementById('nav');
+/* ── sticky CTA appears after hero ── */
 var stickyCta = document.getElementById('stickyCta');
-var heroH = 0;
 function onScroll(){
-  heroH = window.innerHeight * 0.6;
+  var heroH = window.innerHeight * 0.6;
   var y = window.scrollY || window.pageYOffset;
-  nav.classList.toggle('solid', y > 40);
   stickyCta.classList.toggle('show', y > heroH);
 }
 window.addEventListener('scroll', onScroll, { passive: true });
