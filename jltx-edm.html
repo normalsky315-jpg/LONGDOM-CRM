@@ -8,9 +8,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --navy:#12192B; --navy-deep:#0B0F1C;
+    --navy:#12192B; --navy-deep:#0B0F1C; --navy-soft:#1E2B45;
     --cream:#FAF8F4; --ink:#1A1A2E; --ink-light:#4A4A6A; --ink-faint:#8A8AA0;
-    --gold:#C9A84C; --gold-soft:#F4EBC8;
+    --gold:#C9A84C; --gold-soft:#F4EBC8; --gold-line:rgba(201,168,76,0.35);
     --surface:#FFFFFF; --border:#E8E4DC; --rust:#C0392B;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
@@ -18,10 +18,33 @@
   body{background:var(--navy-deep);font-family:'Noto Sans TC',sans-serif;font-weight:300;color:var(--ink);line-height:1.7;overflow-x:hidden;}
   .wrap{max-width:600px;margin:0 auto;position:relative;background:var(--cream);}
   img{max-width:100%;display:block;width:100%;}
+  .en{font-family:'Noto Sans TC',sans-serif;letter-spacing:2px;}
 
-  /* ── The marketing artwork: the real designed EDM panels, stacked in
-     reading order. No CSS recreation — these ARE the design. ── */
+  /* ── The marketing artwork: real designed panels, no CSS recreation ── */
   .art img{vertical-align:top;}
+
+  /* ── Text sections (Bustling / Schools) that mix real copy with real photos ── */
+  .sec{position:relative;padding:52px 28px;}
+  .sec-cream{background:var(--cream);}
+  .sec-navy{background:linear-gradient(180deg,var(--navy) 0%,var(--navy-soft) 100%);color:rgba(255,255,255,0.88);}
+  .sec-eyebrow{text-align:center;font-size:11px;letter-spacing:5px;color:var(--gold);margin-bottom:14px;}
+  .sec-title{text-align:center;font-family:'Noto Serif TC',serif;font-weight:700;font-size:22px;letter-spacing:3px;margin-bottom:22px;}
+  .ornament{display:flex;align-items:center;justify-content:center;gap:10px;margin:-10px 0 22px;}
+  .ornament::before,.ornament::after{content:'';width:34px;height:1px;background:var(--gold-line);}
+  .ornament-dot{width:5px;height:5px;border-radius:50%;background:var(--gold);}
+  .sec-body{font-size:13.5px;color:var(--ink-light);text-align:center;max-width:420px;margin:0 auto 28px;}
+  .sec-navy .sec-body{color:rgba(255,255,255,0.7);}
+
+  /* photo grid, full-bleed within the section's own width */
+  .ph-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px;}
+  .ph-grid img{aspect-ratio:1/1;object-fit:cover;height:100%;}
+
+  /* ── Closing CTA action row (map nav + one-tap call) ── */
+  .cta-actions{background:var(--navy-deep);display:flex;gap:1px;}
+  .cta-actions a{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:18px 12px;color:var(--gold-soft);
+                 font-size:13.5px;font-weight:500;letter-spacing:1px;text-decoration:none;background:var(--navy);}
+  .cta-actions a:active{background:var(--navy-soft);}
+  .cta-actions svg{width:17px;height:17px;flex-shrink:0;}
 
   /* ── Inquiry form (replaces the old embedded Google Form) ── */
   .form-sec{background:var(--cream);padding:56px 20px 100px;}
@@ -71,10 +94,58 @@
 <div class="wrap">
 
   <div class="art">
-    <img src="assets/jltx-edm-01-hero-brand-bustling.jpg" alt="吉隆天曜 — 天光所至 耀影流轉。買房買品牌，吉隆建設；坐擁繁華，鳳林商圈。">
-    <img src="assets/jltx-edm-02-location-schools.jpg" alt="吉隆天曜基地位置與周邊機能示意圖；書香濃郁，學府匯聚。">
+    <img src="assets/jltx-edm-hero.jpg" alt="吉隆天曜 — 天光所至 耀影流轉 Where Urban Prosperity Unfold">
+    <img src="assets/jltx-edm-brand.jpg" alt="Brand 買房買品牌，吉隆建設自1982年成立至今邁向第45年，深耕造就無數名宅傳奇。">
+  </div>
+
+  <!-- Bustling -->
+  <section class="sec sec-navy">
+    <div class="sec-eyebrow en">BUSTLING</div>
+    <h2 class="sec-title">坐擁繁華 鳳林商圈</h2>
+    <div class="ornament"><span class="ornament-dot"></span></div>
+    <p class="sec-body">
+      位居繁華核心，出門即是繁華的鳳林商圈，日常採買、餐飲機能，一步到位。
+      鄰近大寮商圈，雙商圈環繞，讓生活始終保持剛剛好的熱度。
+    </p>
+  </section>
+  <div class="ph-grid">
+    <img src="assets/bustling-starbucks1.jpg" alt="大寮星巴克">
+    <img src="assets/bustling-duonazhi.jpg" alt="多那之咖啡烘焙坊">
+    <img src="assets/bustling-pxmart.jpg" alt="全聯福利中心 大寮鳳林三店">
+    <img src="assets/bustling-starbucks2.jpg" alt="大寮星巴克內裝">
+  </div>
+
+  <!-- Top Schools -->
+  <section class="sec sec-cream">
+    <div class="sec-eyebrow en" style="color:#8A6D3F;">TOP SCHOOLS</div>
+    <h2 class="sec-title">書香濃郁 學府匯聚</h2>
+    <div class="ornament"><span class="ornament-dot"></span></div>
+    <p class="sec-body">
+      永芳國小、大寮國中近距離，孩子每天可以多睡十分鐘。
+      週邊匯聚中山高工、輔英科大、高英工商，濃厚人文學術氛圍，為環境加分。
+    </p>
+  </section>
+  <div class="ph-grid">
+    <img src="assets/schools-yongfang-elementary.jpg" alt="永芳國小">
+    <img src="assets/schools-daliao-junior-high.jpg" alt="大寮國中">
+    <img src="assets/schools-fooyin-university.jpg" alt="輔英科技大學">
+    <img src="assets/schools-cimuhu.jpg" alt="鄰近人文景觀">
+  </div>
+
+  <div class="art">
     <img src="assets/jltx-edm-03-noble-space.jpg" alt="4戶2電梯、5戶2電梯，精粹建造，空間尺度。">
-    <img src="assets/jltx-edm-04-floorplan-cta.jpg" alt="最好住的3房平面圖，特別推薦A1約34.46坪；吉隆天曜聯絡電話07-783-9189。">
+    <img src="assets/floorplan-a1-ref.jpg" alt="最好住的3房平面圖，特別推薦A1約34.46坪。">
+    <img src="assets/closing-final.jpg" alt="吉隆天曜，繁華之境／首選品牌／美學2~3房，高雄市大寮區鳳林三路318之1號，07-783-9189。">
+  </div>
+  <div class="cta-actions">
+    <a href="https://www.google.com/maps/dir/?api=1&destination=%E9%AB%98%E9%9B%84%E5%B8%82%E5%A4%A7%E5%AF%AE%E5%8D%80%E9%B3%B3%E6%9E%97%E4%B8%89%E8%B7%AF318%E8%99%9F" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 22s7-7.58 7-13A7 7 0 0 0 5 9c0 5.42 7 13 7 13Z" stroke="currentColor" stroke-width="1.4"/><circle cx="12" cy="9" r="2.4" stroke="currentColor" stroke-width="1.4"/></svg>
+      Google 地圖導航
+    </a>
+    <a href="tel:07-7839189">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L14 13l5 2v4c0 1.1-.9 2-2 2-8.8 0-16-7.2-16-16 0-1.1.9-2 2-2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      一鍵撥打電話
+    </a>
   </div>
 
   <!-- Inquiry form -->
