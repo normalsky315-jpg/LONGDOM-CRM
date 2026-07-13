@@ -256,6 +256,8 @@ function doGet(e) {
         return jsonResponse(verifyAccess(payload));
       case 'appendCustomerData':
         return jsonResponse(appendCustomerData(payload));
+      case 'submitPublicLead':
+        return jsonResponse(submitPublicLead(payload));
       case 'updateCustomerDeal':
         return jsonResponse(updateCustomerDeal(payload));
       case 'saveDealDetail':
@@ -345,6 +347,7 @@ function doPost(e) {
     switch (action) {
       case 'verifyAccess':            return jsonResponse(verifyAccess(payload));
       case 'appendCustomerData':      return jsonResponse(appendCustomerData(payload));
+      case 'submitPublicLead':        return jsonResponse(submitPublicLead(payload));
       case 'updateCustomerData':      return jsonResponse(updateCustomerData(payload));
       case 'deleteCustomerData':      return jsonResponse(deleteCustomerData(payload));
       case 'updateCustomerDeal':      return jsonResponse(updateCustomerDeal(payload));
@@ -564,6 +567,49 @@ function getIndustryList()       { return ok(CONFIG.INDUSTRIES); }
 function getPurchaseMotiveList() { return ok(CONFIG.PURCHASE_MOTIVES); }
 
 // ==================== Customer Module ====================
+// 官網 EDM 表單專用：公開、免登入。給訪客在官網落地頁填寫諮詢，
+// 直接寫進 Customer_Data，業務未指派（sales_name 留空），
+// 之後由主管/業務在 CRM 裡認領。刻意不呼叫 getUserContext，
+// 因為訪客沒有 LINE 登入身分。
+function submitPublicLead(payload) {
+  try {
+    if (!payload.customer_name) return fail('姓名必填');
+    if (!payload.phone)         return fail('電話必填');
+    if (payload.hp)              return fail('提交失敗，請重新整理後再試'); // honeypot：正常訪客看不到這個欄位，機器人才會填
+
+    var customerId = genId('CUST');
+    appendObjectToSheet(CONFIG.SHEETS.CUSTOMER, {
+      customer_id: customerId,
+      created_at: nowTW(),
+      updated_at: nowTW(),
+      created_by_line_user_id: '',
+      created_by_name: '官網EDM表單',
+      sales_line_user_id: '',
+      sales_name: '',
+      project_name: CONFIG.PROJECT_NAME,
+      visit_date: todayTW(),
+      visit_type: '官網詢問',
+      customer_name: payload.customer_name,
+      phone: payload.phone,
+      age_range: '',
+      district: '',
+      occupation_industry: '',
+      purchase_motive: payload.purchase_motive || '',
+      source: '官網EDM',
+      room_types: payload.room_types || '',
+      budget: '',
+      issues: payload.message || '',
+      revisit_plan: payload.contact_time ? ('方便聯絡時間：' + payload.contact_time) : '',
+      deal_status: '未成交',
+      deal_unit: '',
+      status_note: '官網表單詢問，尚未接待',
+      note: payload.email ? ('Email：' + payload.email) : ''
+    });
+    writeAuditLog('', 'CREATE', CONFIG.SHEETS.CUSTOMER, customerId, '官網EDM表單新增客戶: ' + payload.customer_name);
+    return ok({ customer_id: customerId });
+  } catch (err) { Logger.log('submitPublicLead error: ' + err); return fail(err.message); }
+}
+
 function appendCustomerData(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
