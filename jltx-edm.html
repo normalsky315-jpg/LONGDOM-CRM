@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>吉隆天曜｜天光所至 耀影流轉</title>
+<meta name="description" content="吉隆天曜 — 吉隆建設全新作品，坐擁繁華商圈、學府匯聚，4戶2梯／5戶2梯尊榮規劃。立即預約賞屋。">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#12192B; --navy-deep:#0B0F1C;
+    --cream:#FAF8F4; --ink:#1A1A2E; --ink-light:#4A4A6A; --ink-faint:#8A8AA0;
+    --gold:#C9A84C; --gold-soft:#F4EBC8;
+    --surface:#FFFFFF; --border:#E8E4DC; --rust:#C0392B;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--navy-deep);font-family:'Noto Sans TC',sans-serif;font-weight:300;color:var(--ink);line-height:1.7;overflow-x:hidden;}
+  .wrap{max-width:600px;margin:0 auto;position:relative;background:var(--cream);}
+  img{max-width:100%;display:block;width:100%;}
+
+  /* ── The marketing artwork: the real designed EDM panels, stacked in
+     reading order. No CSS recreation — these ARE the design. ── */
+  .art img{vertical-align:top;}
+
+  /* ── Inquiry form (replaces the old embedded Google Form) ── */
+  .form-sec{background:var(--cream);padding:56px 20px 100px;}
+  .form-card{max-width:460px;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:28px 22px;box-shadow:0 8px 30px rgba(26,26,46,0.06);}
+  .form-head{text-align:center;margin-bottom:26px;}
+  .form-head-title{font-family:'Noto Serif TC',serif;font-weight:700;font-size:19px;margin-bottom:6px;}
+  .form-head-sub{font-size:12px;color:var(--ink-faint);}
+  .field{margin-bottom:16px;}
+  .field-label{font-size:12px;font-weight:500;color:var(--ink-light);letter-spacing:0.5px;margin-bottom:7px;display:flex;align-items:center;gap:4px;}
+  .req{color:var(--rust);font-size:13px;}
+  .inp,.sel,.ta{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:9px;font-family:'Noto Sans TC',sans-serif;font-size:14.5px;font-weight:300;
+               color:var(--ink);background:var(--cream);transition:border-color 0.2s,box-shadow 0.2s;-webkit-appearance:none;}
+  .inp:focus,.sel:focus,.ta:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,168,76,0.14);background:#fff;}
+  .sel{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%234a4a6a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;cursor:pointer;}
+  .ta{resize:vertical;min-height:80px;line-height:1.6;}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip{position:relative;cursor:pointer;}
+  .chip input{position:absolute;opacity:0;width:0;height:0;}
+  .chip-label{display:inline-flex;align-items:center;padding:8px 15px;border:1.5px solid var(--border);border-radius:20px;font-size:12.5px;color:var(--ink-light);background:var(--cream);transition:all 0.15s;user-select:none;}
+  .chip input:checked+.chip-label{background:var(--gold);border-color:var(--gold);color:var(--ink);font-weight:500;}
+  .hp-field{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;}
+  .consent{display:flex;align-items:flex-start;gap:8px;font-size:11.5px;color:var(--ink-faint);line-height:1.6;margin-bottom:20px;}
+  .consent input{margin-top:3px;flex-shrink:0;}
+  .btn-primary{width:100%;padding:16px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-family:'Noto Serif TC',serif;font-size:15px;font-weight:700;
+              letter-spacing:3px;cursor:pointer;position:relative;overflow:hidden;transition:background 0.2s,transform 0.1s;}
+  .btn-primary::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;background:var(--gold);}
+  .btn-primary:active{transform:scale(0.98);}
+  .btn-primary:disabled{background:#aaa;cursor:not-allowed;}
+  .form-err{font-size:12.5px;color:var(--rust);text-align:center;min-height:18px;margin-top:10px;opacity:0;transition:opacity 0.2s;}
+  .form-err.show{opacity:1;}
+
+  .success-state{display:none;text-align:center;padding:20px 0;}
+  .success-state.show{display:block;}
+  .success-icon{width:56px;height:56px;border-radius:50%;background:var(--gold-soft);color:#8A6D3F;display:flex;align-items:center;justify-content:center;
+               margin:0 auto 18px;font-size:26px;}
+  .success-title{font-family:'Noto Serif TC',serif;font-weight:700;font-size:17px;margin-bottom:8px;}
+  .success-sub{font-size:12.5px;color:var(--ink-faint);line-height:1.8;}
+  .form-body.hidden{display:none;}
+
+  /* ── Sticky mobile CTA ── */
+  .sticky-cta{position:fixed;left:0;right:0;bottom:0;z-index:70;background:rgba(11,15,28,0.94);backdrop-filter:blur(6px);
+             padding:12px 20px max(12px,env(safe-area-inset-bottom));display:flex;gap:10px;align-items:center;
+             transform:translateY(100%);transition:transform 0.3s ease;box-shadow:0 -4px 20px rgba(0,0,0,0.25);}
+  .sticky-cta.show{transform:translateY(0);}
+  .sticky-cta-text{flex:1;color:rgba(255,255,255,0.7);font-size:11.5px;letter-spacing:0.5px;}
+  .sticky-cta-btn{padding:11px 20px;background:var(--gold);color:var(--navy-deep);border-radius:24px;font-size:13px;font-weight:700;letter-spacing:1px;
+                  text-decoration:none;white-space:nowrap;}
+
+  footer{background:var(--navy-deep);color:rgba(255,255,255,0.35);text-align:center;padding:24px 20px 40px;font-size:10.5px;letter-spacing:1px;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="art">
+    <img src="assets/jltx-edm-01-hero-brand-bustling.jpg" alt="吉隆天曜 — 天光所至 耀影流轉。買房買品牌，吉隆建設；坐擁繁華，鳳林商圈。">
+    <img src="assets/jltx-edm-02-location-schools.jpg" alt="吉隆天曜基地位置與周邊機能示意圖；書香濃郁，學府匯聚。">
+    <img src="assets/jltx-edm-03-noble-space.jpg" alt="4戶2電梯、5戶2電梯，精粹建造，空間尺度。">
+    <img src="assets/jltx-edm-04-floorplan-cta.jpg" alt="最好住的3房平面圖，特別推薦A1約34.46坪；吉隆天曜聯絡電話07-783-9189。">
+  </div>
+
+  <!-- Inquiry form -->
+  <section class="form-sec" id="inquiry">
+    <div class="form-card">
+      <div class="form-body" id="formBody">
+        <div class="form-head">
+          <div class="form-head-title">預約賞屋 · 專人聯繫</div>
+          <div class="form-head-sub">填寫以下資訊，業務將盡快與您聯繫</div>
+        </div>
+        <form id="leadForm" novalidate>
+          <div class="field">
+            <label class="field-label" for="f_name">姓名 <span class="req">*</span></label>
+            <input class="inp" id="f_name" name="customer_name" type="text" placeholder="請輸入您的姓名" required maxlength="40">
+          </div>
+          <div class="field">
+            <label class="field-label" for="f_phone">手機 <span class="req">*</span></label>
+            <input class="inp" id="f_phone" name="phone" type="tel" inputmode="numeric" placeholder="請輸入手機號碼" required maxlength="20">
+          </div>
+          <div class="field">
+            <label class="field-label" for="f_email">Email</label>
+            <input class="inp" id="f_email" name="email" type="email" placeholder="選填">
+          </div>
+          <div class="field">
+            <label class="field-label">意向坪型</label>
+            <div class="chips">
+              <label class="chip"><input type="radio" name="room_types" value="2房"><span class="chip-label">2房</span></label>
+              <label class="chip"><input type="radio" name="room_types" value="3房"><span class="chip-label">3房</span></label>
+              <label class="chip"><input type="radio" name="room_types" value="4房"><span class="chip-label">4房</span></label>
+              <label class="chip"><input type="radio" name="room_types" value="尚未確定"><span class="chip-label">尚未確定</span></label>
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="f_source">得知本案的管道</label>
+            <select class="sel" id="f_source" name="purchase_motive">
+              <option value="">請選擇</option>
+              <option value="路過經過">路過經過</option>
+              <option value="親友介紹">親友介紹</option>
+              <option value="網路廣告">網路廣告</option>
+              <option value="社群媒體">社群媒體</option>
+              <option value="其他">其他</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label" for="f_time">方便聯絡時間</label>
+            <select class="sel" id="f_time" name="contact_time">
+              <option value="">不限</option>
+              <option value="上午">上午</option>
+              <option value="下午">下午</option>
+              <option value="晚上">晚上</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label" for="f_msg">想了解的內容</label>
+            <textarea class="ta" id="f_msg" name="message" placeholder="例如：想預約現場賞屋、詢問車位、詢問付款方式…"></textarea>
+          </div>
+          <input class="hp-field" type="text" name="hp" id="f_hp" tabindex="-1" autocomplete="off">
+          <label class="consent">
+            <input type="checkbox" id="f_consent" required>
+            <span>我同意本表單所填寫之個人資料，將用於本案銷售諮詢聯繫用途，並依個人資料保護法妥善保存。</span>
+          </label>
+          <button class="btn-primary" id="submitBtn" type="submit">送出預約</button>
+          <div class="form-err" id="formErr"></div>
+        </form>
+      </div>
+      <div class="success-state" id="successState">
+        <div class="success-icon">✓</div>
+        <div class="success-title">已收到您的預約</div>
+        <div class="success-sub">感謝您的填寫，業務將盡快與您聯繫。<br>如有急需，也歡迎直接來電 07-783-9189。</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>© 吉隆建設 · 吉隆天曜 &nbsp;|&nbsp; 本網站資訊僅供參考，實際內容依現場公告及契約為準</footer>
+</div>
+
+<div class="sticky-cta" id="stickyCta">
+  <div class="sticky-cta-text">吉隆天曜 · 天光所至 耀影流轉</div>
+  <a class="sticky-cta-btn" href="#inquiry" id="stickyCtaBtn">立即預約賞屋</a>
+</div>
+
+<script>
+var GAS_URL = 'https://script.google.com/macros/s/AKfycby3sq5K_dXgwgZNn_HbOmia9Ek20HwTM-0qkcl5g0aNsS7VS0GkdVqsRp-Lpw-SGM-I/exec';
+
+/* ── sticky CTA appears after the first artwork panel ── */
+var stickyCta = document.getElementById('stickyCta');
+function onScroll(){
+  var y = window.scrollY || window.pageYOffset;
+  stickyCta.classList.toggle('show', y > window.innerHeight * 0.6);
+}
+window.addEventListener('scroll', onScroll, { passive: true });
+onScroll();
+
+/* ── form submit ── */
+var form = document.getElementById('leadForm');
+var submitBtn = document.getElementById('submitBtn');
+var formErr = document.getElementById('formErr');
+
+function showErr(msg){
+  formErr.textContent = msg;
+  formErr.classList.add('show');
+}
+function clearErr(){
+  formErr.textContent = '';
+  formErr.classList.remove('show');
+}
+
+form.addEventListener('submit', function(e){
+  e.preventDefault();
+  clearErr();
+
+  var name  = document.getElementById('f_name').value.trim();
+  var phone = document.getElementById('f_phone').value.trim();
+  var consent = document.getElementById('f_consent').checked;
+
+  if (!name)  { showErr('請輸入姓名'); return; }
+  if (!phone || !/^[0-9+#\-\s]{6,20}$/.test(phone)) { showErr('請輸入正確的手機號碼'); return; }
+  if (!consent) { showErr('請先勾選同意個資使用條款'); return; }
+
+  var roomType = form.querySelector('input[name="room_types"]:checked');
+
+  var payload = {
+    customer_name:    name,
+    phone:            phone,
+    email:            document.getElementById('f_email').value.trim(),
+    room_types:       roomType ? roomType.value : '',
+    purchase_motive:  document.getElementById('f_source').value,
+    contact_time:     document.getElementById('f_time').value,
+    message:          document.getElementById('f_msg').value.trim(),
+    hp:               document.getElementById('f_hp').value
+  };
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = '送出中…';
+
+  var url = GAS_URL + '?action=submitPublicLead&payload=' + encodeURIComponent(JSON.stringify(payload));
+  fetch(url)
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if (res && res.ok) {
+        document.getElementById('formBody').classList.add('hidden');
+        document.getElementById('successState').classList.add('show');
+      } else {
+        showErr((res && res.error) || '送出失敗，請稍後再試');
+        submitBtn.disabled = false;
+        submitBtn.textContent = '送出預約';
+      }
+    })
+    .catch(function(){
+      showErr('網路異常，請稍後再試，或直接來電 07-783-9189');
+      submitBtn.disabled = false;
+      submitBtn.textContent = '送出預約';
+    });
+});
+</script>
+
+</body>
+</html>
