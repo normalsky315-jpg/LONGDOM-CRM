@@ -1,24 +1,20 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v2.0
-//  以「華雄天地 v9.16」完整版為基礎重建，補齊天地目前累積的所有功能：
+//  龍登 CRM — 吉隆天曜專用版 v3.0
+//  以「華雄天地 v9.17」完整版為基礎重建，同步天地目前累積的所有功能：
 //  1. 排班：平日單日最多 2 人休假、六日禁休（主管排假不受此限制）
-//  2. 客戶：刪除功能、電話/日期時間欄位文字保護（避免開頭0遺失、
-//     時區位移）
-//  3. 每日日報：同一人同一天防重複提交、可刪除、主管3天內可修改
-//  4. 任務／維修通報：都可刪除；維修通報新增現場拍照上傳（存進
-//     Google Drive「維修通報照片」資料夾，回傳可檢視網址）
+//  2. 客戶：刪除功能、電話/日期時間欄位文字保護
+//  3. 每日日報：防重複提交、可刪除、主管3天內可修改
+//  4. 任務／維修通報：都可刪除、都可編輯（不只改狀態）；維修通報
+//     支援現場拍照上傳（存進 Google Drive），優先度欄位已修正會
+//     正確存檔
 //  5. 成交明細模組（Deal_Detail 分頁）：戶別、房屋底價、車位底價、
-//     溢價、成交價、訂金、簽約狀態（待簽約/已簽約）、預定簽約日期；
-//     退戶會連動 Customer_Data 狀態 + Customer_Change_Log 稽核紀錄；
-//     交日報表時會自動偵測當天是否已用「標記成交」記錄過，避免
-//     同一筆成交被記錄兩次
-//  6. 首頁提醒：待簽約提醒（逾期用紅字持續顯示，不會自動消失）、
-//     任務提醒，權限範圍都是業務看自己的、主管看同案場、admin看
-//     全部案場
+//     溢價、成交價、訂金、簽約狀態、預定簽約日期；已成交客戶新增
+//     「編輯成交」按鈕可修正登錄錯誤；待簽約提醒新增「編輯／延期」
+//     按鈕可直接延後簽約日期；退戶會連動 Customer_Data 狀態 +
+//     Customer_Change_Log 稽核紀錄；交日報表時自動偵測避免重複記錄
+//  6. 首頁提醒：待簽約提醒（逾期用紅字持續顯示）、任務提醒
 //  7. LINE 官方帳號「簡單問答」：查詢客戶、今日/本月業績、待簽約、
 //     今日休假、我的待辦，不需要另外申請/付費 AI API
-//  8. 安全性：移除所有 DEV 後門（本來就沒有，這裡沿用 hstd 已修好
-//     的版本）
 // ============================================================
 //  ★ 這是既有帳號（吉隆天曜已經上線運作中），不是第一次部署：
 //  1. 整份覆蓋貼上這個檔案到吉隆天曜的 Apps Script 專案
@@ -26,9 +22,8 @@
 //  2. 部署 → 管理部署 → 編輯（鉛筆）→ 版本選「新版本」→ 部署
 //     ★ 用「編輯現有部署」，不要「新增部署」，這樣網址不會變，
 //       jltx.html 的 GAS_URL 不用再改
-//  3. 如果 LINE 問答功能要用，執行一次 setupLine() 和 setupSecret()
-//     （因為公司所有案場共用同一個LINE官方帳號，這裡已經填好跟
-//     天地一樣的憑證，不用再自己申請新的）
+//  3. 這次新增了維修通報照片編輯功能，沿用既有的 Google Drive 存取
+//     權限，不會再跳出新的授權視窗
 // ============================================================
 
 // ==================== CONFIG ====================
@@ -274,6 +269,8 @@ function doGet(e) {
         return jsonResponse(appendTask(payload));
       case 'updateTaskStatus':
         return jsonResponse(updateTaskStatus(payload));
+      case 'updateTask':
+        return jsonResponse(updateTask(payload));
       case 'deleteTask':
         return jsonResponse(deleteTask(payload));
       case 'appendDailyReport':
@@ -284,6 +281,8 @@ function doGet(e) {
         return jsonResponse(appendMaintenance(payload));
       case 'updateMaintenanceStatus':
         return jsonResponse(updateMaintenanceStatus(payload));
+      case 'updateMaintenance':
+        return jsonResponse(updateMaintenance(payload));
       case 'deleteMaintenance':
         return jsonResponse(deleteMaintenance(payload));
       case 'updateUserRole':
@@ -358,12 +357,14 @@ function doPost(e) {
       case 'getDealDetailsForDate':   return jsonResponse(getDealDetailsForDate(payload));
       case 'appendTask':              return jsonResponse(appendTask(payload));
       case 'updateTaskStatus':        return jsonResponse(updateTaskStatus(payload));
+      case 'updateTask':              return jsonResponse(updateTask(payload));
       case 'deleteTask':              return jsonResponse(deleteTask(payload));
       case 'appendDailyReport':       return jsonResponse(appendDailyReport(payload));
       case 'deleteDailyReport':       return jsonResponse(deleteDailyReport(payload));
       case 'appendMaintenance':       return jsonResponse(appendMaintenance(payload));
       case 'uploadMaintenancePhoto':  return jsonResponse(uploadMaintenancePhoto(payload));
       case 'updateMaintenanceStatus': return jsonResponse(updateMaintenanceStatus(payload));
+      case 'updateMaintenance':       return jsonResponse(updateMaintenance(payload));
       case 'deleteMaintenance':       return jsonResponse(deleteMaintenance(payload));
       case 'getUserList':             return jsonResponse(getUserList(payload));
       case 'updateUserRole':          return jsonResponse(updateUserRole(payload));
@@ -1139,6 +1140,47 @@ function updateTaskStatus(payload) {
   } catch (err) { return fail(err.message); }
 }
 
+// 修改任務內容（標題／說明／優先度／截止日期／指派對象等），跟
+// updateTaskStatus 分開，那支只改狀態。業務只能改自己建立的任務，
+// 主管/admin 可以改任何一筆。
+function updateTask(payload) {
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (!payload.task_id) return fail('task_id 必填');
+
+    var sh = getSheet(CONFIG.SHEETS.TASK);
+    if (!sh) return fail('找不到 Task_List 分頁');
+    var data = sh.getDataRange().getValues();
+    var headers = data[0];
+    var idCol = headers.indexOf('task_id');
+    var createdByCol = headers.indexOf('created_by_line_user_id');
+
+    var rowIndex = -1;
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][idCol]) === String(payload.task_id)) { rowIndex = i; break; }
+    }
+    if (rowIndex < 0) return fail('找不到該筆任務');
+    if (ctx.role === CONFIG.ROLES.SALES && String(data[rowIndex][createdByCol]) !== String(ctx.lineUserId)) {
+      return fail('只能修改自己建立的任務');
+    }
+
+    var updates = { updated_at: nowTW() };
+    if (payload.title != null)        updates.title = payload.title;
+    if (payload.description != null)  updates.description = payload.description;
+    if (payload.priority != null)     updates.priority = payload.priority;
+    if (payload.due_date != null)     updates.due_date = payload.due_date;
+    if (payload.type != null)         updates.type = payload.type;
+    if (payload.assigned_to != null)  updates.assigned_to = payload.assigned_to;
+    if (payload.assigned_to_line_user_id != null) updates.assigned_to_line_user_id = payload.assigned_to_line_user_id;
+
+    updateRowById(CONFIG.SHEETS.TASK, 'task_id', payload.task_id, updates);
+    writeAuditLog(ctx.lineUserId, 'UPDATE', CONFIG.SHEETS.TASK, payload.task_id,
+      ctx.displayName + ' 修改任務: ' + (payload.title || ''));
+    return ok({ task_id: payload.task_id });
+  } catch (err) { return fail(err.message); }
+}
+
 function deleteTask(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
@@ -1296,12 +1338,18 @@ function getDailyReportRange(payload) {
 // ==================== Maintenance Module ====================
 // 確保 Maintenance_Report 分頁有 photo_url 這個欄位（既有分頁可能是
 // 更早之前建立的，沒有這個欄位），沒有的話自動補上，不會動到既有資料
+// 確保 Maintenance_Report 分頁有 photo_url／priority 這兩個欄位（既有
+// 分頁可能是更早之前建立的，沒有這兩個欄位），沒有的話自動補上，
+// 不會動到既有資料。priority 欄位補上是因為之前 appendMaintenance
+// 漏掉沒寫，前端表單選的優先度其實一直沒有被存進去，這次一併修正。
 function ensureMaintenancePhotoColumn() {
   var sh = getSheet(CONFIG.SHEETS.MAINTENANCE);
   if (!sh) return;
+  var need = ['photo_url', 'priority'];
   var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-  if (headers.indexOf('photo_url') >= 0) return;
-  sh.getRange(1, headers.length + 1).setValue('photo_url');
+  var missing = need.filter(function(h){ return headers.indexOf(h) < 0; });
+  if (!missing.length) return;
+  sh.getRange(1, headers.length + 1, 1, missing.length).setValues([missing]);
 }
 
 // 上傳維修通報的現場照片：base64 圖片資料先存進 Google Drive，
@@ -1352,6 +1400,7 @@ function appendMaintenance(payload) {
       location:                payload.location || '',
       issue_type:              payload.issue_type,
       description:             payload.description,
+      priority:                payload.priority || 'normal',
       photo_url:               payload.photo_url || '',
       reported_by:             ctx.displayName,
       reported_by_line_user_id: ctx.lineUserId,
@@ -1405,6 +1454,46 @@ function updateMaintenanceStatus(payload) {
     updateRowById(CONFIG.SHEETS.MAINTENANCE, 'maintenance_id', payload.maintenance_id, updates);
     writeAuditLog(ctx.lineUserId, 'UPDATE', CONFIG.SHEETS.MAINTENANCE, payload.maintenance_id,
       ctx.displayName + ' 變更維修狀態: ' + (payload.status || 'done'));
+    return ok({ maintenance_id: payload.maintenance_id });
+  } catch (err) { return fail(err.message); }
+}
+
+// 修改維修通報內容（問題類型／位置／描述／優先度／照片），跟
+// updateMaintenanceStatus 分開，那支只改處理狀態。業務只能改自己
+// 通報的，主管/admin 可以改任何一筆。
+function updateMaintenance(payload) {
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (!payload.maintenance_id) return fail('maintenance_id 必填');
+
+    var sh = getSheet(CONFIG.SHEETS.MAINTENANCE);
+    if (!sh) return fail('找不到 Maintenance_Report 分頁');
+    var data = sh.getDataRange().getValues();
+    var headers = data[0];
+    var idCol = headers.indexOf('maintenance_id');
+    var reportedByCol = headers.indexOf('reported_by_line_user_id');
+
+    var rowIndex = -1;
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][idCol]) === String(payload.maintenance_id)) { rowIndex = i; break; }
+    }
+    if (rowIndex < 0) return fail('找不到該筆維修通報');
+    if (ctx.role === CONFIG.ROLES.SALES && String(data[rowIndex][reportedByCol]) !== String(ctx.lineUserId)) {
+      return fail('只能修改自己通報的維修');
+    }
+
+    ensureMaintenancePhotoColumn();
+    var updates = { updated_at: nowTW() };
+    if (payload.issue_type != null)  updates.issue_type = payload.issue_type;
+    if (payload.location != null)    updates.location = payload.location;
+    if (payload.description != null) updates.description = payload.description;
+    if (payload.priority != null)    updates.priority = payload.priority;
+    if (payload.photo_url)           updates.photo_url = payload.photo_url;
+
+    updateRowById(CONFIG.SHEETS.MAINTENANCE, 'maintenance_id', payload.maintenance_id, updates);
+    writeAuditLog(ctx.lineUserId, 'UPDATE', CONFIG.SHEETS.MAINTENANCE, payload.maintenance_id,
+      ctx.displayName + ' 修改維修通報');
     return ok({ maintenance_id: payload.maintenance_id });
   } catch (err) { return fail(err.message); }
 }

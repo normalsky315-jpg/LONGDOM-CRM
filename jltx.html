@@ -617,10 +617,10 @@
 </div><!-- /appScreen -->
 
 <!-- Modals -->
-<div class="modal-mask" id="taskModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">新增任務</div><div class="modal-subtitle">建立後可指派並追蹤完成狀態</div><div class="field"><div class="field-label">任務類型</div><select class="sel" id="task_type"><option value="sales_task">📋 銷售跟進</option><option value="site_issue">⚠️ 現場問題</option><option value="reminder">🔔 提醒</option><option value="daily_follow">👥 客戶追蹤</option><option value="maintenance">🔧 維修</option></select></div><div class="field"><div class="field-label">任務標題 <span class="req">*</span></div><input class="inp" type="text" id="task_title" placeholder="例：聯絡王先生確認再訪日期"></div><div class="field"><div class="field-label">詳細說明</div><textarea class="ta" id="task_desc" placeholder="補充資訊…"></textarea></div><div class="field-row"><div class="field"><div class="field-label">優先度</div><select class="sel" id="task_priority"><option value="normal">一般</option><option value="high">高</option><option value="urgent">緊急</option><option value="low">低</option></select></div><div class="field"><div class="field-label">截止日期</div><input class="inp" type="date" id="task_due"></div></div><div class="field"><div class="field-label">指派對象</div><select class="sel" id="task_assign"><option value="">不指定</option></select></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('taskModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitTask()">建 立 任 務</button></div></div></div>
+<div class="modal-mask" id="taskModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title" id="taskModalTitle">新增任務</div><div class="modal-subtitle">建立後可指派並追蹤完成狀態</div><input type="hidden" id="task_id"><div class="field"><div class="field-label">任務類型</div><select class="sel" id="task_type"><option value="sales_task">📋 銷售跟進</option><option value="site_issue">⚠️ 現場問題</option><option value="reminder">🔔 提醒</option><option value="daily_follow">👥 客戶追蹤</option><option value="maintenance">🔧 維修</option></select></div><div class="field"><div class="field-label">任務標題 <span class="req">*</span></div><input class="inp" type="text" id="task_title" placeholder="例：聯絡王先生確認再訪日期"></div><div class="field"><div class="field-label">詳細說明</div><textarea class="ta" id="task_desc" placeholder="補充資訊…"></textarea></div><div class="field-row"><div class="field"><div class="field-label">優先度</div><select class="sel" id="task_priority"><option value="normal">一般</option><option value="high">高</option><option value="urgent">緊急</option><option value="low">低</option></select></div><div class="field"><div class="field-label">截止日期</div><input class="inp" type="date" id="task_due"></div></div><div class="field"><div class="field-label">指派對象</div><select class="sel" id="task_assign"><option value="">不指定</option></select></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('taskModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitTask()">建 立 任 務</button></div></div></div>
 <div class="modal-mask" id="reportModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">提交日報</div><div class="modal-subtitle">當日業績資料填寫</div><div class="field"><div class="field-label">日期</div><input class="inp" type="date" id="rep_date"></div><div class="field-row"><div class="field"><div class="field-label">接待總組數</div><input class="inp" type="number" id="rep_visitor" min="0" value="0"></div><div class="field"><div class="field-label">初訪</div><input class="inp" type="number" id="rep_first" min="0" value="0"></div></div><div class="field-row"><div class="field"><div class="field-label">回籠</div><input class="inp" type="number" id="rep_revisit" min="0" value="0"></div><div class="field"><div class="field-label">成交</div><input class="inp" type="number" id="rep_deal" min="0" value="0"></div></div><div class="field"><div class="field-label">成交戶別</div><input class="inp" type="text" id="rep_units" placeholder="A3-12F"></div><div class="field"><div class="field-label">備註</div><textarea class="ta" id="rep_notes" placeholder="特殊事項…"></textarea></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('reportModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitReport()">提 交 日 報</button></div></div></div>
 <div class="modal-mask" id="editReportModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">修改日報</div><div class="modal-subtitle" id="editRepMeta">僅限提交後3天內可修改</div><div class="field-row"><div class="field"><div class="field-label">接待總組數</div><input class="inp" type="number" id="erep_visitor" min="0"></div><div class="field"><div class="field-label">初訪</div><input class="inp" type="number" id="erep_first" min="0"></div></div><div class="field-row"><div class="field"><div class="field-label">回籠</div><input class="inp" type="number" id="erep_revisit" min="0"></div><div class="field"><div class="field-label">成交</div><input class="inp" type="number" id="erep_deal" min="0"></div></div><div class="field"><div class="field-label">成交戶別</div><input class="inp" type="text" id="erep_units" placeholder="A3-12F"></div><div class="field"><div class="field-label">備註</div><textarea class="ta" id="erep_notes" placeholder="特殊事項…"></textarea></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('editReportModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="saveEditReport()">儲 存 修 改</button></div></div></div>
-<div class="modal-mask" id="maintModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">維修通報</div><div class="modal-subtitle">通報後將自動推播給主管</div><div class="field"><div class="field-label">問題類型 <span class="req">*</span></div><select class="sel" id="maint_type"><option value="">請選擇</option><option>燈具/電路</option><option>水管/漏水</option><option>空調</option><option>家具/門窗</option><option>清潔</option><option>樣品屋外觀</option><option>其他</option></select></div><div class="field"><div class="field-label">位置 / 戶別</div><input class="inp" type="text" id="maint_location" placeholder="例：A棟3F樣品屋客廳"></div><div class="field"><div class="field-label">問題描述 <span class="req">*</span></div><textarea class="ta" id="maint_desc" placeholder="詳細描述狀況…"></textarea></div><div class="field"><div class="field-label">優先度</div><select class="sel" id="maint_priority"><option value="normal">一般</option><option value="high" selected>高</option><option value="urgent">緊急</option></select></div><div class="field"><div class="field-label">現場照片（選填）</div><input class="inp" type="file" accept="image/*" capture="environment" id="maint_photo" onchange="previewMaintPhoto(event)"><div id="maint_photoPreview" style="margin-top:8px;"></div></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('maintModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitMaint()">送 出 通 報</button></div></div></div>
+<div class="modal-mask" id="maintModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title" id="maintModalTitle">維修通報</div><div class="modal-subtitle">通報後將自動推播給主管</div><input type="hidden" id="maint_id"><div class="field"><div class="field-label">問題類型 <span class="req">*</span></div><select class="sel" id="maint_type"><option value="">請選擇</option><option>燈具/電路</option><option>水管/漏水</option><option>空調</option><option>家具/門窗</option><option>清潔</option><option>樣品屋外觀</option><option>其他</option></select></div><div class="field"><div class="field-label">位置 / 戶別</div><input class="inp" type="text" id="maint_location" placeholder="例：A棟3F樣品屋客廳"></div><div class="field"><div class="field-label">問題描述 <span class="req">*</span></div><textarea class="ta" id="maint_desc" placeholder="詳細描述狀況…"></textarea></div><div class="field"><div class="field-label">優先度</div><select class="sel" id="maint_priority"><option value="normal">一般</option><option value="high" selected>高</option><option value="urgent">緊急</option></select></div><div class="field"><div class="field-label">現場照片（選填）</div><input class="inp" type="file" accept="image/*" capture="environment" id="maint_photo" onchange="previewMaintPhoto(event)"><div id="maint_photoPreview" style="margin-top:8px;"></div></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('maintModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitMaint()">送 出 通 報</button></div></div></div>
 
 <!-- 主管排假 Modal -->
 <div class="modal-mask" id="leaveAssignModal">
@@ -1147,22 +1147,26 @@ function loadPendingSignatures() {
   var wrap = document.getElementById('pendingSignWrap');
   var box  = document.getElementById('pendingSignList');
   gasGet('getPendingSignatures', { lineUserId: state.user.lineUserId }, function(res) {
-    if (!res.ok || !res.data || !res.data.length) { wrap.classList.add('hidden'); box.innerHTML=''; return; }
+    if (!res.ok || !res.data || !res.data.length) { wrap.classList.add('hidden'); box.innerHTML=''; state.pendingSignaturesRaw=[]; return; }
     wrap.classList.remove('hidden');
+    state.pendingSignaturesRaw = res.data;
     var today = todayStr();
     var canAction = state.user.role !== 'sales';
     box.innerHTML = res.data.map(function(d) {
       var overdue = d.expected_sign_date && d.expected_sign_date < today;
       var who = !canAction ? '' : ('<span>👤 ' + escapeHtml(d.salesperson||'') + '</span>');
-      var signBtn = canAction
-        ? '<button class="pending-sign-signbtn" onclick="quickMarkSigned(\'' + escapeHtml(d.deal_id) + '\')">標記已簽約</button>'
+      var actions = canAction
+        ? '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">' +
+            '<button class="pending-sign-signbtn" onclick="quickMarkSigned(\'' + escapeHtml(d.deal_id) + '\')">標記已簽約</button>' +
+            '<button class="pending-sign-signbtn" style="background:var(--ink-light);" onclick="openEditDealModalFromReminder(\'' + escapeHtml(d.deal_id) + '\')">編輯／延期</button>' +
+          '</div>'
         : '';
       return '<div class="pending-sign-card' + (overdue?' overdue':'') + '">' +
         '<div class="pending-sign-main">' +
           '<div class="pending-sign-unit">' + escapeHtml(d.unit||'（未填戶別）') + (d.customer_name?' · '+escapeHtml(d.customer_name):'') + '</div>' +
           '<div class="pending-sign-meta">' + (overdue?'⚠️ 已逾期未簽約　':'') + '預定簽約：' + escapeHtml(d.expected_sign_date||'未填') + (who?'　'+who:'') + '</div>' +
         '</div>' +
-        signBtn +
+        actions +
       '</div>';
     }).join('');
   });
@@ -1436,6 +1440,9 @@ function recentCustCardHTML(c) {
   var dealBtn = !isDone && !isRefund && state.user.role !== 'sales'
     ? '<button class="deal-btn" onclick="openDealModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">標記成交</button>'
     : '';
+  var editDealBtn = isDone && state.user.role !== 'sales'
+    ? '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openEditDealModal(\'' + escapeHtml(c.customer_id) + '\')">✏️ 編輯成交</button>'
+    : '';
   var refundBtn = isDone && state.user.role !== 'sales'
     ? '<button class="deal-btn" style="background:var(--rust);margin-left:6px;" onclick="markRefund(\'' + escapeHtml(c.customer_id) + '\')">🔙 標記退戶</button>'
     : '';
@@ -1464,7 +1471,7 @@ function recentCustCardHTML(c) {
     '<div class="cust-card-sales">👤 ' + escapeHtml(c.sales_name||c.created_by_name||'') + '</div>' +
     '<div class="cust-card-body">' + fields.map(function(f){ return '<span>'+f+'</span>'; }).join('') + '</div>' +
     (c.status_note ? '<div class="cust-card-note">📝 ' + escapeHtml(String(c.status_note)) + '</div>' : '') +
-    dealBadge + dealBtn + refundBtn + logBtn +
+    dealBadge + dealBtn + editDealBtn + refundBtn + logBtn +
   '</div>';
 }
 
@@ -1533,8 +1540,55 @@ function openDealModal(custId, custName) {
   openModal('dealModal');
 }
 
+/* 共用：把一筆既有成交明細填進表單，供「編輯成交」使用（成交後發現
+   資料填錯、或待簽約日期要延期，都是改用這個進入表單，欄位保持
+   可編輯，跟 markRefund 的唯讀模式不一樣） */
+function fillDealModalFieldsForEdit(d, custId) {
+  document.getElementById('deal_mode').value = 'edit';
+  document.getElementById('deal_id').value = d.deal_id || '';
+  document.getElementById('deal_custId').value = custId || d.customer_id || '';
+  document.getElementById('deal_unit').value = d.unit || '';
+  document.getElementById('deal_housePrice').value = d.house_base_price || '';
+  document.getElementById('deal_parkPrice').value = d.parking_base_price || '';
+  document.getElementById('deal_premium').value = d.premium || '';
+  document.getElementById('deal_price').value = d.deal_price || '';
+  document.getElementById('deal_custName').value = d.customer_name || '';
+  document.getElementById('deal_salesName').value = d.salesperson || '';
+  document.getElementById('deal_deposit').value = d.deposit_amount || '';
+  document.getElementById('deal_expectedSignDate').value = d.expected_sign_date || '';
+  document.querySelectorAll('input[name="deal_contractStatus"]').forEach(function(r){ r.checked = r.value === d.contract_status; });
+  setDealFieldsDisabled(false);
+  toggleDealSignDate();
+  document.getElementById('deal_refundReasonField').classList.add('hidden');
+  document.getElementById('dealModalTitle').textContent = '編輯成交明細';
+  document.getElementById('dealModalSubtitle').textContent = '可修改任何欄位（例如登錄錯誤的價格、戶別，或延後預定簽約日期）';
+  var btn = document.getElementById('deal_confirmBtn');
+  btn.textContent = '儲 存 修 改';
+  btn.className = 'btn-mini success';
+  btn.style.flex = '2'; btn.style.padding = '14px'; btn.style.fontWeight = '600';
+  populateDealCustomerList();
+  openModal('dealModal');
+}
+
+function openEditDealModal(custId) {
+  gasGet('getDealDetailByCustomer', { lineUserId: state.user.lineUserId, customer_id: custId }, function(res) {
+    var d = (res.ok && res.data) ? res.data : null;
+    if (!d) { showToast('找不到這筆客戶的成交明細，請改用「標記成交」重新建立','error'); return; }
+    fillDealModalFieldsForEdit(d, custId);
+  });
+}
+
+/* 首頁「待簽約提醒」卡片的編輯／延期按鈕，直接從已經抓回來的
+   state.pendingSignaturesRaw 找資料，不用再打一次 API */
+function openEditDealModalFromReminder(dealId) {
+  var d = (state.pendingSignaturesRaw || []).filter(function(r){ return r.deal_id === dealId; })[0];
+  if (!d) { showToast('找不到這筆資料，請重新整理','error'); return; }
+  fillDealModalFieldsForEdit(d, d.customer_id);
+}
+
 function confirmDeal() {
   if (document.getElementById('deal_mode').value === 'refund') { confirmRefund(); return; }
+  var isEdit = document.getElementById('deal_mode').value === 'edit';
 
   var custId = document.getElementById('deal_custId').value;
   var custNameInput = document.getElementById('deal_custName').value.trim();
@@ -1564,20 +1618,21 @@ function confirmDeal() {
     expected_sign_date: expectedDate,
     salesperson: document.getElementById('deal_salesName').value.trim()
   }, function(res) {
-    if (!res.ok) { btn.disabled = false; btn.textContent = '確 認 成 交'; showToast(res.error,'error'); return; }
+    var resetText = isEdit ? '儲 存 修 改' : '確 認 成 交';
+    if (!res.ok) { btn.disabled = false; btn.textContent = resetText; showToast(res.error,'error'); return; }
     if (finalCustId) {
       gasPost('updateCustomerDeal', { lineUserId: state.user.lineUserId, customer_id: finalCustId, deal_status: '已成交', deal_unit: unit }, function() {
-        finishDealSave();
+        finishDealSave(isEdit);
       });
     } else {
-      finishDealSave();
+      finishDealSave(isEdit);
     }
-  }, function() { btn.disabled = false; btn.textContent = '確 認 成 交'; showToast('連線失敗','error'); });
+  }, function() { btn.disabled = false; btn.textContent = isEdit ? '儲 存 修 改' : '確 認 成 交'; showToast('連線失敗','error'); });
 }
 
-function finishDealSave() {
+function finishDealSave(wasEdit) {
   var btn = document.getElementById('deal_confirmBtn');
-  btn.disabled = false; btn.textContent = '確 認 成 交';
+  btn.disabled = false; btn.textContent = wasEdit ? '儲 存 修 改' : '確 認 成 交';
   closeModal('dealModal');
   showToast('成交明細已儲存','success');
   if (document.getElementById('recentCustomerList')) loadRecentCustomers();
@@ -1813,6 +1868,7 @@ function renderTaskList() {
   box.innerHTML='<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div>';
   gasGet('getTasks', { lineUserId: state.user.lineUserId, status: state.taskTab }, function(res) {
     if (!res.ok) { box.innerHTML=''; showToast(res.error,'error'); return; }
+    state.tasksRaw = res.data;
     if (!res.data.length) { box.innerHTML='<div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-text">'+(state.taskTab==='pending'?'目前沒有待辦任務':'尚無已完成任務')+'</div></div>'; return; }
     box.innerHTML = res.data.map(taskRowHTML).join('');
   });
@@ -1822,9 +1878,11 @@ function taskRowHTML(t) {
   var typeIcon={maintenance:'🔧',sales_task:'📋',site_issue:'⚠️',reminder:'🔔',daily_follow:'👥'}[t.type]||'📋';
   var statusPill='<span class="status-pill status-'+t.status+'">'+(t.status==='pending'?'待辦':'已完成')+'</span>';
   var priPill='<span class="priority-pill priority-'+pri+'">'+({urgent:'緊急',high:'高',normal:'一般',low:'低'}[pri]||pri)+'</span>';
+  var canEdit = state.user.role !== 'sales' || String(t.created_by_line_user_id) === String(state.user.lineUserId);
+  var editBtn = canEdit ? '<button class="btn-mini" onclick="openEditTaskModal(\''+t.task_id+'\')">編輯</button>' : '';
   var btn=t.status==='pending'?'<button class="btn-mini primary" onclick="completeTask(\''+t.task_id+'\')">標記完成</button>':'';
   var delBtn='<button class="btn-mini danger" onclick="deleteTask(\''+t.task_id+'\')">刪除</button>';
-  return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">'+typeIcon+' '+escapeHtml(t.title)+'</div>'+statusPill+'</div>'+(t.description?'<div class="list-item-desc">'+escapeHtml(t.description)+'</div>':'')+'<div class="list-item-meta">'+priPill+(t.due_date?'<span>📅 '+t.due_date+'</span>':'')+(t.assigned_to?'<span>👤 '+escapeHtml(t.assigned_to)+'</span>':'')+'<span>'+escapeHtml(t.project_name||'')+'</span></div><div class="list-item-actions">'+btn+delBtn+'</div></div>';
+  return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">'+typeIcon+' '+escapeHtml(t.title)+'</div>'+statusPill+'</div>'+(t.description?'<div class="list-item-desc">'+escapeHtml(t.description)+'</div>':'')+'<div class="list-item-meta">'+priPill+(t.due_date?'<span>📅 '+t.due_date+'</span>':'')+(t.assigned_to?'<span>👤 '+escapeHtml(t.assigned_to)+'</span>':'')+'<span>'+escapeHtml(t.project_name||'')+'</span></div><div class="list-item-actions">'+editBtn+btn+delBtn+'</div></div>';
 }
 function completeTask(taskId) {
   if (!confirm('確認將此任務標記為完成？')) return;
@@ -1838,14 +1896,41 @@ function deleteTask(taskId) {
     if (res.ok) { showToast('任務已刪除','success'); renderTaskList(); } else { showToast(res.error,'error'); }
   });
 }
-function openTaskModal() {
+function loadTaskAssignOptions(selectedLineUserId) {
   var sel=document.getElementById('task_assign'); sel.innerHTML='<option value="">不指定</option>';
   var proj=state.user.projectName;
-  if (proj) {
-    var load=function(list){ list.forEach(function(s){ var o=document.createElement('option'); o.value=s.lineUserId; o.dataset.name=s.name; o.textContent=s.name+(s.jobTitle?'（'+s.jobTitle+'）':''); sel.appendChild(o); }); };
-    if (state.salesByProject[proj]) load(state.salesByProject[proj]);
-    else gasGet('getSalesByProject',{project:proj},function(res){ if(res.ok){state.salesByProject[proj]=res.data;load(res.data);} });
-  }
+  if (!proj) return;
+  var load=function(list){
+    list.forEach(function(s){ var o=document.createElement('option'); o.value=s.lineUserId; o.dataset.name=s.name; o.textContent=s.name+(s.jobTitle?'（'+s.jobTitle+'）':''); sel.appendChild(o); });
+    if (selectedLineUserId) sel.value = selectedLineUserId;
+  };
+  if (state.salesByProject[proj]) load(state.salesByProject[proj]);
+  else gasGet('getSalesByProject',{project:proj},function(res){ if(res.ok){state.salesByProject[proj]=res.data;load(res.data);} });
+}
+function openTaskModal() {
+  document.getElementById('task_id').value = '';
+  document.getElementById('taskModalTitle').textContent = '新增任務';
+  var btn = document.querySelector('#taskModal .btn-mini.primary');
+  btn.textContent = '建 立 任 務';
+  ['task_title','task_desc','task_due'].forEach(function(id){ document.getElementById(id).value=''; });
+  document.getElementById('task_type').value = 'sales_task';
+  document.getElementById('task_priority').value = 'normal';
+  loadTaskAssignOptions();
+  openModal('taskModal');
+}
+function openEditTaskModal(taskId) {
+  var t = (state.tasksRaw||[]).filter(function(r){ return r.task_id === taskId; })[0];
+  if (!t) { showToast('找不到這個任務，請重新整理','error'); return; }
+  document.getElementById('task_id').value = t.task_id;
+  document.getElementById('taskModalTitle').textContent = '編輯任務';
+  var btn = document.querySelector('#taskModal .btn-mini.primary');
+  btn.textContent = '儲 存 修 改';
+  document.getElementById('task_type').value = t.type || 'sales_task';
+  document.getElementById('task_title').value = t.title || '';
+  document.getElementById('task_desc').value = t.description || '';
+  document.getElementById('task_priority').value = t.priority || 'normal';
+  document.getElementById('task_due').value = t.due_date || '';
+  loadTaskAssignOptions(t.assigned_to_line_user_id);
   openModal('taskModal');
 }
 function submitTask() {
@@ -1853,21 +1938,31 @@ function submitTask() {
   if (!title) { showToast('請填寫任務標題','error'); return; }
   var btn=document.querySelector('#taskModal .btn-mini.primary');
   if (btn.disabled) return;
-  btn.disabled=true; btn.textContent='送 出 中…';
+  var taskId = document.getElementById('task_id').value;
+  var isEdit = !!taskId;
+  btn.disabled=true; btn.textContent = isEdit ? '儲 存 中…' : '送 出 中…';
   var assignSel=document.getElementById('task_assign');
   var assignOpt=assignSel.options[assignSel.selectedIndex];
-  gasPost('appendTask', {
+  var payload = {
     lineUserId: state.user.lineUserId, type: document.getElementById('task_type').value,
     title: title, description: document.getElementById('task_desc').value.trim(),
     priority: document.getElementById('task_priority').value,
     due_date: document.getElementById('task_due').value,
     assigned_to_line_user_id: assignSel.value,
     assigned_to: assignOpt?(assignOpt.dataset.name||assignOpt.textContent):''
-  }, function(res) {
-    btn.disabled=false; btn.textContent='建 立 任 務';
-    if (res.ok) { showToast('任務已建立','success'); closeModal('taskModal'); ['task_title','task_desc','task_due'].forEach(function(id){ document.getElementById(id).value=''; }); renderTaskList(); }
+  };
+  if (isEdit) payload.task_id = taskId;
+  gasPost(isEdit ? 'updateTask' : 'appendTask', payload, function(res) {
+    var resetText = isEdit ? '儲 存 修 改' : '建 立 任 務';
+    btn.disabled=false; btn.textContent = resetText;
+    if (res.ok) {
+      showToast(isEdit ? '任務已更新' : '任務已建立','success'); closeModal('taskModal');
+      ['task_title','task_desc','task_due'].forEach(function(id){ document.getElementById(id).value=''; });
+      document.getElementById('task_id').value = '';
+      renderTaskList(); loadTaskReminders();
+    }
     else { showToast(res.error,'error'); }
-  }, function(){ btn.disabled=false; btn.textContent='建 立 任 務'; showToast('連線失敗','error'); });
+  }, function(){ btn.disabled=false; btn.textContent = isEdit ? '儲 存 修 改' : '建 立 任 務'; showToast('連線失敗','error'); });
 }
 
 /* ══ Daily Report ══ */
@@ -2107,18 +2202,23 @@ function renderMaintList() {
   box.innerHTML='<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div>';
   gasGet('getMaintenanceList',{lineUserId:state.user.lineUserId},function(res){
     if (!res.ok) { box.innerHTML=''; showToast(res.error,'error'); return; }
+    state.maintRaw = res.data;
     var list=res.data.filter(function(r){ return r.status===state.maintTab; });
     if (!list.length) { box.innerHTML='<div class="empty-state"><div class="empty-state-icon">🔧</div><div class="empty-state-text">尚無維修記錄</div></div>'; return; }
     box.innerHTML=list.map(function(m){
       var sp='<span class="status-pill status-'+m.status+'">'+({pending:'待處理',processing:'處理中',done:'已完成'}[m.status]||m.status)+'</span>';
+      var pri=m.priority||'normal';
+      var priPill='<span class="priority-pill priority-'+pri+'">'+({urgent:'緊急',high:'高',normal:'一般'}[pri]||pri)+'</span>';
       var act='';
+      var canEdit = state.user.role!=='sales' || String(m.reported_by_line_user_id)===String(state.user.lineUserId);
+      if (canEdit) act='<button class="btn-mini" onclick="openEditMaintModal(\''+m.maintenance_id+'\')">編輯</button>';
       if (state.user.role!=='sales') {
-        if (m.status==='pending') act='<button class="btn-mini primary" onclick="updateMaint(\''+m.maintenance_id+'\',\'processing\')">開始處理</button>';
-        else if (m.status==='processing') act='<button class="btn-mini primary" onclick="updateMaint(\''+m.maintenance_id+'\',\'done\')">標記完成</button>';
+        if (m.status==='pending') act+='<button class="btn-mini primary" onclick="updateMaint(\''+m.maintenance_id+'\',\'processing\')">開始處理</button>';
+        else if (m.status==='processing') act+='<button class="btn-mini primary" onclick="updateMaint(\''+m.maintenance_id+'\',\'done\')">標記完成</button>';
       }
       act += '<button class="btn-mini danger" onclick="deleteMaint(\''+m.maintenance_id+'\')">刪除</button>';
       var photo = m.photo_url ? '<a href="'+escapeHtml(m.photo_url)+'" target="_blank" rel="noopener"><img src="'+escapeHtml(m.photo_url)+'" style="max-width:100px;max-height:100px;border-radius:8px;margin-top:8px;display:block;"></a>' : '';
-      return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">🔧 '+escapeHtml(m.issue_type)+(m.location?' @ '+escapeHtml(m.location):'')+'</div>'+sp+'</div><div class="list-item-desc">'+escapeHtml(m.description||'')+'</div>'+photo+'<div class="list-item-meta"><span>👤 '+escapeHtml(m.reported_by||'')+'</span><span>📅 '+String(m.created_at||'').substring(0,10)+'</span></div><div class="list-item-actions">'+act+'</div></div>';
+      return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">🔧 '+escapeHtml(m.issue_type)+(m.location?' @ '+escapeHtml(m.location):'')+'</div>'+sp+'</div><div class="list-item-desc">'+escapeHtml(m.description||'')+'</div>'+photo+'<div class="list-item-meta">'+priPill+'<span>👤 '+escapeHtml(m.reported_by||'')+'</span><span>📅 '+String(m.created_at||'').substring(0,10)+'</span></div><div class="list-item-actions">'+act+'</div></div>';
     }).join('');
   });
 }
@@ -2136,9 +2236,35 @@ function deleteMaint(id) {
 var maintPhotoBase64 = null;
 
 function openMaintModal(){
+  document.getElementById('maint_id').value = '';
+  document.getElementById('maintModalTitle').textContent = '維修通報';
+  var btn = document.querySelector('#maintModal .btn-mini.primary');
+  btn.textContent = '送 出 通 報';
+  document.getElementById('maint_type').value = '';
+  document.getElementById('maint_location').value = '';
+  document.getElementById('maint_desc').value = '';
+  document.getElementById('maint_priority').value = 'high';
   maintPhotoBase64 = null;
   document.getElementById('maint_photo').value = '';
   document.getElementById('maint_photoPreview').innerHTML = '';
+  openModal('maintModal');
+}
+function openEditMaintModal(id) {
+  var m = (state.maintRaw||[]).filter(function(r){ return r.maintenance_id === id; })[0];
+  if (!m) { showToast('找不到這筆維修通報，請重新整理','error'); return; }
+  document.getElementById('maint_id').value = m.maintenance_id;
+  document.getElementById('maintModalTitle').textContent = '編輯維修通報';
+  var btn = document.querySelector('#maintModal .btn-mini.primary');
+  btn.textContent = '儲 存 修 改';
+  document.getElementById('maint_type').value = m.issue_type || '';
+  document.getElementById('maint_location').value = m.location || '';
+  document.getElementById('maint_desc').value = m.description || '';
+  document.getElementById('maint_priority').value = m.priority || 'normal';
+  maintPhotoBase64 = null;
+  document.getElementById('maint_photo').value = '';
+  document.getElementById('maint_photoPreview').innerHTML = m.photo_url
+    ? '<img src="'+escapeHtml(m.photo_url)+'" style="max-width:120px;max-height:120px;border-radius:8px;"><div style="font-size:11px;color:var(--ink-faint);margin-top:4px;">目前的照片，重新選擇會覆蓋掉</div>'
+    : '';
   openModal('maintModal');
 }
 
@@ -2174,27 +2300,33 @@ function submitMaint() {
   if (!type||!desc) { showToast('請填寫問題類型與描述','error'); return; }
   var btn=document.querySelector('#maintModal .btn-mini.primary');
   if (btn.disabled) return;
-  btn.disabled=true; btn.textContent='送 出 中…';
+  var maintId = document.getElementById('maint_id').value;
+  var isEdit = !!maintId;
+  btn.disabled=true; btn.textContent = isEdit ? '儲 存 中…' : '送 出 中…';
 
   function finishSubmit(photoUrl) {
-    gasPost('appendMaintenance',{
+    var payload = {
       lineUserId:state.user.lineUserId, issue_type:type,
       location:document.getElementById('maint_location').value.trim(),
       description:desc, priority:document.getElementById('maint_priority').value,
       photo_url: photoUrl || ''
-    },function(res){
-      btn.disabled=false; btn.textContent='送 出 通 報';
+    };
+    if (isEdit) payload.maintenance_id = maintId;
+    gasPost(isEdit ? 'updateMaintenance' : 'appendMaintenance', payload, function(res){
+      var resetText = isEdit ? '儲 存 修 改' : '送 出 通 報';
+      btn.disabled=false; btn.textContent = resetText;
       if (res.ok) {
-        showToast('維修通報已送出','success'); closeModal('maintModal');
+        showToast(isEdit ? '維修通報已更新' : '維修通報已送出','success'); closeModal('maintModal');
         ['maint_location','maint_desc'].forEach(function(id){ document.getElementById(id).value=''; });
         document.getElementById('maint_type').value='';
+        document.getElementById('maint_id').value='';
         document.getElementById('maint_photo').value='';
         document.getElementById('maint_photoPreview').innerHTML='';
         maintPhotoBase64 = null;
         renderMaintList();
       }
       else { showToast(res.error,'error'); }
-    }, function(){ btn.disabled=false; btn.textContent='送 出 通 報'; showToast('連線失敗','error'); });
+    }, function(){ btn.disabled=false; btn.textContent = isEdit ? '儲 存 修 改' : '送 出 通 報'; showToast('連線失敗','error'); });
   }
 
   if (maintPhotoBase64) {
@@ -2205,8 +2337,8 @@ function submitMaint() {
       mime_type: 'image/jpeg'
     }, function(res) {
       if (res.ok) { finishSubmit(res.data.photo_url); }
-      else { btn.disabled=false; btn.textContent='送 出 通 報'; showToast('照片上傳失敗：'+res.error,'error'); }
-    }, function(){ btn.disabled=false; btn.textContent='送 出 通 報'; showToast('照片上傳連線失敗','error'); });
+      else { btn.disabled=false; btn.textContent = isEdit ? '儲 存 修 改' : '送 出 通 報'; showToast('照片上傳失敗：'+res.error,'error'); }
+    }, function(){ btn.disabled=false; btn.textContent = isEdit ? '儲 存 修 改' : '送 出 通 報'; showToast('照片上傳連線失敗','error'); });
   } else {
     finishSubmit('');
   }
