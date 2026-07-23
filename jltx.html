@@ -804,6 +804,10 @@ var state = {
 
 var DISTRICTS = ['楠梓區','左營區','鼓山區','三民區','苓雅區','新興區','前金區','鹽埕區','前鎮區','小港區','仁武區','鳳山區','其他'];
 
+/* ══ 權限判斷共用函式（避免各處散落字串比對） ══ */
+function isSales() { return !!state.user && state.user.role === 'sales'; }
+function isAdmin() { return !!state.user && (state.user.role === 'manager' || state.user.role === 'admin'); }
+
 /* ══ 字型大小 ══ */
 function setFontSize(size) {
   document.body.classList.toggle('font-large', size === 'large');
@@ -1049,11 +1053,11 @@ function route(hash) {
     case '#/mycustomers': document.getElementById('viewMyCustomers').classList.remove('hidden'); renderMyCustomers(); break;
     case '#/task':     document.getElementById('viewTask').classList.remove('hidden');     renderTaskList(); break;
     case '#/report':
-      if (state.user.role === 'sales') { route('#/home'); return; }
+      if (isSales()) { route('#/home'); return; }
       document.getElementById('viewReport').classList.remove('hidden'); renderReport(); break;
     case '#/maint':    document.getElementById('viewMaint').classList.remove('hidden');    renderMaintList(); break;
     case '#/users':
-      if (state.user.role === 'sales') { route('#/home'); return; }
+      if (isSales()) { route('#/home'); return; }
       document.getElementById('viewUsers').classList.remove('hidden'); renderUserList(); break;
     case '#/leave':
       document.getElementById('viewLeave').classList.remove('hidden'); renderLeave(); break;
@@ -1071,7 +1075,7 @@ function renderHome() {
     (u.jobTitle ? '<span>' + escapeHtml(u.jobTitle) + '</span>' : '') +
     '<span>' + (u.projectName||'全部案場') + '</span>';
 
-  if (u.role !== 'sales') {
+  if (!isSales()) {
     document.getElementById('reportFeature').classList.remove('hidden');
     document.getElementById('userMgmtFeature').classList.remove('hidden');
     document.getElementById('recentCustomersSection').classList.remove('hidden');
@@ -1106,7 +1110,7 @@ function renderHome() {
   });
 
   // 今日休假人員
-  gasGet('getTodayLeave', {}, function(res) {
+  gasGet('getTodayLeave', { lineUserId: u.lineUserId }, function(res) {
     var el = document.getElementById('todayLeaveDesc');
     if (!el) return;
     if (res.ok && res.data && res.data.length > 0) {
@@ -1130,7 +1134,7 @@ function loadTaskReminders() {
     var today = todayStr();
     box.innerHTML = res.data.map(function(t) {
       var overdue = t.due_date && t.due_date < today;
-      var who = state.user.role === 'sales' ? '' : ('<span>👤 ' + escapeHtml(t.assigned_to||'') + '</span>');
+      var who = isSales() ? '' : ('<span>👤 ' + escapeHtml(t.assigned_to||'') + '</span>');
       return '<div class="pending-sign-card' + (overdue?' overdue':'') + '">' +
         '<div class="pending-sign-main">' +
           '<div class="pending-sign-unit">' + escapeHtml(t.title||'') + '</div>' +
@@ -1151,7 +1155,7 @@ function loadPendingSignatures() {
     wrap.classList.remove('hidden');
     state.pendingSignaturesRaw = res.data;
     var today = todayStr();
-    var canAction = state.user.role !== 'sales';
+    var canAction = !isSales();
     box.innerHTML = res.data.map(function(d) {
       var overdue = d.expected_sign_date && d.expected_sign_date < today;
       var who = !canAction ? '' : ('<span>👤 ' + escapeHtml(d.salesperson||'') + '</span>');
@@ -1197,7 +1201,7 @@ function renderMyCustomers() {
     if (!res.ok) { box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">' + escapeHtml(res.error) + '</div></div>'; return; }
     state.myCustomersRaw = res.data || [];
     state.myCustomerFilterSales = 'all';
-    if (state.user.role !== 'sales') {
+    if (!isSales()) {
       buildMyCustomerFilterBar(state.myCustomersRaw);
       bar.classList.remove('hidden');
     } else {
@@ -1262,7 +1266,7 @@ function myCustomerCardHTML(c) {
   ].filter(Boolean);
 
   var editBtn = canEdit
-    ? '<button class="deal-btn" style="background:var(--teal);" onclick="openEditCustModal(' + JSON.stringify(c).replace(/"/g,'&quot;') + ')">✏️ 修改</button>'
+    ? '<button class="deal-btn" style="background:var(--teal);" onclick="openEditCustModal(\'' + escapeHtml(c.customer_id) + '\')">✏️ 修改</button>'
     : '<span style="font-size:11px;color:var(--ink-faint);">已超過14天，無法修改</span>';
 
   var logBtn = '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openChangeLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">📋 修改紀錄</button>';
@@ -1291,7 +1295,9 @@ function deleteCustomer(custId) {
   });
 }
 
-function openEditCustModal(c) {
+function openEditCustModal(custId) {
+  var c = (state.myCustomersRaw || []).filter(function(r){ return String(r.customer_id) === String(custId); })[0];
+  if (!c) return;
   document.getElementById('edit_custId').value = c.customer_id;
   document.getElementById('editCustSubtitle').textContent = c.customer_name + '  ·  ' + String(c.visit_date||'').substring(0,10);
   document.getElementById('edit_visitDate').value = String(c.visit_date||'').substring(0,10);
@@ -1437,16 +1443,16 @@ function recentCustCardHTML(c) {
   var badgeClass = isRefund ? 'refund' : (isDone ? 'done' : 'pending');
   var badgeText  = isRefund ? '🔙 退戶' : (isDone ? '✓ 已成交' : '未成交');
   var dealBadge = '<span class="cust-card-deal ' + badgeClass + '">' + badgeText + (c.deal_unit?' — '+escapeHtml(c.deal_unit):'') + '</span>';
-  var dealBtn = !isDone && !isRefund && state.user.role !== 'sales'
+  var dealBtn = !isDone && !isRefund && !isSales()
     ? '<button class="deal-btn" onclick="openDealModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">標記成交</button>'
     : '';
-  var editDealBtn = isDone && state.user.role !== 'sales'
+  var editDealBtn = isDone && !isSales()
     ? '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openEditDealModal(\'' + escapeHtml(c.customer_id) + '\')">✏️ 編輯成交</button>'
     : '';
-  var refundBtn = isDone && state.user.role !== 'sales'
+  var refundBtn = isDone && !isSales()
     ? '<button class="deal-btn" style="background:var(--rust);margin-left:6px;" onclick="markRefund(\'' + escapeHtml(c.customer_id) + '\')">🔙 標記退戶</button>'
     : '';
-  var logBtn = state.user.role !== 'sales'
+  var logBtn = !isSales()
     ? '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openChangeLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">📋 紀錄</button>'
     : '';
   var fields = [
@@ -1764,10 +1770,6 @@ function onCustProjectChange() {
   // 接待人員固定為自己，不需要撈案場業務清單
 }
 
-function fillSalesSelect(sel, list) {
-  list.forEach(function(s){ var o=document.createElement('option'); o.value=s.lineUserId; o.dataset.name=s.name; o.textContent=s.name; sel.appendChild(o); });
-}
-
 function toggleOther(wrapId, show) {
   document.getElementById(wrapId).classList.toggle('hidden', !show);
 }
@@ -1878,7 +1880,7 @@ function taskRowHTML(t) {
   var typeIcon={maintenance:'🔧',sales_task:'📋',site_issue:'⚠️',reminder:'🔔',daily_follow:'👥'}[t.type]||'📋';
   var statusPill='<span class="status-pill status-'+t.status+'">'+(t.status==='pending'?'待辦':'已完成')+'</span>';
   var priPill='<span class="priority-pill priority-'+pri+'">'+({urgent:'緊急',high:'高',normal:'一般',low:'低'}[pri]||pri)+'</span>';
-  var canEdit = state.user.role !== 'sales' || String(t.created_by_line_user_id) === String(state.user.lineUserId);
+  var canEdit = !isSales() || String(t.created_by_line_user_id) === String(state.user.lineUserId);
   var editBtn = canEdit ? '<button class="btn-mini" onclick="openEditTaskModal(\''+t.task_id+'\')">編輯</button>' : '';
   var btn=t.status==='pending'?'<button class="btn-mini primary" onclick="completeTask(\''+t.task_id+'\')">標記完成</button>':'';
   var delBtn='<button class="btn-mini danger" onclick="deleteTask(\''+t.task_id+'\')">刪除</button>';
@@ -1905,7 +1907,7 @@ function loadTaskAssignOptions(selectedLineUserId) {
     if (selectedLineUserId) sel.value = selectedLineUserId;
   };
   if (state.salesByProject[proj]) load(state.salesByProject[proj]);
-  else gasGet('getSalesByProject',{project:proj},function(res){ if(res.ok){state.salesByProject[proj]=res.data;load(res.data);} });
+  else gasGet('getSalesByProject',{project:proj,lineUserId:state.user.lineUserId},function(res){ if(res.ok){state.salesByProject[proj]=res.data;load(res.data);} });
 }
 function openTaskModal() {
   document.getElementById('task_id').value = '';
@@ -1987,7 +1989,7 @@ function loadReportForDate() {
     state.currentReports = d.reports || [];
     var box=document.getElementById('reportList');
     box.innerHTML=d.reports.length?d.reports.map(function(r,idx){
-      var canEdit = state.user.role!=='sales' && reportEditableWithinDays(r.report_date, 3);
+      var canEdit = !isSales() && reportEditableWithinDays(r.report_date, 3);
       var editBtn = canEdit ? '<button class="btn-mini" style="padding:4px 10px;font-size:11px;" onclick="openEditReportModal('+idx+')">✏️ 修改</button>' : '';
       return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">'+escapeHtml(r.salesperson||r.created_by)+'</div><span class="list-item-meta">'+r.report_date+'</span></div><div class="list-item-meta"><span>接待 '+(r.visitor_count||0)+'</span><span>初訪 '+(r.first_visit_count||0)+'</span><span>回籠 '+(r.revisit_count||0)+'</span><span>成交 '+(r.deal_count||0)+'</span></div>'+(r.notes?'<div class="list-item-desc">'+escapeHtml(r.notes)+'</div>':'')+'<div class="list-item-actions">'+editBtn+'<button class="btn-mini danger" onclick="deleteReport(\''+r.report_id+'\')">刪除</button></div></div>';
     }).join(''):'<div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-text">當日尚未有日報提交</div></div>';
@@ -2210,9 +2212,9 @@ function renderMaintList() {
       var pri=m.priority||'normal';
       var priPill='<span class="priority-pill priority-'+pri+'">'+({urgent:'緊急',high:'高',normal:'一般'}[pri]||pri)+'</span>';
       var act='';
-      var canEdit = state.user.role!=='sales' || String(m.reported_by_line_user_id)===String(state.user.lineUserId);
+      var canEdit = !isSales() || String(m.reported_by_line_user_id)===String(state.user.lineUserId);
       if (canEdit) act='<button class="btn-mini" onclick="openEditMaintModal(\''+m.maintenance_id+'\')">編輯</button>';
-      if (state.user.role!=='sales') {
+      if (!isSales()) {
         if (m.status==='pending') act+='<button class="btn-mini primary" onclick="updateMaint(\''+m.maintenance_id+'\',\'processing\')">開始處理</button>';
         else if (m.status==='processing') act+='<button class="btn-mini primary" onclick="updateMaint(\''+m.maintenance_id+'\',\'done\')">標記完成</button>';
       }
@@ -2455,7 +2457,7 @@ function renderLeave() {
   leaveState.targetUser = null;
   leaveState.userList   = [];
   // 主管/admin 預載人員清單
-  if (state.user.role === 'manager' || state.user.role === 'admin') {
+  if (isAdmin()) {
     gasGet('getUserList', { lineUserId: state.user.lineUserId }, function(res) {
       if (res.ok) {
         leaveState.userList = res.data.filter(function(u) {
@@ -2505,7 +2507,6 @@ function loadLeaveData() {
 function renderLeaveGrid() {
   var days    = getWeekDates(leaveState.weekOffset);
   var myUid   = state.user.lineUserId;
-  var isAdmin = state.user.role === 'manager' || state.user.role === 'admin';
 
   // 週標籤
   var wd = ['一','二','三','四','五','六','日'];
@@ -2595,11 +2596,10 @@ function renderLeaveGrid() {
 function leaveCellClick(ds) {
   var myUid   = state.user.lineUserId;
   var myName  = state.user.displayName;
-  var isAdmin = state.user.role === 'manager' || state.user.role === 'admin';
   var isPast  = ds < todayStr();
   if (isPast) return;
 
-  if (isAdmin) {
+  if (isAdmin()) {
     // 主管：判斷這一天有沒有已登記紀錄
     var dayLeaves = leaveState.allLeaves.filter(function(r) {
       return String(r.leave_date).substring(0,10) === ds;
@@ -2935,7 +2935,7 @@ function openCalDay(ds) {
   if (dayLeaves.length) {
     html += '<div style="font-size:12px;color:var(--ink-light);margin-bottom:6px;">🏖 休假：' + dayLeaves.map(function(r){ return escapeHtml(r.display_name); }).join('、') + '</div>';
   }
-  var canManage = state.user.role !== 'sales';
+  var canManage = !isSales();
   if (dayNotes.length) {
     html += dayNotes.map(function(n) {
       var delBtn = canManage

@@ -237,8 +237,11 @@ form.addEventListener('submit', function(e){
   submitBtn.disabled = true;
   submitBtn.textContent = '送出中…';
 
-  var url = GAS_URL + '?action=submitPublicLead&payload=' + encodeURIComponent(JSON.stringify(payload));
-  fetch(url)
+  fetch(GAS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: 'submitPublicLead', payload: payload })
+  })
     .then(function(r){ return r.json(); })
     .then(function(res){
       if (res && res.ok) {
