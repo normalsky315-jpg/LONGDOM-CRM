@@ -1,6 +1,15 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v3.0
-//  以「華雄天地 v9.17」完整版為基礎重建，同步天地目前累積的所有功能：
+//  龍登 CRM — 吉隆天曜專用版 v4.0
+//  以「華雄天地 v9.18」完整版為基礎重建，同步天地目前累積的所有功能
+//  （內容跟 v3.0 一樣，這次是安全性/程式碼品質修正的同步）：
+//  v4.0 變更：
+//  1. getSalesByProject、getTodayLeave 補上登入驗證（之前任何人都能
+//     查到員工名單/LINE ID/請假狀況）
+//  2. 新增共用的 deleteRowById()，簡化 6 個刪除功能重複的邏輯
+//  3. submitPublicLead（官網 EDM 表單專用，吉隆天曜獨有）加上電話
+//     格式驗證、姓名/訊息長度上限，並改成走 POST 送出（原本是 GET，
+//     客戶姓名電話會留在瀏覽器網址列和連線紀錄裡）
+//  以下沿用 v3.0 的功能（源自華雄天地）：
 //  1. 排班：平日單日最多 2 人休假、六日禁休（主管排假不受此限制）
 //  2. 客戶：刪除功能、電話/日期時間欄位文字保護
 //  3. 每日日報：防重複提交、可刪除、主管3天內可修改
@@ -15,17 +24,19 @@
 //  6. 首頁提醒：待簽約提醒（逾期用紅字持續顯示）、任務提醒
 //  7. LINE 官方帳號「簡單問答」：查詢客戶、今日/本月業績、待簽約、
 //     今日休假、我的待辦，不需要另外申請/付費 AI API
+//  8. submitPublicLead：官網 EDM 表單（jltx-edm.html）專用的公開、
+//     免登入陌客留資端點，寫進 Customer_Data 未指派業務，這是天地
+//     沒有的吉隆天曜專屬功能，之後任何一次同步都要記得保留
 // ============================================================
 //  ★ 這是既有帳號（吉隆天曜已經上線運作中），不是第一次部署：
 //  1. 整份覆蓋貼上這個檔案到吉隆天曜的 Apps Script 專案
 //     （CONFIG.SPREADSHEET_ID 已經是吉隆天曜自己的試算表 ID，不用改）
 //  2. 部署 → 管理部署 → 編輯（鉛筆）→ 版本選「新版本」→ 部署
 //     ★ 用「編輯現有部署」，不要「新增部署」，這樣網址不會變，
-//       jltx.html 的 GAS_URL 不用再改
-//  3. 這次新增了維修通報照片編輯功能，沿用既有的 Google Drive 存取
-//     權限，不會再跳出新的授權視窗
+//       jltx.html / jltx-edm.html 的 GAS_URL 不用再改
 // ============================================================
 
+// ==================== CONFIG ====================
 // ==================== CONFIG ====================
 const CONFIG = {
   TIMEZONE: 'Asia/Taipei',
@@ -169,6 +180,30 @@ function updateRowById(sheetName, idField, idValue, updates) {
   return false;
 }
 
+// 找到 idField=idValue 的那一列，選擇性跑 opts.checkFn 做權限/業務規則檢查
+// （回傳非 null 字串代表擋下、不刪除），檢查通過才真的刪除該列。
+// 回傳 { notFound: true } / { error: '...' } / { row: {欄位:值...} }
+function deleteRowById(sheetName, idField, idValue, opts) {
+  var sh = getSheet(sheetName);
+  if (!sh) return { error: '找不到分頁 ' + sheetName };
+  var data = sh.getDataRange().getValues();
+  var headers = data[0];
+  var idCol = headers.indexOf(idField);
+  if (idCol < 0) return { error: '欄位設定錯誤：' + idField };
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][idCol]) !== String(idValue)) continue;
+    var rowObj = {};
+    headers.forEach(function(h, c) { rowObj[h] = data[i][c]; });
+    if (opts && opts.checkFn) {
+      var err = opts.checkFn(rowObj);
+      if (err) return { error: err };
+    }
+    sh.deleteRow(i + 1);
+    return { row: rowObj };
+  }
+  return { notFound: true };
+}
+
 // ==================== User Context ====================
 function getUserContext(lineUserId) {
   if (!lineUserId) return null;
@@ -212,7 +247,7 @@ function doGet(e) {
       case 'getProjectList':
         return jsonResponse(getProjectList());
       case 'getSalesByProject':
-        return jsonResponse(getSalesByProject(payload.project || e.parameter.project));
+        return jsonResponse(getSalesByProject(payload.project || e.parameter.project, payload.lineUserId || e.parameter.lineUserId));
       case 'getIndustryList':
         return jsonResponse(getIndustryList());
       case 'getPurchaseMotiveList':
@@ -298,7 +333,7 @@ function doGet(e) {
           endDate:    e.parameter.endDate
         }));
       case 'getTodayLeave':
-        return jsonResponse(getTodayLeave());
+        return jsonResponse(getTodayLeave(payload.lineUserId || e.parameter.lineUserId));
       case 'appendLeave':
         return jsonResponse(appendLeave(payload));
       case 'deleteLeave':
@@ -551,8 +586,10 @@ function getProjectList() {
   } catch (err) { return fail(err.message); }
 }
 
-function getSalesByProject(projectName) {
+function getSalesByProject(projectName, lineUserId) {
   try {
+    var ctx = getUserContext(lineUserId);
+    if (!ctx) return fail('未授權');
     var rows = readSheetAsObjects(CONFIG.SHEETS.USER_ROLE)
       .filter(function(r) {
         return r.status === CONFIG.STATUS.ACTIVE &&
@@ -568,14 +605,13 @@ function getIndustryList()       { return ok(CONFIG.INDUSTRIES); }
 function getPurchaseMotiveList() { return ok(CONFIG.PURCHASE_MOTIVES); }
 
 // ==================== Customer Module ====================
-// 官網 EDM 表單專用：公開、免登入。給訪客在官網落地頁填寫諮詢，
-// 直接寫進 Customer_Data，業務未指派（sales_name 留空），
-// 之後由主管/業務在 CRM 裡認領。刻意不呼叫 getUserContext，
-// 因為訪客沒有 LINE 登入身分。
 function submitPublicLead(payload) {
   try {
     if (!payload.customer_name) return fail('姓名必填');
+    if (String(payload.customer_name).length > 50) return fail('姓名過長');
     if (!payload.phone)         return fail('電話必填');
+    if (!/^[0-9+#\-\s]{6,20}$/.test(String(payload.phone))) return fail('電話格式錯誤');
+    if (payload.message && String(payload.message).length > 500) return fail('訊息過長');
     if (payload.hp)              return fail('提交失敗，請重新整理後再試'); // honeypot：正常訪客看不到這個欄位，機器人才會填
 
     var customerId = genId('CUST');
@@ -1025,34 +1061,25 @@ function deleteCustomerData(payload) {
     if (!ctx) return fail('未授權');
     if (!payload.customer_id) return fail('customer_id 必填');
 
-    var sh      = getSheet(CONFIG.SHEETS.CUSTOMER);
-    var data    = sh.getDataRange().getValues();
-    var headers = data[0];
-    var idCol        = headers.indexOf('customer_id');
-    var salesCol      = headers.indexOf('sales_line_user_id');
-    var createdByCol  = headers.indexOf('created_by_line_user_id');
-    var createdAtCol  = headers.indexOf('created_at');
-    var nameCol       = headers.indexOf('customer_name');
-
-    for (var i = 1; i < data.length; i++) {
-      if (String(data[i][idCol]) !== String(payload.customer_id)) continue;
-
-      if (ctx.role === CONFIG.ROLES.SALES) {
-        if (String(data[i][salesCol]) !== String(ctx.lineUserId) &&
-            String(data[i][createdByCol]) !== String(ctx.lineUserId)) {
-          return fail('只能刪除自己的客戶資料');
+    var result = deleteRowById(CONFIG.SHEETS.CUSTOMER, 'customer_id', payload.customer_id, {
+      checkFn: function(row) {
+        if (ctx.role === CONFIG.ROLES.SALES) {
+          if (String(row.sales_line_user_id) !== String(ctx.lineUserId) &&
+              String(row.created_by_line_user_id) !== String(ctx.lineUserId)) {
+            return '只能刪除自己的客戶資料';
+          }
+          var diffDays = (new Date() - new Date(row.created_at)) / (1000 * 60 * 60 * 24);
+          if (diffDays > 14) return '超過14天，無法刪除';
         }
-        var diffDays = (new Date() - new Date(data[i][createdAtCol])) / (1000 * 60 * 60 * 24);
-        if (diffDays > 14) return fail('超過14天，無法刪除');
+        return null;
       }
+    });
+    if (result.notFound) return fail('找不到客戶資料');
+    if (result.error) return fail(result.error);
 
-      var customerName = data[i][nameCol];
-      sh.deleteRow(i + 1);
-      writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.CUSTOMER, payload.customer_id,
-        ctx.displayName + ' 刪除客戶 ' + customerName);
-      return ok({ customer_id: payload.customer_id });
-    }
-    return fail('找不到客戶資料');
+    writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.CUSTOMER, payload.customer_id,
+      ctx.displayName + ' 刪除客戶 ' + result.row.customer_name);
+    return ok({ customer_id: payload.customer_id });
   } catch (err) { return fail(err.message); }
 }
 
@@ -1187,28 +1214,22 @@ function deleteTask(payload) {
     if (!ctx) return fail('未授權');
     if (!payload.task_id) return fail('task_id 必填');
 
-    var sh      = getSheet(CONFIG.SHEETS.TASK);
-    var data    = sh.getDataRange().getValues();
-    var headers = data[0];
-    var idCol        = headers.indexOf('task_id');
-    var createdByCol = headers.indexOf('created_by_line_user_id');
-    var titleCol     = headers.indexOf('title');
-
-    for (var i = 1; i < data.length; i++) {
-      if (String(data[i][idCol]) !== String(payload.task_id)) continue;
-
-      // 業務只能刪自己建立的任務；主管/admin 可以刪任何任務
-      if (ctx.role === CONFIG.ROLES.SALES &&
-          String(data[i][createdByCol]) !== String(ctx.lineUserId)) {
-        return fail('只能刪除自己建立的任務');
+    // 業務只能刪自己建立的任務；主管/admin 可以刪任何任務
+    var result = deleteRowById(CONFIG.SHEETS.TASK, 'task_id', payload.task_id, {
+      checkFn: function(row) {
+        if (ctx.role === CONFIG.ROLES.SALES &&
+            String(row.created_by_line_user_id) !== String(ctx.lineUserId)) {
+          return '只能刪除自己建立的任務';
+        }
+        return null;
       }
-      var title = data[i][titleCol];
-      sh.deleteRow(i + 1);
-      writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.TASK, payload.task_id,
-        ctx.displayName + ' 刪除任務: ' + title);
-      return ok({ task_id: payload.task_id });
-    }
-    return fail('找不到該筆任務');
+    });
+    if (result.notFound) return fail('找不到該筆任務');
+    if (result.error) return fail(result.error);
+
+    writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.TASK, payload.task_id,
+      ctx.displayName + ' 刪除任務: ' + result.row.title);
+    return ok({ task_id: payload.task_id });
   } catch (err) { return fail(err.message); }
 }
 
@@ -1263,26 +1284,22 @@ function deleteDailyReport(payload) {
     if (ctx.role === CONFIG.ROLES.SALES) return fail('業務無權限');
     if (!payload.report_id) return fail('report_id 必填');
 
-    var sh      = getSheet(CONFIG.SHEETS.DAILY_REPORT);
-    var data    = sh.getDataRange().getValues();
-    var headers = data[0];
-    var idCol   = headers.indexOf('report_id');
-    var uidCol  = headers.indexOf('sales_line_user_id');
-
-    for (var i = 1; i < data.length; i++) {
-      if (String(data[i][idCol]) !== String(payload.report_id)) continue;
-
-      // 主管只能刪自己提交的日報；admin 可以刪任何人的
-      if (ctx.role === CONFIG.ROLES.MANAGER &&
-          String(data[i][uidCol]) !== String(ctx.lineUserId)) {
-        return fail('只能刪除自己提交的日報');
+    // 主管只能刪自己提交的日報；admin 可以刪任何人的
+    var result = deleteRowById(CONFIG.SHEETS.DAILY_REPORT, 'report_id', payload.report_id, {
+      checkFn: function(row) {
+        if (ctx.role === CONFIG.ROLES.MANAGER &&
+            String(row.sales_line_user_id) !== String(ctx.lineUserId)) {
+          return '只能刪除自己提交的日報';
+        }
+        return null;
       }
-      sh.deleteRow(i + 1);
-      writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.DAILY_REPORT,
-        payload.report_id, ctx.displayName + ' 刪除日報');
-      return ok({ report_id: payload.report_id });
-    }
-    return fail('找不到該筆日報');
+    });
+    if (result.notFound) return fail('找不到該筆日報');
+    if (result.error) return fail(result.error);
+
+    writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.DAILY_REPORT,
+      payload.report_id, ctx.displayName + ' 刪除日報');
+    return ok({ report_id: payload.report_id });
   } catch (err) { return fail(err.message); }
 }
 
@@ -1504,28 +1521,22 @@ function deleteMaintenance(payload) {
     if (!ctx) return fail('未授權');
     if (!payload.maintenance_id) return fail('maintenance_id 必填');
 
-    var sh      = getSheet(CONFIG.SHEETS.MAINTENANCE);
-    var data    = sh.getDataRange().getValues();
-    var headers = data[0];
-    var idCol         = headers.indexOf('maintenance_id');
-    var reportedByCol = headers.indexOf('reported_by_line_user_id');
-    var issueTypeCol  = headers.indexOf('issue_type');
-
-    for (var i = 1; i < data.length; i++) {
-      if (String(data[i][idCol]) !== String(payload.maintenance_id)) continue;
-
-      // 業務只能刪自己通報的維修；主管/admin 可以刪任何一筆
-      if (ctx.role === CONFIG.ROLES.SALES &&
-          String(data[i][reportedByCol]) !== String(ctx.lineUserId)) {
-        return fail('只能刪除自己通報的維修');
+    // 業務只能刪自己通報的維修；主管/admin 可以刪任何一筆
+    var result = deleteRowById(CONFIG.SHEETS.MAINTENANCE, 'maintenance_id', payload.maintenance_id, {
+      checkFn: function(row) {
+        if (ctx.role === CONFIG.ROLES.SALES &&
+            String(row.reported_by_line_user_id) !== String(ctx.lineUserId)) {
+          return '只能刪除自己通報的維修';
+        }
+        return null;
       }
-      var issueType = data[i][issueTypeCol];
-      sh.deleteRow(i + 1);
-      writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.MAINTENANCE, payload.maintenance_id,
-        ctx.displayName + ' 刪除維修通報: ' + issueType);
-      return ok({ maintenance_id: payload.maintenance_id });
-    }
-    return fail('找不到該筆維修通報');
+    });
+    if (result.notFound) return fail('找不到該筆維修通報');
+    if (result.error) return fail(result.error);
+
+    writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.MAINTENANCE, payload.maintenance_id,
+      ctx.displayName + ' 刪除維修通報: ' + result.row.issue_type);
+    return ok({ maintenance_id: payload.maintenance_id });
   } catch (err) { return fail(err.message); }
 }
 
@@ -1552,8 +1563,10 @@ function getLeaveSchedule(payload) {
   } catch (err) { return fail(err.message); }
 }
 
-function getTodayLeave() {
+function getTodayLeave(lineUserId) {
   try {
+    var ctx = getUserContext(lineUserId);
+    if (!ctx) return fail('未授權');
     var today = todayTW().substring(0, 10);
     var rows  = readSheetAsObjects(CONFIG.SHEETS.LEAVE_SCHEDULE).filter(function(r) {
       return String(r.leave_date).substring(0, 10) === today;
@@ -1647,26 +1660,22 @@ function deleteLeave(payload) {
     if (!ctx) return fail('未授權');
     if (!payload.leave_id) return fail('leave_id 必填');
 
-    var sh      = getSheet(CONFIG.SHEETS.LEAVE_SCHEDULE);
-    var data    = sh.getDataRange().getValues();
-    var headers = data[0];
-    var idCol   = headers.indexOf('leave_id');
-    var uidCol  = headers.indexOf('line_user_id');
-
-    for (var i = 1; i < data.length; i++) {
-      if (String(data[i][idCol]) !== String(payload.leave_id)) continue;
-
-      // 業務只能刪自己的
-      if (ctx.role === CONFIG.ROLES.SALES &&
-          String(data[i][uidCol]) !== String(ctx.lineUserId)) {
-        return fail('只能取消自己的假');
+    // 業務只能刪自己的
+    var result = deleteRowById(CONFIG.SHEETS.LEAVE_SCHEDULE, 'leave_id', payload.leave_id, {
+      checkFn: function(row) {
+        if (ctx.role === CONFIG.ROLES.SALES &&
+            String(row.line_user_id) !== String(ctx.lineUserId)) {
+          return '只能取消自己的假';
+        }
+        return null;
       }
-      sh.deleteRow(i + 1);
-      writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.LEAVE_SCHEDULE,
-        payload.leave_id, ctx.displayName + ' 取消排假');
-      return ok({ leave_id: payload.leave_id });
-    }
-    return fail('找不到該筆假別');
+    });
+    if (result.notFound) return fail('找不到該筆假別');
+    if (result.error) return fail(result.error);
+
+    writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.LEAVE_SCHEDULE,
+      payload.leave_id, ctx.displayName + ' 取消排假');
+    return ok({ leave_id: payload.leave_id });
   } catch (err) { return fail(err.message); }
 }
 
@@ -1740,19 +1749,13 @@ function deleteCalendarNote(payload) {
     if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限');
     if (!payload.note_id) return fail('note_id 必填');
 
-    var sh      = getSheet(CONFIG.SHEETS.CALENDAR_NOTES);
-    var data    = sh.getDataRange().getValues();
-    var headers = data[0];
-    var idCol   = headers.indexOf('note_id');
+    var result = deleteRowById(CONFIG.SHEETS.CALENDAR_NOTES, 'note_id', payload.note_id);
+    if (result.notFound) return fail('找不到該筆事項');
+    if (result.error) return fail(result.error);
 
-    for (var i = 1; i < data.length; i++) {
-      if (String(data[i][idCol]) !== String(payload.note_id)) continue;
-      sh.deleteRow(i + 1);
-      writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.CALENDAR_NOTES,
-        payload.note_id, ctx.displayName + ' 刪除重要事項');
-      return ok({ note_id: payload.note_id });
-    }
-    return fail('找不到該筆事項');
+    writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.CALENDAR_NOTES,
+      payload.note_id, ctx.displayName + ' 刪除重要事項');
+    return ok({ note_id: payload.note_id });
   } catch (err) { return fail(err.message); }
 }
 
