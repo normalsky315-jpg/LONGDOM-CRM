@@ -382,6 +382,10 @@
         <div class="section-tag" style="margin-top:14px;">任務提醒</div>
         <div id="taskReminderList"></div>
       </div>
+      <div class="pending-sign-wrap hidden" id="followupReminderWrap">
+        <div class="section-tag" style="margin-top:14px;">待追蹤客戶</div>
+        <div id="followupReminderList"></div>
+      </div>
       <div class="section-tag">本月概況</div>
       <div class="stat-grid">
         <div class="stat-card"><div class="stat-num" id="statVisitor">—</div><div class="stat-label">接待</div></div>
@@ -769,6 +773,28 @@
   </div>
 </div>
 
+<!-- 客戶追蹤記錄 Modal -->
+<div class="modal-mask" id="contactLogModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">客戶追蹤記錄</div>
+    <div class="modal-subtitle" id="contactLogSubtitle"></div>
+    <input type="hidden" id="contactLog_custId">
+    <div id="contactLogList"></div>
+    <div class="section-tag" style="margin-top:14px;">新增一筆追蹤</div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">聯絡日期</div><input class="inp" type="date" id="contactLog_date"></div>
+      <div class="field"><div class="field-label">聯絡方式</div><select class="sel" id="contactLog_method"><option value="電話">📞 電話</option><option value="LINE">💬 LINE</option><option value="到訪">🚶 到訪</option><option value="其他">其他</option></select></div>
+    </div>
+    <div class="field"><div class="field-label">接洽內容 / 備註</div><textarea class="ta" id="contactLog_note" style="min-height:70px;" placeholder="例如：客戶還在考慮，說下週會跟家人討論"></textarea></div>
+    <div class="field"><div class="field-label">下次預計追蹤日期（選填，會在首頁提醒）</div><input class="inp" type="date" id="contactLog_next"></div>
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('contactLogModal')">關閉</button>
+      <button class="btn-mini primary" id="contactLogSubmitBtn" style="flex:2;padding:14px;font-weight:600;" onclick="submitContactLog()">新 增 記 錄</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1122,6 +1148,7 @@ function renderHome() {
 
   loadPendingSignatures();
   loadTaskReminders();
+  loadFollowupReminders();
 }
 
 /* ══ 任務提醒 ══ */
@@ -1181,6 +1208,33 @@ function quickMarkSigned(dealId) {
   gasPost('saveDealDetail', { lineUserId: state.user.lineUserId, deal_id: dealId, contract_status: '已簽約' }, function(res) {
     if (res.ok) { showToast('已標記簽約完成','success'); loadPendingSignatures(); }
     else showToast(res.error,'error');
+  });
+}
+
+/* ══ 待追蹤客戶提醒 ══ */
+function loadFollowupReminders() {
+  var wrap = document.getElementById('followupReminderWrap');
+  var box  = document.getElementById('followupReminderList');
+  gasGet('getPendingFollowups', { lineUserId: state.user.lineUserId }, function(res) {
+    if (!res.ok || !res.data || !res.data.length) { wrap.classList.add('hidden'); box.innerHTML=''; return; }
+    wrap.classList.remove('hidden');
+    var today = todayStr();
+    box.innerHTML = res.data.map(function(r) {
+      var overdue = r.next_followup_date && r.next_followup_date < today;
+      var callBtn = r.phone
+        ? '<a class="pending-sign-signbtn" style="background:var(--teal);text-decoration:none;text-align:center;" href="tel:' + escapeHtml(String(r.phone)) + '">📞 撥打</a>'
+        : '';
+      return '<div class="pending-sign-card' + (overdue?' overdue':'') + '">' +
+        '<div class="pending-sign-main">' +
+          '<div class="pending-sign-unit">' + escapeHtml(r.customer_name||'') + '</div>' +
+          '<div class="pending-sign-meta">' + (overdue?'⚠️ 已逾期　':'') + '預計追蹤：' + escapeHtml(r.next_followup_date||'') + (!isSales()?'　<span>👤 '+escapeHtml(r.sales_name||'')+'</span>':'') + '</div>' +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">' +
+          callBtn +
+          '<button class="pending-sign-signbtn" style="background:var(--ink-light);" onclick="openContactLogModal(\'' + escapeHtml(r.customer_id) + '\',\'' + escapeHtml(r.customer_name||'') + '\')">追蹤紀錄</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
   });
 }
 
@@ -1252,7 +1306,7 @@ function myCustomerCardHTML(c) {
   var dealBadge = '<span class="cust-card-deal ' + badgeClass + '">' + badgeText + (c.deal_unit?' — '+escapeHtml(c.deal_unit):'') + '</span>';
 
   var fields = [
-    c.phone        ? '📞 ' + escapeHtml(String(c.phone))       : '',
+    c.phone        ? '📞 <a style="color:inherit;" href="tel:' + escapeHtml(String(c.phone)) + '">' + escapeHtml(String(c.phone)) + '</a>' : '',
     c.age_range    ? '🎂 ' + escapeHtml(String(c.age_range))   : '',
     c.district     ? '📍 ' + escapeHtml(String(c.district))    : '',
     c.visit_type   ? '🚶 ' + escapeHtml(String(c.visit_type))  : '',
@@ -1269,7 +1323,9 @@ function myCustomerCardHTML(c) {
     ? '<button class="deal-btn" style="background:var(--teal);" onclick="openEditCustModal(\'' + escapeHtml(c.customer_id) + '\')">✏️ 修改</button>'
     : '<span style="font-size:11px;color:var(--ink-faint);">已超過14天，無法修改</span>';
 
-  var logBtn = '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openChangeLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">📋 修改紀錄</button>';
+  var followBtn = '<button class="deal-btn" style="background:var(--gold);margin-left:6px;" onclick="openContactLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">📋 追蹤紀錄</button>';
+
+  var logBtn = '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openChangeLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">修改紀錄</button>';
 
   var deleteBtn = canEdit
     ? '<button class="deal-btn" style="background:var(--rust);margin-left:6px;" onclick="deleteCustomer(\'' + escapeHtml(c.customer_id) + '\')">🗑️ 刪除</button>'
@@ -1283,7 +1339,7 @@ function myCustomerCardHTML(c) {
     '<div class="cust-card-body">' + fields.map(function(f){ return '<span>'+f+'</span>'; }).join('') + '</div>' +
     (c.status_note ? '<div class="cust-card-note">📝 ' + escapeHtml(String(c.status_note)) + '</div>' : '') +
     dealBadge +
-    '<div style="margin-top:8px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">' + editBtn + logBtn + deleteBtn + '</div>' +
+    '<div style="margin-top:8px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">' + editBtn + followBtn + logBtn + deleteBtn + '</div>' +
   '</div>';
 }
 
@@ -1382,6 +1438,77 @@ function openChangeLogModal(custId, custName) {
   });
 }
 
+/* ══ 客戶追蹤記錄 ══ */
+var CONTACT_METHOD_ICON = { '電話':'📞', 'LINE':'💬', '到訪':'🚶', '其他':'📝' };
+
+function openContactLogModal(custId, custName) {
+  document.getElementById('contactLog_custId').value = custId;
+  document.getElementById('contactLogSubtitle').textContent = custName;
+  document.getElementById('contactLog_date').value = todayStr();
+  document.getElementById('contactLog_method').value = '電話';
+  document.getElementById('contactLog_note').value = '';
+  document.getElementById('contactLog_next').value = '';
+  loadContactLogList(custId);
+  openModal('contactLogModal');
+}
+
+function loadContactLogList(custId) {
+  var box = document.getElementById('contactLogList');
+  box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div>';
+  gasGet('getContactLogsByCustomer', { lineUserId: state.user.lineUserId, customer_id: custId }, function(res) {
+    if (!res.ok) { box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">' + escapeHtml(res.error) + '</div></div>'; return; }
+    if (!res.data.length) { box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-text">尚無追蹤記錄</div></div>'; return; }
+    box.innerHTML = res.data.map(function(r) {
+      var canDelete = !isSales() || String(r.created_by_line_user_id) === String(state.user.lineUserId);
+      var delBtn = canDelete
+        ? '<button class="deal-btn" style="background:var(--rust);" onclick="deleteContactLogEntry(\'' + escapeHtml(r.contact_id) + '\',\'' + escapeHtml(custId) + '\')">🗑️</button>'
+        : '';
+      return '<div class="change-log-item">' +
+        '<div class="change-log-header">' +
+          '<span class="change-log-by">' + (CONTACT_METHOD_ICON[r.contact_method]||'📝') + ' ' + escapeHtml(r.contact_method||'') + '　👤 ' + escapeHtml(r.sales_name||'') + '</span>' +
+          '<span class="change-log-time">' + escapeHtml(r.contact_date||'') + '</span>' +
+        '</div>' +
+        (r.note ? '<div style="margin-top:6px;font-size:13px;color:var(--ink-light);">' + escapeHtml(r.note) + '</div>' : '') +
+        (r.next_followup_date ? '<div style="margin-top:6px;font-size:12px;color:var(--gold);">📅 下次追蹤：' + escapeHtml(r.next_followup_date) + '</div>' : '') +
+        (delBtn ? '<div style="margin-top:8px;">' + delBtn + '</div>' : '') +
+      '</div>';
+    }).join('');
+  });
+}
+
+function submitContactLog() {
+  var custId = document.getElementById('contactLog_custId').value;
+  var btn = document.getElementById('contactLogSubmitBtn');
+  if (btn.disabled) return;
+  btn.disabled = true; btn.textContent = '送 出 中…';
+
+  gasPost('appendContactLog', {
+    lineUserId:         state.user.lineUserId,
+    customer_id:        custId,
+    contact_date:       document.getElementById('contactLog_date').value || todayStr(),
+    contact_method:     document.getElementById('contactLog_method').value,
+    note:               document.getElementById('contactLog_note').value.trim(),
+    next_followup_date: document.getElementById('contactLog_next').value
+  }, function(res) {
+    btn.disabled = false; btn.textContent = '新 增 記 錄';
+    if (res.ok) {
+      showToast('已新增追蹤記錄','success');
+      document.getElementById('contactLog_note').value = '';
+      document.getElementById('contactLog_next').value = '';
+      loadContactLogList(custId);
+      loadFollowupReminders();
+    } else { showToast(res.error,'error'); }
+  }, function(){ btn.disabled = false; btn.textContent = '新 增 記 錄'; showToast('連線失敗','error'); });
+}
+
+function deleteContactLogEntry(contactId, custId) {
+  if (!confirm('確定要刪除這筆追蹤記錄嗎？')) return;
+  gasPost('deleteContactLog', { lineUserId: state.user.lineUserId, contact_id: contactId }, function(res) {
+    if (res.ok) { showToast('已刪除','success'); loadContactLogList(custId); loadFollowupReminders(); }
+    else showToast(res.error,'error');
+  });
+}
+
 /* ══ 近期客戶總表（主管）也加上修改紀錄按鈕 ══ */
 function loadRecentCustomers() {
   var box = document.getElementById('recentCustomerList');
@@ -1453,10 +1580,11 @@ function recentCustCardHTML(c) {
     ? '<button class="deal-btn" style="background:var(--rust);margin-left:6px;" onclick="markRefund(\'' + escapeHtml(c.customer_id) + '\')">🔙 標記退戶</button>'
     : '';
   var logBtn = !isSales()
-    ? '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openChangeLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">📋 紀錄</button>'
+    ? '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openChangeLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">紀錄</button>'
     : '';
+  var followBtn = '<button class="deal-btn" style="background:var(--gold);margin-left:6px;" onclick="openContactLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">📋 追蹤紀錄</button>';
   var fields = [
-    c.phone            ? '📞 ' + escapeHtml(String(c.phone))              : '',
+    c.phone            ? '📞 <a style="color:inherit;" href="tel:' + escapeHtml(String(c.phone)) + '">' + escapeHtml(String(c.phone)) + '</a>' : '',
     c.age_range        ? '🎂 ' + escapeHtml(String(c.age_range))          : '',
     c.district         ? '📍 ' + escapeHtml(String(c.district))           : '',
     c.visit_type       ? '🚶 ' + escapeHtml(String(c.visit_type))         : '',
@@ -1477,7 +1605,7 @@ function recentCustCardHTML(c) {
     '<div class="cust-card-sales">👤 ' + escapeHtml(c.sales_name||c.created_by_name||'') + '</div>' +
     '<div class="cust-card-body">' + fields.map(function(f){ return '<span>'+f+'</span>'; }).join('') + '</div>' +
     (c.status_note ? '<div class="cust-card-note">📝 ' + escapeHtml(String(c.status_note)) + '</div>' : '') +
-    dealBadge + dealBtn + editDealBtn + refundBtn + logBtn +
+    dealBadge + dealBtn + editDealBtn + refundBtn + followBtn + logBtn +
   '</div>';
 }
 
