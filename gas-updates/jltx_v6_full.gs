@@ -1,37 +1,27 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v5.0
-//  以「華雄天地 v9.19」完整版為基礎重建，同步天地目前累積的所有功能。
-//  v5.0 變更（同步自 v9.19）：新增「客戶追蹤記錄」模組（Contact_Log
-//  分頁）：
-//  1. 「我的客戶」「近期客戶」卡片新增「📋 追蹤紀錄」按鈕，可以
-//     記錄每次接洽（聯絡方式：電話/LINE/到訪/其他、備註、選填
-//     下次預計追蹤日期），並看得到這位客戶過去所有的追蹤歷史
-//  2. 電話號碼現在點下去會直接撥打（tel: 連結），客戶卡片跟待
-//     追蹤提醒卡片都有
-//  3. 首頁新增「待追蹤客戶」提醒區塊，跟現有的待簽約/任務提醒
-//     同一種樣式：只要某客戶最新一筆追蹤記錄有填「下次追蹤日期」
-//     且日期到了（含逾期，逾期會用紅字持續顯示），就會出現在
-//     這裡；業務只看自己的客戶，主管看同案場，admin 看全部
+//  龍登 CRM — 吉隆天曜專用版 v6.0
+//  以「華雄天地 v9.20」完整版為基礎重建，同步天地目前累積的所有功能。
+//  v6.0 變更（同步自 v9.20）：LINE 簡單問答新增「下週休假」指令，
+//  跟既有的「今日休假」一樣查 Leave_Schedule，範圍是下週一到週日；
+//  問答說明（輸入「問答」）也同步加上這個指令。
 //  以下沿用之前版本的功能（源自華雄天地）：
-//  1. 排班：平日單日最多 2 人休假、六日禁休（主管排假不受此限制）
-//  2. 客戶：刪除功能、電話/日期時間欄位文字保護
-//  3. 每日日報：防重複提交、可刪除、主管3天內可修改
-//  4. 任務／維修通報：都可刪除、都可編輯（不只改狀態）；維修通報
-//     支援現場拍照上傳（存進 Google Drive），優先度欄位已修正會
-//     正確存檔
-//  5. 成交明細模組（Deal_Detail 分頁）：戶別、房屋底價、車位底價、
-//     溢價、成交價、訂金、簽約狀態、預定簽約日期；已成交客戶新增
-//     「編輯成交」按鈕可修正登錄錯誤；待簽約提醒新增「編輯／延期」
-//     按鈕可直接延後簽約日期；退戶會連動 Customer_Data 狀態 +
-//     Customer_Change_Log 稽核紀錄；交日報表時自動偵測避免重複記錄
-//  6. LINE 官方帳號「簡單問答」：查詢客戶、今日/本月業績、待簽約、
-//     今日休假、我的待辦，不需要另外申請/付費 AI API
-//  7. getSalesByProject、getTodayLeave 要求登入驗證；刪除功能共用
+//  1. 客戶追蹤記錄模組（Contact_Log 分頁）：記錄每次接洽方式、備註、
+//     選填下次追蹤日期，「我的客戶」「近期客戶」卡片可查看/新增；
+//     電話號碼可一鍵撥打；首頁「待追蹤客戶」提醒
+//  2. 排班：平日單日最多 2 人休假、六日禁休（主管排假不受此限制）
+//  3. 客戶：刪除功能、電話/日期時間欄位文字保護
+//  4. 每日日報：防重複提交、可刪除、主管3天內可修改
+//  5. 任務／維修通報：都可刪除、都可編輯（不只改狀態）；維修通報
+//     支援現場拍照上傳，優先度欄位已修正會正確存檔
+//  6. 成交明細模組（Deal_Detail 分頁）：可編輯成交/延期簽約日期，
+//     退戶會連動 Customer_Data 狀態 + 稽核紀錄
+//  7. LINE 官方帳號「簡單問答」：查詢客戶、今日/本月業績、待簽約、
+//     今日/下週休假、我的待辦
+//  8. getSalesByProject、getTodayLeave 要求登入驗證；刪除功能共用
 //     deleteRowById() helper
-//  8. submitPublicLead：官網 EDM 表單（jltx-edm.html）專用的公開、
-//     免登入陌客留資端點，寫進 Customer_Data 未指派業務，這是天地
-//     沒有的吉隆天曜專屬功能，之後任何一次同步都要記得保留（已含
-//     電話格式驗證/長度上限）
+//  9. submitPublicLead：官網 EDM 表單（jltx-edm.html）專用的公開、
+//     免登入陌客留資端點，這是天地沒有的吉隆天曜專屬功能，之後任何
+//     一次同步都要記得保留（已含電話格式驗證/長度上限）
 // ============================================================
 //  ★ 這是既有帳號（吉隆天曜已經上線運作中），不是第一次部署：
 //  1. 整份覆蓋貼上這個檔案到吉隆天曜的 Apps Script 專案
@@ -2092,6 +2082,7 @@ var QA_HELP_TEXT =
   '・本月業績　→ 這個月累計數字\n' +
   '・待簽約　→ 待簽約清單\n' +
   '・今日休假　→ 今天誰休假\n' +
+  '・下週休假　→ 下週一到週日誰休假\n' +
   '・我的待辦　→ 我的待處理任務\n\n' +
   '輸入「問答」隨時可以再看到這份說明。';
 
@@ -2104,6 +2095,7 @@ function handleQaCommand(text, userId) {
   if (norm === '本月業績' || norm === '這個月業績') return qaPerformance(ctx, 'month');
   if (norm === '待簽約') return qaPendingSignatures(ctx);
   if (norm === '今日休假' || norm === '誰休假' || norm === '今天誰休假') return qaTodayLeave();
+  if (norm === '下週休假' || norm === '下周休假' || norm === '下星期休假') return qaNextWeekLeave();
   if (norm === '我的待辦' || norm === '待辦' || norm === '我的任務') return qaMyTasks(ctx);
 
   var m = text.match(/^查詢?\s*(.+)$/);
@@ -2170,6 +2162,35 @@ function qaTodayLeave() {
   if (!rows.length) return '📅 今日休假（' + today + '）\n今日全員出勤 ✓';
   var names = rows.map(function(r){ return r.display_name || r.line_user_id; });
   return '📅 今日休假（' + today + '）\n' + names.join('、');
+}
+
+// 下週一~週日（跟前端排班頁 getWeekDates(1) 定義的「下週」一致）
+function qaNextWeekLeave() {
+  var now = new Date();
+  var dow = now.getDay() === 0 ? 6 : now.getDay() - 1;
+  var mon = new Date(now);
+  mon.setDate(now.getDate() - dow + 7);
+  var sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  var monStr = Utilities.formatDate(mon, CONFIG.TIMEZONE, 'yyyy-MM-dd');
+  var sunStr = Utilities.formatDate(sun, CONFIG.TIMEZONE, 'yyyy-MM-dd');
+
+  var rows = readSheetAsObjects(CONFIG.SHEETS.LEAVE_SCHEDULE).filter(function(r) {
+    var d = String(r.leave_date).substring(0,10);
+    return d >= monStr && d <= sunStr;
+  });
+  if (!rows.length) return '📅 下週休假（' + monStr + ' ～ ' + sunStr + '）\n目前沒有人排休。';
+
+  var byDate = {};
+  rows.forEach(function(r) {
+    var d = String(r.leave_date).substring(0,10);
+    if (!byDate[d]) byDate[d] = [];
+    byDate[d].push(r.display_name || r.line_user_id);
+  });
+  var lines = Object.keys(byDate).sort().map(function(d) {
+    return d + '：' + byDate[d].join('、');
+  });
+  return '📅 下週休假（' + monStr + ' ～ ' + sunStr + '）\n' + lines.join('\n');
 }
 
 function qaMyTasks(ctx) {
