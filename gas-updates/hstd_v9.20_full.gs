@@ -1,5 +1,9 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.19
+//  龍登 CRM — 華雄天地專用版 v9.20
+//  v9.20 變更：LINE 簡單問答新增「下週休假」指令，跟既有的「今日
+//    休假」一樣查 Leave_Schedule，範圍是下週一到週日（跟排班頁
+//    getWeekDates(1) 的「下週」定義一致）；問答說明（輸入「問答」）
+//    也同步加上這個指令
 //  v9.19 變更：新增「客戶追蹤記錄」模組（Contact_Log 分頁）：
 //    1. 「我的客戶」「近期客戶」卡片新增「📋 追蹤紀錄」按鈕，可以
 //       記錄每次接洽（聯絡方式：電話/LINE/到訪/其他、備註、選填
@@ -2274,6 +2278,7 @@ var QA_HELP_TEXT =
   '・本月業績　→ 這個月累計數字\n' +
   '・待簽約　→ 待簽約清單\n' +
   '・今日休假　→ 今天誰休假\n' +
+  '・下週休假　→ 下週一到週日誰休假\n' +
   '・我的待辦　→ 我的待處理任務\n\n' +
   '輸入「問答」隨時可以再看到這份說明。';
 
@@ -2286,6 +2291,7 @@ function handleQaCommand(text, userId) {
   if (norm === '本月業績' || norm === '這個月業績') return qaPerformance(ctx, 'month');
   if (norm === '待簽約') return qaPendingSignatures(ctx);
   if (norm === '今日休假' || norm === '誰休假' || norm === '今天誰休假') return qaTodayLeave();
+  if (norm === '下週休假' || norm === '下周休假' || norm === '下星期休假') return qaNextWeekLeave();
   if (norm === '我的待辦' || norm === '待辦' || norm === '我的任務') return qaMyTasks(ctx);
 
   var m = text.match(/^查詢?\s*(.+)$/);
@@ -2352,6 +2358,35 @@ function qaTodayLeave() {
   if (!rows.length) return '📅 今日休假（' + today + '）\n今日全員出勤 ✓';
   var names = rows.map(function(r){ return r.display_name || r.line_user_id; });
   return '📅 今日休假（' + today + '）\n' + names.join('、');
+}
+
+// 下週一~週日（跟前端排班頁 getWeekDates(1) 定義的「下週」一致）
+function qaNextWeekLeave() {
+  var now = new Date();
+  var dow = now.getDay() === 0 ? 6 : now.getDay() - 1;
+  var mon = new Date(now);
+  mon.setDate(now.getDate() - dow + 7);
+  var sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  var monStr = Utilities.formatDate(mon, CONFIG.TIMEZONE, 'yyyy-MM-dd');
+  var sunStr = Utilities.formatDate(sun, CONFIG.TIMEZONE, 'yyyy-MM-dd');
+
+  var rows = readSheetAsObjects(CONFIG.SHEETS.LEAVE_SCHEDULE).filter(function(r) {
+    var d = String(r.leave_date).substring(0,10);
+    return d >= monStr && d <= sunStr;
+  });
+  if (!rows.length) return '📅 下週休假（' + monStr + ' ～ ' + sunStr + '）\n目前沒有人排休。';
+
+  var byDate = {};
+  rows.forEach(function(r) {
+    var d = String(r.leave_date).substring(0,10);
+    if (!byDate[d]) byDate[d] = [];
+    byDate[d].push(r.display_name || r.line_user_id);
+  });
+  var lines = Object.keys(byDate).sort().map(function(d) {
+    return d + '：' + byDate[d].join('、');
+  });
+  return '📅 下週休假（' + monStr + ' ～ ' + sunStr + '）\n' + lines.join('\n');
 }
 
 function qaMyTasks(ctx) {
