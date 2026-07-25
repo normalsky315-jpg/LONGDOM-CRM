@@ -1,12 +1,20 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v7.0
-//  ★ 從這個版本開始，客戶資料表（Customer_Data）跟客戶登記表單是
+//  龍登 CRM — 吉隆天曜專用版 v8.0
+//  ★ 從 v7.0 開始，客戶資料表（Customer_Data）跟客戶登記表單是
 //  吉隆天曜專屬的客製化內容，跟華雄天地不再完全一樣（比對紙本
 //  「訪客服務表」補齊了天地版本沒有的欄位）。之後若要用天地最新
 //  版本重新同步吉隆天曜，要記得保留：
 //    1. CUSTOMER_EXTRA_FIELDS / ensureCustomerExtraColumns()
 //    2. appendCustomerData／updateCustomerData 裡用到這些欄位的部分
 //    3. appendCustomerData 裡「只有 admin 能指派業務」的邏輯
+//  v8.0 變更：
+//    1. 拿掉 v7.0 新增的電話（住家/公司）、交通方式、家庭結構、
+//       來訪型態這 5 個欄位（已建立的舊資料如果剛好填過，欄位還在
+//       試算表裡，只是表單不會再顯示/寫入了，不會遺失資料）
+//    2. 來源管道選「親友介紹」時，新增「介紹人」欄位可以填姓名
+//    3. 修正 getSalesByProject 業務下拉選單同一個人重複出現的 bug
+//       （User_Role_Table 對同一人可能有多筆有效紀錄，現在依
+//       line_user_id 去重）
 //  v7.0 變更：
 //    1. 新增「admin 可以代業務員填客戶資料」：appendCustomerData
 //       現在只有 admin 送出 sales_line_user_id 才會生效（改指派給
@@ -98,7 +106,7 @@ var DATE_ONLY_FIELDS  = ['visit_date','leave_date','report_date','due_date','not
                           'expected_sign_date','signed_date','refund_date',
                           'contact_date','next_followup_date'];
 var DATETIME_FIELDS   = ['created_at','updated_at','last_login_at','completed_at','changed_at','timestamp'];
-var TEXT_FORCE_FIELDS = ['phone', 'phone_home', 'phone_office'];
+var TEXT_FORCE_FIELDS = ['phone'];
 
 function getCrmSS()     { return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID); }
 function getSheet(name) { return getCrmSS().getSheetByName(name); }
@@ -615,11 +623,17 @@ function getSalesByProject(projectName, lineUserId) {
   try {
     var ctx = getUserContext(lineUserId);
     if (!ctx) return fail('未授權');
+    var seen = {};
     var rows = readSheetAsObjects(CONFIG.SHEETS.USER_ROLE)
       .filter(function(r) {
-        return r.status === CONFIG.STATUS.ACTIVE &&
-               (r.role === CONFIG.ROLES.SALES || r.role === CONFIG.ROLES.MANAGER) &&
-               r.project_name === projectName;
+        if (r.status !== CONFIG.STATUS.ACTIVE) return false;
+        if (r.role !== CONFIG.ROLES.SALES && r.role !== CONFIG.ROLES.MANAGER) return false;
+        if (r.project_name !== projectName) return false;
+        // User_Role_Table 可能對同一個人有多筆重複的有效紀錄（例如重新
+        // 審核過），這裡依 line_user_id 去重，避免下拉選單同一個人出現好幾次
+        if (seen[r.line_user_id]) return false;
+        seen[r.line_user_id] = true;
+        return true;
       })
       .map(function(r) { return { name: r.display_name, lineUserId: r.line_user_id, jobTitle: r.job_title || '' }; });
     return ok(rows);
@@ -676,9 +690,8 @@ function submitPublicLead(payload) {
 // 欄位，天地版本沒有這些）。之後如果要用天地的版本重新同步吉隆
 // 天曜，記得保留這整段跟 appendCustomerData/updateCustomerData 裡
 // 用到這些欄位的部分，不要被覆蓋掉。
-var CUSTOMER_EXTRA_FIELDS = ['gender','marital_status','address','transportation',
-  'phone_home','phone_office','visit_companion','family_structure','visit_time_slot',
-  'sqft_requirement','room_requirement_note','down_payment','introduced_units'];
+var CUSTOMER_EXTRA_FIELDS = ['gender','marital_status','address','visit_time_slot',
+  'sqft_requirement','room_requirement_note','down_payment','introduced_units','referrer_name'];
 
 function ensureCustomerExtraColumns() {
   var sh = getSheet(CONFIG.SHEETS.CUSTOMER);
@@ -741,16 +754,12 @@ function appendCustomerData(payload) {
       gender: payload.gender || '',
       marital_status: payload.marital_status || '',
       address: payload.address || '',
-      transportation: payload.transportation || '',
-      phone_home: payload.phone_home || '',
-      phone_office: payload.phone_office || '',
-      visit_companion: payload.visit_companion || '',
-      family_structure: payload.family_structure || '',
       visit_time_slot: payload.visit_time_slot || '',
       sqft_requirement: payload.sqft_requirement || '',
       room_requirement_note: payload.room_requirement_note || '',
       down_payment: payload.down_payment || '',
-      introduced_units: payload.introduced_units || ''
+      introduced_units: payload.introduced_units || '',
+      referrer_name: payload.referrer_name || ''
     });
     writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.CUSTOMER, customerId,
       ctx.displayName + ' 新增客戶: ' + payload.customer_name);
