@@ -1,5 +1,5 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v8.1
+//  龍登 CRM — 吉隆天曜專用版 v8.2
 //  ★ 從 v7.0 開始，客戶資料表（Customer_Data）跟客戶登記表單是
 //  吉隆天曜專屬的客製化內容，跟華雄天地不再完全一樣（比對紙本
 //  「訪客服務表」補齊了天地版本沒有的欄位）。之後若要用天地最新
@@ -7,6 +7,11 @@
 //    1. CUSTOMER_EXTRA_FIELDS / ensureCustomerExtraColumns()
 //    2. appendCustomerData／updateCustomerData 裡用到這些欄位的部分
 //    3. appendCustomerData 裡「只有 admin 能指派業務」的邏輯
+//    4. generateWeeklyLeaveReport「不」排除 SKY 陳昭文（天地會排除，
+//       吉隆天曜這裡刻意不排除）
+//  v8.2 變更：下週休假通報（generateWeeklyLeaveReport）不再排除
+//    SKY 陳昭文，吉隆天曜這邊他的休假也要算進通報裡（天地維持排除，
+//    只改吉隆天曜這份）
 //  v8.1 變更：v8.0 的 getSalesByProject 去重改用 line_user_id，但
 //    使用者回報還是有重複——代表 User_Role_Table 對同一個人有「同名
 //    但不同 line_user_id」的多筆有效紀錄，改成依「姓名」去重才真的
@@ -1978,14 +1983,15 @@ function deleteCalendarNote(payload) {
   } catch (err) { return fail(err.message); }
 }
 
-// ★ 產生下週休假通報（排除 SKY 陳昭文），並推播給案場管理員
+// ★ 吉隆天曜專屬：跟天地不一樣，這裡「不」排除 SKY 陳昭文（天地會
+// 排除，吉隆天曜要把他的休假也一起算進通報裡）。重新同步時記得保留
+// 這個差異，不要被天地的版本覆蓋掉
+// ★ 產生下週休假通報，並推播給案場管理員
 function generateWeeklyLeaveReport(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
     if (!ctx) return fail('未授權');
     if (ctx.role !== CONFIG.ROLES.ADMIN) return fail('無權限，僅限管理員');
-
-    var EXCLUDE_NAME = 'SKY 陳昭文';
 
     // 計算下週一~下週日
     var now = new Date();
@@ -1998,9 +2004,7 @@ function generateWeeklyLeaveReport(payload) {
       days.push(new Date(nextMonday.getFullYear(), nextMonday.getMonth(), nextMonday.getDate() + i));
     }
 
-    var rows = readSheetAsObjects(CONFIG.SHEETS.LEAVE_SCHEDULE).filter(function(r) {
-      return String(r.display_name) !== EXCLUDE_NAME;
-    });
+    var rows = readSheetAsObjects(CONFIG.SHEETS.LEAVE_SCHEDULE);
 
     var wd = ['日','一','二','三','四','五','六'];
     var lines = [];
