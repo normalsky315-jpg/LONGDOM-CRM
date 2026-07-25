@@ -1934,10 +1934,14 @@ function renderCustomerForm() {
     state.projects.forEach(function(p){ var o=document.createElement('option'); o.value=p; o.textContent=p; projSel.appendChild(o); });
   }
   // 自動帶入案場（不管角色）
+  // ★ 這裡故意不呼叫 onCustProjectChange()：下面的 admin 區塊已經會
+  // 用當下的 projSel.value 載入一次業務指派清單，這裡如果再呼叫一次
+  // 會變成同時發出兩個非同步請求，兩個回應都各自 append，選單裡
+  // 每個人會重複顯示兩次
   if (state.user.projectName) {
-    projSel.value = state.user.projectName; projSel.disabled = true; onCustProjectChange();
+    projSel.value = state.user.projectName; projSel.disabled = true;
   } else if (state.projects.length === 1) {
-    projSel.value = state.projects[0]; projSel.disabled = true; onCustProjectChange();
+    projSel.value = state.projects[0]; projSel.disabled = true;
   }
   projSel.onchange = onCustProjectChange;
   document.getElementById('cust_visitDate').value = todayStr();
