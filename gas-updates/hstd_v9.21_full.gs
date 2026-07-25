@@ -1,5 +1,9 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.20
+//  龍登 CRM — 華雄天地專用版 v9.21
+//  v9.21 變更：修正 getSalesByProject 的業務下拉選單重複顯示同一個
+//    人的 bug（User_Role_Table 對同一人有多筆有效紀錄時，之前沒有
+//    去重，現在依 line_user_id 去重）。這個函式同時被任務指派、
+//    吉隆天曜的客戶指派下拉選單使用，兩處都會一起修好
 //  v9.20 變更：LINE 簡單問答新增「下週休假」指令，跟既有的「今日
 //    休假」一樣查 Leave_Schedule，範圍是下週一到週日（跟排班頁
 //    getWeekDates(1) 的「下週」定義一致）；問答說明（輸入「問答」）
@@ -837,11 +841,17 @@ function getSalesByProject(projectName, lineUserId) {
   try {
     var ctx = getUserContext(lineUserId);
     if (!ctx) return fail('未授權');
+    var seen = {};
     var rows = readSheetAsObjects(CONFIG.SHEETS.USER_ROLE)
       .filter(function(r) {
-        return r.status === CONFIG.STATUS.ACTIVE &&
-               (r.role === CONFIG.ROLES.SALES || r.role === CONFIG.ROLES.MANAGER) &&
-               r.project_name === projectName;
+        if (r.status !== CONFIG.STATUS.ACTIVE) return false;
+        if (r.role !== CONFIG.ROLES.SALES && r.role !== CONFIG.ROLES.MANAGER) return false;
+        if (r.project_name !== projectName) return false;
+        // User_Role_Table 可能對同一個人有多筆重複的有效紀錄（例如重新
+        // 審核過），這裡依 line_user_id 去重，避免下拉選單同一個人出現好幾次
+        if (seen[r.line_user_id]) return false;
+        seen[r.line_user_id] = true;
+        return true;
       })
       .map(function(r) { return { name: r.display_name, lineUserId: r.line_user_id, jobTitle: r.job_title || '' }; });
     return ok(rows);
