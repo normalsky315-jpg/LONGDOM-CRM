@@ -448,7 +448,7 @@
         </div>
         <div class="field"><div class="field-label">地址</div><input class="inp" type="text" id="cust_address" placeholder="選填"></div>
         <div class="field"><div class="field-label">年齡區間</div><div class="chips"><label class="chip"><input type="radio" name="cust_age" value="30歲以下"><span class="chip-label">30以下</span></label><label class="chip"><input type="radio" name="cust_age" value="30-39歲"><span class="chip-label">30-39</span></label><label class="chip"><input type="radio" name="cust_age" value="40-49歲"><span class="chip-label">40-49</span></label><label class="chip"><input type="radio" name="cust_age" value="50-59歲"><span class="chip-label">50-59</span></label><label class="chip"><input type="radio" name="cust_age" value="60歲以上"><span class="chip-label">60以上</span></label></div></div>
-        <div class="field"><div class="field-label">居住行政區</div><div class="chips" id="cust_distChips"></div><div class="extra-inp hidden" id="cust_distOtherWrap"><input class="inp" type="text" id="cust_distOther" placeholder="請輸入其他地區"></div></div>
+        <div class="field"><div class="field-label">居住行政區</div><div class="chips" id="cust_distChips"></div><div class="extra-inp hidden" id="cust_distOtherWrap"><input class="inp" type="text" id="cust_distOther" placeholder="請輸入縣市/地區"></div></div>
         <div class="field-row">
           <div class="field">
             <div class="field-label">客戶職業</div>
@@ -1964,9 +1964,9 @@ function renderCustomerForm() {
   if (!dc.children.length) {
     DISTRICTS.forEach(function(d) {
       var label = document.createElement('label'); label.className = 'chip';
-      label.innerHTML = '<input type="radio" name="cust_dist" value="' + d + '"><span class="chip-label">' + (d==='其他'?'其他':d.replace('區','')) + '</span>';
+      label.innerHTML = '<input type="radio" name="cust_dist" value="' + d + '"><span class="chip-label">' + (d==='外縣市'?'外縣市':d.replace('區','')) + '</span>';
       dc.appendChild(label);
-      label.querySelector('input').addEventListener('change', function(){ document.getElementById('cust_distOtherWrap').classList.toggle('hidden', this.value!=='其他'); });
+      label.querySelector('input').addEventListener('change', function(){ document.getElementById('cust_distOtherWrap').classList.toggle('hidden', this.value!=='外縣市'); });
     });
   }
 
@@ -2024,7 +2024,7 @@ function submitCustomer() {
 
   var distEl = document.querySelector('input[name="cust_dist"]:checked');
   var dist = distEl ? distEl.value : '';
-  if (dist==='其他') { var ov=document.getElementById('cust_distOther').value.trim(); dist=ov?'其他：'+ov:'其他'; }
+  if (dist==='外縣市') { var ov=document.getElementById('cust_distOther').value.trim(); dist=ov?'外縣市：'+ov:'外縣市'; }
 
   // 年齡區間
   var ageEl = document.querySelector('input[name="cust_age"]:checked');
