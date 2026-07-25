@@ -422,18 +422,50 @@
           <div class="field"><div class="field-label">訪客日期</div><input class="inp" type="date" id="cust_visitDate"></div>
           <div class="field"><div class="field-label">接待人員</div>
             <input class="inp" type="text" id="cust_sales_display" disabled>
+            <select class="sel hidden" id="cust_salesAssign"></select>
           </div>
         </div>
         <div class="field"><div class="field-label">訪客類別</div><div class="chips"><label class="chip"><input type="radio" name="cust_visitType" value="初訪"><span class="chip-label">初訪</span></label><label class="chip"><input type="radio" name="cust_visitType" value="回籠"><span class="chip-label">回籠</span></label></div></div>
+        <div class="field">
+          <div class="field-label">來訪型態</div>
+          <div class="chips">
+            <label class="chip"><input type="radio" name="cust_companion" value="個人前來"><span class="chip-label">個人前來</span></label>
+            <label class="chip"><input type="radio" name="cust_companion" value="夫妻同行"><span class="chip-label">夫妻同行</span></label>
+            <label class="chip"><input type="radio" name="cust_companion" value="家人同行"><span class="chip-label">家人同行</span></label>
+            <label class="chip"><input type="radio" name="cust_companion" value="情侶同行"><span class="chip-label">情侶同行</span></label>
+            <label class="chip"><input type="radio" name="cust_companion" value="朋友同行"><span class="chip-label">朋友同行</span></label>
+            <label class="chip"><input type="radio" name="cust_companion" value="同事同行"><span class="chip-label">同事同行</span></label>
+          </div>
+        </div>
+        <div class="field"><div class="field-label">家庭結構</div><input class="inp" type="text" id="cust_familyStructure" placeholder="例：夫妻＋2個小孩"></div>
+        <div class="field">
+          <div class="field-label">來訪時段</div>
+          <div class="chips">
+            <label class="chip"><input type="radio" name="cust_timeSlot" value="09:00-12:00"><span class="chip-label">09-12</span></label>
+            <label class="chip"><input type="radio" name="cust_timeSlot" value="12:00-15:00"><span class="chip-label">12-15</span></label>
+            <label class="chip"><input type="radio" name="cust_timeSlot" value="15:00-18:00"><span class="chip-label">15-18</span></label>
+            <label class="chip"><input type="radio" name="cust_timeSlot" value="18:00-21:00"><span class="chip-label">18-21</span></label>
+          </div>
+        </div>
       </div>
       <div class="section">
         <div class="section-header"><div class="section-num">2</div><div class="section-name">客戶基本資料</div></div>
         <div class="field-row">
           <div class="field"><div class="field-label">姓名 <span class="req">*</span></div><input class="inp" type="text" id="cust_name" placeholder="請輸入姓名"></div>
-          <div class="field"><div class="field-label">電話 <span class="req">*</span></div><input class="inp" type="tel" id="cust_phone" placeholder="0912345678"></div>
+          <div class="field"><div class="field-label">性別</div><div class="chips"><label class="chip"><input type="radio" name="cust_gender" value="男"><span class="chip-label">男</span></label><label class="chip"><input type="radio" name="cust_gender" value="女"><span class="chip-label">女</span></label></div></div>
         </div>
+        <div class="field-row">
+          <div class="field"><div class="field-label">電話（手機） <span class="req">*</span></div><input class="inp" type="tel" id="cust_phone" placeholder="0912345678"></div>
+          <div class="field"><div class="field-label">婚姻狀況</div><div class="chips"><label class="chip"><input type="radio" name="cust_marital" value="已婚"><span class="chip-label">已婚</span></label><label class="chip"><input type="radio" name="cust_marital" value="未婚"><span class="chip-label">未婚</span></label></div></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><div class="field-label">電話（住家）</div><input class="inp" type="tel" id="cust_phoneHome" placeholder="選填"></div>
+          <div class="field"><div class="field-label">電話（公司）</div><input class="inp" type="tel" id="cust_phoneOffice" placeholder="選填"></div>
+        </div>
+        <div class="field"><div class="field-label">地址</div><input class="inp" type="text" id="cust_address" placeholder="選填"></div>
+        <div class="field"><div class="field-label">交通方式</div><input class="inp" type="text" id="cust_transportation" placeholder="例：開車、騎車、大眾運輸"></div>
         <div class="field"><div class="field-label">年齡區間</div><div class="chips"><label class="chip"><input type="radio" name="cust_age" value="30歲以下"><span class="chip-label">30以下</span></label><label class="chip"><input type="radio" name="cust_age" value="30-39歲"><span class="chip-label">30-39</span></label><label class="chip"><input type="radio" name="cust_age" value="40-49歲"><span class="chip-label">40-49</span></label><label class="chip"><input type="radio" name="cust_age" value="50-59歲"><span class="chip-label">50-59</span></label><label class="chip"><input type="radio" name="cust_age" value="60歲以上"><span class="chip-label">60以上</span></label></div></div>
-        <div class="field"><div class="field-label">居住行政區（高雄）</div><div class="chips" id="cust_distChips"></div><div class="extra-inp hidden" id="cust_distOtherWrap"><input class="inp" type="text" id="cust_distOther" placeholder="請輸入其他地區"></div></div>
+        <div class="field"><div class="field-label">居住行政區</div><div class="chips" id="cust_distChips"></div><div class="extra-inp hidden" id="cust_distOtherWrap"><input class="inp" type="text" id="cust_distOther" placeholder="請輸入其他地區"></div></div>
         <div class="field-row">
           <div class="field">
             <div class="field-label">客戶職業</div>
@@ -476,6 +508,22 @@
             </select>
             <div class="extra-inp hidden" id="cust_budgetOtherWrap"><input class="inp" type="text" id="cust_budgetOther" placeholder="請輸入預算範圍"></div>
           </div>
+        </div>
+        <div class="field"><div class="field-label">房型需求備註</div><input class="inp" type="text" id="cust_roomRequirementNote" placeholder="選填，例：要更衣室、要邊間"></div>
+        <div class="field">
+          <div class="field-label">坪數需求</div>
+          <div class="chips">
+            <label class="chip"><input type="radio" name="cust_sqft" value="20-30坪"><span class="chip-label">20-30坪</span></label>
+            <label class="chip"><input type="radio" name="cust_sqft" value="30-35坪"><span class="chip-label">30-35坪</span></label>
+            <label class="chip"><input type="radio" name="cust_sqft" value="36-40坪"><span class="chip-label">36-40坪</span></label>
+            <label class="chip"><input type="radio" name="cust_sqft" value="41-50坪"><span class="chip-label">41-50坪</span></label>
+            <label class="chip"><input type="radio" name="cust_sqft" value="51-60坪"><span class="chip-label">51-60坪</span></label>
+            <label class="chip"><input type="radio" name="cust_sqft" value="60坪以上"><span class="chip-label">60坪以上</span></label>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field"><div class="field-label">自備款</div><input class="inp" type="text" id="cust_downPayment" placeholder="選填"></div>
+          <div class="field"><div class="field-label">已介紹產品（棟別/樓層）</div><input class="inp" type="text" id="cust_introducedUnits" placeholder="選填，例：A棟5樓"></div>
         </div>
         <div class="field">
           <div class="field-label">客戶癥結點（可多選）</div>
@@ -753,6 +801,28 @@
     <div class="field"><div class="field-label">客戶癥結點</div><input class="inp" type="text" id="edit_issues"></div>
     <div class="field"><div class="field-label">接待狀況</div><textarea class="ta" id="edit_note" style="min-height:80px;"></textarea></div>
     <div class="field"><div class="field-label">備註</div><textarea class="ta" id="edit_extra" style="min-height:60px;"></textarea></div>
+    <div class="section-tag" style="margin-top:14px;">吉隆天曜訪客服務表補充欄位</div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">性別</div><input class="inp" type="text" id="edit_gender" placeholder="男／女"></div>
+      <div class="field"><div class="field-label">婚姻狀況</div><input class="inp" type="text" id="edit_maritalStatus" placeholder="已婚／未婚"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">電話（住家）</div><input class="inp" type="text" id="edit_phoneHome"></div>
+      <div class="field"><div class="field-label">電話（公司）</div><input class="inp" type="text" id="edit_phoneOffice"></div>
+    </div>
+    <div class="field"><div class="field-label">地址</div><input class="inp" type="text" id="edit_address"></div>
+    <div class="field"><div class="field-label">交通方式</div><input class="inp" type="text" id="edit_transportation"></div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">來訪型態</div><input class="inp" type="text" id="edit_visitCompanion" placeholder="例：夫妻同行"></div>
+      <div class="field"><div class="field-label">家庭結構</div><input class="inp" type="text" id="edit_familyStructure"></div>
+    </div>
+    <div class="field"><div class="field-label">來訪時段</div><input class="inp" type="text" id="edit_visitTimeSlot" placeholder="例：09:00-12:00"></div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">坪數需求</div><input class="inp" type="text" id="edit_sqftRequirement" placeholder="例：30-35坪"></div>
+      <div class="field"><div class="field-label">自備款</div><input class="inp" type="text" id="edit_downPayment"></div>
+    </div>
+    <div class="field"><div class="field-label">房型需求備註</div><input class="inp" type="text" id="edit_roomRequirementNote"></div>
+    <div class="field"><div class="field-label">已介紹產品（棟別/樓層）</div><input class="inp" type="text" id="edit_introducedUnits"></div>
     <div style="display:flex;gap:10px;margin-top:18px;">
       <button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('editCustModal')">取消</button>
       <button class="btn-mini primary" id="editCustSubmitBtn" style="flex:2;padding:14px;font-weight:600;" onclick="submitEditCustomer()">儲 存 修 改</button>
@@ -828,7 +898,9 @@ var state = {
   myCustomerFilterSales: 'all'
 };
 
-var DISTRICTS = ['楠梓區','左營區','鼓山區','三民區','苓雅區','新興區','前金區','鹽埕區','前鎮區','小港區','仁武區','鳳山區','其他'];
+// ★ 吉隆天曜專屬：居住行政區選項對照案場自己的紙本「訪客服務表」，
+// 跟華雄天地的區域不一樣，重新同步時不要被天地的版本覆蓋掉
+var DISTRICTS = ['大寮區','鳳山區','林園區','小港區','鳥松區','大樹區','前鎮區','三民區','苓雅區','新興區','仁武區','楠梓區','橋頭區','外縣市'];
 
 /* ══ 權限判斷共用函式（避免各處散落字串比對） ══ */
 function isSales() { return !!state.user && state.user.role === 'sales'; }
@@ -1244,7 +1316,12 @@ var FIELD_LABELS = {
   age_range:'年齡區間', district:'居住區域', occupation_industry:'職業',
   purchase_motive:'購屋動機', source:'來源管道', room_types:'需求房型',
   budget:'購屋預算', issues:'癥結點', revisit_plan:'預計再訪',
-  status_note:'接待狀況', note:'備註'
+  status_note:'接待狀況', note:'備註',
+  gender:'性別', marital_status:'婚姻狀況', address:'地址', transportation:'交通方式',
+  phone_home:'電話（住家）', phone_office:'電話（公司）',
+  visit_companion:'來訪型態', family_structure:'家庭結構', visit_time_slot:'來訪時段',
+  sqft_requirement:'坪數需求', room_requirement_note:'房型需求備註',
+  down_payment:'自備款', introduced_units:'已介紹產品'
 };
 
 function renderMyCustomers() {
@@ -1307,14 +1384,19 @@ function myCustomerCardHTML(c) {
 
   var fields = [
     c.phone        ? '📞 <a style="color:inherit;" href="tel:' + escapeHtml(String(c.phone)) + '">' + escapeHtml(String(c.phone)) + '</a>' : '',
+    (c.gender||c.marital_status) ? '🧑 ' + escapeHtml([c.gender,c.marital_status].filter(Boolean).join('／')) : '',
     c.age_range    ? '🎂 ' + escapeHtml(String(c.age_range))   : '',
     c.district     ? '📍 ' + escapeHtml(String(c.district))    : '',
+    c.address      ? '🏘 ' + escapeHtml(String(c.address))     : '',
     c.visit_type   ? '🚶 ' + escapeHtml(String(c.visit_type))  : '',
+    c.visit_companion ? '👥 ' + escapeHtml(String(c.visit_companion)) : '',
     c.occupation_industry ? '💼 ' + escapeHtml(String(c.occupation_industry)) : '',
     c.purchase_motive ? '🏠 ' + escapeHtml(String(c.purchase_motive)) : '',
     c.source       ? '📣 ' + escapeHtml(String(c.source))      : '',
     c.room_types   ? '🛏 ' + escapeHtml(String(c.room_types))  : '',
+    c.sqft_requirement ? '📐 ' + escapeHtml(String(c.sqft_requirement)) : '',
     c.budget       ? '💰 ' + escapeHtml(String(c.budget))      : '',
+    c.down_payment ? '💵 自備款：' + escapeHtml(String(c.down_payment)) : '',
     c.issues       ? '⚠️ ' + escapeHtml(String(c.issues))      : '',
     c.revisit_plan ? '📅 再訪：' + escapeHtml(String(c.revisit_plan)) : ''
   ].filter(Boolean);
@@ -1371,6 +1453,19 @@ function openEditCustModal(custId) {
   document.getElementById('edit_issues').value = c.issues || '';
   document.getElementById('edit_note').value = c.status_note || '';
   document.getElementById('edit_extra').value = c.note || '';
+  document.getElementById('edit_gender').value = c.gender || '';
+  document.getElementById('edit_maritalStatus').value = c.marital_status || '';
+  document.getElementById('edit_phoneHome').value = c.phone_home || '';
+  document.getElementById('edit_phoneOffice').value = c.phone_office || '';
+  document.getElementById('edit_address').value = c.address || '';
+  document.getElementById('edit_transportation').value = c.transportation || '';
+  document.getElementById('edit_visitCompanion').value = c.visit_companion || '';
+  document.getElementById('edit_familyStructure').value = c.family_structure || '';
+  document.getElementById('edit_visitTimeSlot').value = c.visit_time_slot || '';
+  document.getElementById('edit_sqftRequirement').value = c.sqft_requirement || '';
+  document.getElementById('edit_downPayment').value = c.down_payment || '';
+  document.getElementById('edit_roomRequirementNote').value = c.room_requirement_note || '';
+  document.getElementById('edit_introducedUnits').value = c.introduced_units || '';
   openModal('editCustModal');
 }
 
@@ -1396,7 +1491,20 @@ function submitEditCustomer() {
     revisit_plan:        document.getElementById('edit_revisit').value.trim(),
     issues:              document.getElementById('edit_issues').value.trim(),
     status_note:         document.getElementById('edit_note').value.trim(),
-    note:                document.getElementById('edit_extra').value.trim()
+    note:                document.getElementById('edit_extra').value.trim(),
+    gender:               document.getElementById('edit_gender').value.trim(),
+    marital_status:       document.getElementById('edit_maritalStatus').value.trim(),
+    phone_home:           document.getElementById('edit_phoneHome').value.trim(),
+    phone_office:         document.getElementById('edit_phoneOffice').value.trim(),
+    address:              document.getElementById('edit_address').value.trim(),
+    transportation:       document.getElementById('edit_transportation').value.trim(),
+    visit_companion:      document.getElementById('edit_visitCompanion').value.trim(),
+    family_structure:     document.getElementById('edit_familyStructure').value.trim(),
+    visit_time_slot:      document.getElementById('edit_visitTimeSlot').value.trim(),
+    sqft_requirement:     document.getElementById('edit_sqftRequirement').value.trim(),
+    down_payment:         document.getElementById('edit_downPayment').value.trim(),
+    room_requirement_note: document.getElementById('edit_roomRequirementNote').value.trim(),
+    introduced_units:     document.getElementById('edit_introducedUnits').value.trim()
   }, function(res) {
     btn.disabled = false; btn.textContent = '儲 存 修 改';
     if (res.ok) {
@@ -1585,14 +1693,19 @@ function recentCustCardHTML(c) {
   var followBtn = '<button class="deal-btn" style="background:var(--gold);margin-left:6px;" onclick="openContactLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">📋 追蹤紀錄</button>';
   var fields = [
     c.phone            ? '📞 <a style="color:inherit;" href="tel:' + escapeHtml(String(c.phone)) + '">' + escapeHtml(String(c.phone)) + '</a>' : '',
+    (c.gender||c.marital_status) ? '🧑 ' + escapeHtml([c.gender,c.marital_status].filter(Boolean).join('／')) : '',
     c.age_range        ? '🎂 ' + escapeHtml(String(c.age_range))          : '',
     c.district         ? '📍 ' + escapeHtml(String(c.district))           : '',
+    c.address          ? '🏘 ' + escapeHtml(String(c.address))            : '',
     c.visit_type       ? '🚶 ' + escapeHtml(String(c.visit_type))         : '',
+    c.visit_companion  ? '👥 ' + escapeHtml(String(c.visit_companion))    : '',
     c.occupation_industry ? '💼 ' + escapeHtml(String(c.occupation_industry)) : '',
     c.purchase_motive  ? '🏠 ' + escapeHtml(String(c.purchase_motive))   : '',
     c.source           ? '📣 ' + escapeHtml(String(c.source))             : '',
     c.room_types       ? '🛏 ' + escapeHtml(String(c.room_types))         : '',
+    c.sqft_requirement ? '📐 ' + escapeHtml(String(c.sqft_requirement))   : '',
     c.budget           ? '💰 ' + escapeHtml(String(c.budget))             : '',
+    c.down_payment     ? '💵 自備款：' + escapeHtml(String(c.down_payment)) : '',
     c.issues           ? '⚠️ ' + escapeHtml(String(c.issues))             : '',
     c.revisit_plan     ? '📅 再訪：' + escapeHtml(String(c.revisit_plan)) : ''
   ].filter(Boolean);
@@ -1863,10 +1976,19 @@ function renderCustomerForm() {
   projSel.onchange = onCustProjectChange;
   document.getElementById('cust_visitDate').value = todayStr();
 
-  // ★ 接待人員：所有角色一律鎖定自己，不顯示下拉
+  // ★ 吉隆天曜專屬：admin 可以指派給別的業務員（代填資料），
+  // 其他角色一律鎖定自己，不顯示下拉
   var salesDisplay = document.getElementById('cust_sales_display');
-  salesDisplay.value = state.user.displayName;
-  salesDisplay.classList.remove('hidden');
+  var salesAssign  = document.getElementById('cust_salesAssign');
+  if (state.user.role === 'admin') {
+    salesDisplay.classList.add('hidden');
+    salesAssign.classList.remove('hidden');
+    loadCustSalesAssignOptions(projSel.value);
+  } else {
+    salesAssign.classList.add('hidden');
+    salesDisplay.classList.remove('hidden');
+    salesDisplay.value = state.user.displayName;
+  }
 
   var dc = document.getElementById('cust_distChips');
   if (!dc.children.length) {
@@ -1895,7 +2017,23 @@ function renderCustomerForm() {
 }
 
 function onCustProjectChange() {
-  // 接待人員固定為自己，不需要撈案場業務清單
+  if (state.user.role === 'admin') loadCustSalesAssignOptions(document.getElementById('cust_project').value);
+}
+
+function loadCustSalesAssignOptions(project) {
+  var sel = document.getElementById('cust_salesAssign');
+  sel.innerHTML = '<option value="">指派給自己（' + escapeHtml(state.user.displayName) + '）</option>';
+  if (!project) return;
+  gasGet('getSalesByProject', { project: project, lineUserId: state.user.lineUserId }, function(res) {
+    if (!res.ok) return;
+    res.data.forEach(function(s) {
+      var o = document.createElement('option');
+      o.value = s.lineUserId;
+      o.dataset.name = s.name;
+      o.textContent = s.name + (s.jobTitle ? '（' + s.jobTitle + '）' : '');
+      sel.appendChild(o);
+    });
+  });
 }
 
 function toggleOther(wrapId, show) {
@@ -1953,9 +2091,16 @@ function submitCustomer() {
   if (again === '確認日期') again = document.getElementById('cust_againDate').value||'未填日期';
   else if (again === '其他') { var ov7=document.getElementById('cust_againOther').value.trim(); again=ov7?'其他：'+ov7:'其他'; }
 
-  // 接待業務：固定帶入自己，所有角色一律如此
+  // 接待業務：一般角色固定帶入自己；admin 可以從下拉選單指派給別的業務員
   var salesLineUserId = state.user.lineUserId;
   var salesName       = state.user.displayName;
+  if (state.user.role === 'admin') {
+    var assignSel = document.getElementById('cust_salesAssign');
+    if (assignSel.value) {
+      salesLineUserId = assignSel.value;
+      salesName = assignSel.options[assignSel.selectedIndex].dataset.name || salesLineUserId;
+    }
+  }
 
   btn.disabled=true; btn.textContent='送 出 中…';
   gasPost('appendCustomerData', {
@@ -1971,7 +2116,20 @@ function submitCustomer() {
     budget: budget,
     issues: issues.join('、'),
     revisit_plan: again,
-    status_note: note
+    status_note: note,
+    gender: getRadio('cust_gender'),
+    marital_status: getRadio('cust_marital'),
+    address: document.getElementById('cust_address').value.trim(),
+    transportation: document.getElementById('cust_transportation').value.trim(),
+    phone_home: document.getElementById('cust_phoneHome').value.trim(),
+    phone_office: document.getElementById('cust_phoneOffice').value.trim(),
+    visit_companion: getRadio('cust_companion'),
+    family_structure: document.getElementById('cust_familyStructure').value.trim(),
+    visit_time_slot: getRadio('cust_timeSlot'),
+    sqft_requirement: getRadio('cust_sqft'),
+    room_requirement_note: document.getElementById('cust_roomRequirementNote').value.trim(),
+    down_payment: document.getElementById('cust_downPayment').value.trim(),
+    introduced_units: document.getElementById('cust_introducedUnits').value.trim()
   }, function(res) {
     btn.disabled=false; btn.textContent='送 出 登 記';
     if (res.ok) { showToast('客戶資料已建立','success'); resetCustomerForm(); setTimeout(function(){ route('#/home'); },1200); }
@@ -1981,7 +2139,9 @@ function submitCustomer() {
 
 function resetCustomerForm() {
   ['cust_name','cust_phone','cust_note','cust_distOther','cust_againDate',
-   'cust_industryOther','cust_motiveOther','cust_sourceOther','cust_budgetOther','cust_issueOther','cust_againOther'
+   'cust_industryOther','cust_motiveOther','cust_sourceOther','cust_budgetOther','cust_issueOther','cust_againOther',
+   'cust_address','cust_transportation','cust_phoneHome','cust_phoneOffice','cust_familyStructure',
+   'cust_roomRequirementNote','cust_downPayment','cust_introducedUnits'
   ].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
   document.querySelectorAll('#viewCustomer input[type="radio"]').forEach(function(r){ r.checked=false; });
   document.querySelectorAll('#viewCustomer input[type="checkbox"]').forEach(function(c){ c.checked=false; });
