@@ -1,9 +1,25 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v6.0
-//  以「華雄天地 v9.20」完整版為基礎重建，同步天地目前累積的所有功能。
-//  v6.0 變更（同步自 v9.20）：LINE 簡單問答新增「下週休假」指令，
-//  跟既有的「今日休假」一樣查 Leave_Schedule，範圍是下週一到週日；
-//  問答說明（輸入「問答」）也同步加上這個指令。
+//  龍登 CRM — 吉隆天曜專用版 v7.0
+//  ★ 從這個版本開始，客戶資料表（Customer_Data）跟客戶登記表單是
+//  吉隆天曜專屬的客製化內容，跟華雄天地不再完全一樣（比對紙本
+//  「訪客服務表」補齊了天地版本沒有的欄位）。之後若要用天地最新
+//  版本重新同步吉隆天曜，要記得保留：
+//    1. CUSTOMER_EXTRA_FIELDS / ensureCustomerExtraColumns()
+//    2. appendCustomerData／updateCustomerData 裡用到這些欄位的部分
+//    3. appendCustomerData 裡「只有 admin 能指派業務」的邏輯
+//  v7.0 變更：
+//    1. 新增「admin 可以代業務員填客戶資料」：appendCustomerData
+//       現在只有 admin 送出 sales_line_user_id 才會生效（改指派給
+//       別的業務），業務/主管送出這個欄位會被忽略，一律用自己的
+//       身分，避免業務亂填別人名字
+//    2. 比對紙本「訪客服務表」新增客戶資料欄位：性別、婚姻狀況、
+//       地址、交通方式、電話（住家/公司，原本的電話欄位視為手機）、
+//       來訪型態（個人/夫妻/家人/情侶/朋友/同事同行）、家庭結構、
+//       來訪時段、坪數需求、房型需求備註、自備款、已介紹產品
+//       （棟別/樓層），新增/編輯客戶都支援
+//    3. 居住行政區選項改成吉隆天曜自己案場的區域（大寮/鳳山/林園/
+//       小港/鳥松/大樹/前鎮/三民/苓雅/新興/仁武/楠梓/橋頭/外縣市），
+//       原本沿用天地的左營/楠梓/鼓山那組不是吉隆天曜的商圈
 //  以下沿用之前版本的功能（源自華雄天地）：
 //  1. 客戶追蹤記錄模組（Contact_Log 分頁）：記錄每次接洽方式、備註、
 //     選填下次追蹤日期，「我的客戶」「近期客戶」卡片可查看/新增；
@@ -82,7 +98,7 @@ var DATE_ONLY_FIELDS  = ['visit_date','leave_date','report_date','due_date','not
                           'expected_sign_date','signed_date','refund_date',
                           'contact_date','next_followup_date'];
 var DATETIME_FIELDS   = ['created_at','updated_at','last_login_at','completed_at','changed_at','timestamp'];
-var TEXT_FORCE_FIELDS = ['phone'];
+var TEXT_FORCE_FIELDS = ['phone', 'phone_home', 'phone_office'];
 
 function getCrmSS()     { return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID); }
 function getSheet(name) { return getCrmSS().getSheetByName(name); }
@@ -656,6 +672,23 @@ function submitPublicLead(payload) {
   } catch (err) { Logger.log('submitPublicLead error: ' + err); return fail(err.message); }
 }
 
+// ★ 吉隆天曜專屬：客戶資料表額外欄位（對照紙本「訪客服務表」補齊的
+// 欄位，天地版本沒有這些）。之後如果要用天地的版本重新同步吉隆
+// 天曜，記得保留這整段跟 appendCustomerData/updateCustomerData 裡
+// 用到這些欄位的部分，不要被覆蓋掉。
+var CUSTOMER_EXTRA_FIELDS = ['gender','marital_status','address','transportation',
+  'phone_home','phone_office','visit_companion','family_structure','visit_time_slot',
+  'sqft_requirement','room_requirement_note','down_payment','introduced_units'];
+
+function ensureCustomerExtraColumns() {
+  var sh = getSheet(CONFIG.SHEETS.CUSTOMER);
+  if (!sh) return;
+  var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var missing = CUSTOMER_EXTRA_FIELDS.filter(function(h){ return headers.indexOf(h) < 0; });
+  if (!missing.length) return;
+  sh.getRange(1, headers.length + 1, 1, missing.length).setValues([missing]);
+}
+
 function appendCustomerData(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
@@ -668,6 +701,16 @@ function appendCustomerData(payload) {
       ? (payload.project_name || ctx.projectName || '') : ctx.projectName;
     if (!projectName) return fail('案場未指定');
 
+    // 接待業務：一般只能是自己；只有 admin 可以指派給別的業務員
+    // （幫業務員代填客戶資料），避免業務自己亂填別人名字
+    var salesLineUserId = ctx.lineUserId;
+    var salesName = ctx.displayName;
+    if (ctx.role === CONFIG.ROLES.ADMIN && payload.sales_line_user_id) {
+      salesLineUserId = payload.sales_line_user_id;
+      salesName = payload.sales_name || salesLineUserId;
+    }
+
+    ensureCustomerExtraColumns();
     var customerId = genId('CUST');
     appendObjectToSheet(CONFIG.SHEETS.CUSTOMER, {
       customer_id: customerId,
@@ -675,8 +718,8 @@ function appendCustomerData(payload) {
       updated_at: nowTW(),
       created_by_line_user_id: ctx.lineUserId,
       created_by_name: ctx.displayName,
-      sales_line_user_id: payload.sales_line_user_id || ctx.lineUserId,
-      sales_name: payload.sales_name || ctx.displayName,
+      sales_line_user_id: salesLineUserId,
+      sales_name: salesName,
       project_name: projectName,
       visit_date: payload.visit_date || todayTW(),
       visit_type: payload.visit_type || '',
@@ -694,7 +737,20 @@ function appendCustomerData(payload) {
       deal_status: '未成交',
       deal_unit: '',
       status_note: payload.status_note,
-      note: payload.note || ''
+      note: payload.note || '',
+      gender: payload.gender || '',
+      marital_status: payload.marital_status || '',
+      address: payload.address || '',
+      transportation: payload.transportation || '',
+      phone_home: payload.phone_home || '',
+      phone_office: payload.phone_office || '',
+      visit_companion: payload.visit_companion || '',
+      family_structure: payload.family_structure || '',
+      visit_time_slot: payload.visit_time_slot || '',
+      sqft_requirement: payload.sqft_requirement || '',
+      room_requirement_note: payload.room_requirement_note || '',
+      down_payment: payload.down_payment || '',
+      introduced_units: payload.introduced_units || ''
     });
     writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.CUSTOMER, customerId,
       ctx.displayName + ' 新增客戶: ' + payload.customer_name);
@@ -1160,11 +1216,12 @@ function updateCustomerData(payload) {
       if (diffDays > 14) return fail('超過14天，無法修改');
     }
 
+    ensureCustomerExtraColumns();
     var editableFields = [
       'visit_date','visit_type','customer_name','phone','age_range','district',
       'occupation_industry','purchase_motive','source','room_types',
       'budget','issues','revisit_plan','status_note','note'
-    ];
+    ].concat(CUSTOMER_EXTRA_FIELDS);
 
     var changes = [];
     var updates = { updated_at: nowTW() };
