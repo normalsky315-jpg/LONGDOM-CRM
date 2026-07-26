@@ -8,99 +8,60 @@
  *   距今已超過 3 天，按鈕會自動隱藏；本函式在後端也會再檢查一次天數與角色，
  *   不能只靠前端擋（前端檢查只是 UX，任何人都能直接呼叫這支 API）。
  *
- * 部署方式（比照既有 SOP）：
+ * 部署方式：
  *   1. 把這支 function 貼進「華雄天地」與「華雄音樂匯」兩個 Apps Script 專案
- *      （CONFIG.SPREADSHEET_ID 已經在專案內設定好，不用改）。
- *   2. 部署 → 管理部署 → 編輯（鉛筆圖示）→ 版本選「新版本」→ 部署。
- *   3. 若專案的 doGet/doPost 是用一個 action 白名單陣列或 switch 手動列出可呼叫的
- *      function 名稱（而不是用 this[action](payload) 動態呼叫），
- *      要記得把 'updateDailyReport' 加進那個白名單/switch，否則前端呼叫會得到
- *      「未知的 action」之類的錯誤。
+ *      （直接沿用專案裡既有的 CONFIG / getUserContext / updateRowById /
+ *      readSheetAsObjects / todayTW / ok / fail 等共用函式，不用重複定義）。
+ *   2. 在 doPost 的 switch 裡加一行：
+ *        case 'updateDailyReport': return jsonResponse(updateDailyReport(payload));
+ *   3. 部署 → 管理部署 → 編輯（鉛筆圖示）→ 版本選「新版本」→ 部署（用「編輯
+ *      現有部署」，exec 網址不會變，不用改 hstd.html / hsyy.html 的 GAS_URL）。
  *
- * 找到要修改的那一列（比對方式）：
- *   Daily_Report 分頁目前沒有唯一 ID 欄位，這裡用「report_date + 提交人姓名」
- *   找列（姓名欄位可能叫 salesperson 或 created_by，兩種都會嘗試比對，取其中
- *   有值的那一個）。如果同一人同一天有重複提交多筆，只會修改「最後（最新）」
- *   的一筆。如果貴公司的 Daily_Report 分頁其實有唯一 ID 欄位（例如
- *   report_id），改用該欄位比對會更準確、更保險，請自行調整
- *   nameCol/targetRow 那段邏輯。
+ * 找到要修改的那一列：
+ *   Daily_Report 分頁本來就有唯一的 report_id 欄位（appendDailyReport 用
+ *   genId('RPT') 產生），直接用 report_id 比對即可，不需要用日期+姓名猜。
  *
- * 角色驗證：
- *   從 Users 分頁用 line_user_id 找出呼叫者（payload.lineUserId）的 role，
- *   只有 manager / admin 可以呼叫成功，sales 會被拒絕。若 Users 分頁欄位
- *   名稱不同，請自行調整 lidCol / roleCol 對應的欄位名稱。
- *
- * 假設的 Daily_Report 分頁欄位（依前端現有欄位推斷，若實際表頭不同請自行
- * 調整 headers.indexOf(...) 對應的欄位名稱）：
- *   report_date, salesperson 或 created_by, visitor_count, first_visit_count,
- *   revisit_count, deal_count, transaction_units, notes
+ * 權限：
+ *   - 只有 manager / admin 能呼叫，sales 會被拒絕
+ *   - manager 只能修改自己案場（project_name）的日報，admin 不限案場
  */
 function updateDailyReport(payload) {
   try {
-    var ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (ctx.role === CONFIG.ROLES.SALES) return fail('僅限主管修改日報');
+    if (!payload.report_id) return fail('report_id 必填');
 
-    // 1) 驗證呼叫者角色：僅 manager / admin 可修改日報
-    var usersSheet = ss.getSheetByName('Users');
-    if (!usersSheet) return { ok: false, error: '找不到 Users 分頁' };
-    var uValues = usersSheet.getDataRange().getValues();
-    var uHeaders = uValues[0];
-    var lidCol = uHeaders.indexOf('line_user_id');
-    var roleCol = uHeaders.indexOf('role');
-    if (lidCol === -1 || roleCol === -1) return { ok: false, error: 'Users 分頁缺少 line_user_id 或 role 欄位' };
-    var callerRole = '';
-    for (var u = 1; u < uValues.length; u++) {
-      if (String(uValues[u][lidCol]) === String(payload.lineUserId)) { callerRole = uValues[u][roleCol]; break; }
+    var rows = readSheetAsObjects(CONFIG.SHEETS.DAILY_REPORT);
+    var original = null;
+    for (var i = 0; i < rows.length; i++) {
+      if (String(rows[i].report_id) === String(payload.report_id)) { original = rows[i]; break; }
     }
-    if (callerRole !== 'manager' && callerRole !== 'admin') {
-      return { ok: false, error: '僅限主管修改日報' };
+    if (!original) return fail('找不到該筆日報');
+
+    if (ctx.role !== CONFIG.ROLES.ADMIN && original.project_name !== ctx.projectName) {
+      return fail('無權限修改其他案場的日報');
     }
 
-    // 2) 找到 Daily_Report 分頁裡對應的那一列
-    var sheet = ss.getSheetByName('Daily_Report');
-    if (!sheet) return { ok: false, error: '找不到 Daily_Report 分頁' };
-    var values = sheet.getDataRange().getValues();
-    if (values.length < 2) return { ok: false, error: '找不到該筆日報' };
-    var headers = values[0];
+    var reportDate = String(original.report_date || '').substring(0, 10);
+    var diffDays = Math.round(
+      (new Date(todayTW() + 'T00:00:00Z') - new Date(reportDate + 'T00:00:00Z')) / 86400000
+    );
+    if (diffDays > 3) return fail('此日報已超過3天，無法修改');
 
-    var dateCol = headers.indexOf('report_date');
-    var nameCol = headers.indexOf('salesperson');
-    if (nameCol === -1) nameCol = headers.indexOf('created_by');
-    if (dateCol === -1 || nameCol === -1) return { ok: false, error: 'Daily_Report 缺少 report_date 或 salesperson/created_by 欄位' };
+    var updates = {};
+    ['visitor_count', 'first_visit_count', 'revisit_count', 'deal_count', 'transaction_units', 'notes']
+      .forEach(function(field) {
+        if (payload[field] !== undefined) updates[field] = payload[field];
+      });
 
-    var targetDate = String(payload.report_date || '').substring(0, 10);
-    var targetName = String(payload.submitter_name || '');
-    var targetRow = -1;
-    for (var i = 1; i < values.length; i++) {
-      var rowDate = String(values[i][dateCol]).substring(0, 10);
-      var rowName = String(values[i][nameCol]);
-      if (rowDate === targetDate && rowName === targetName) targetRow = i + 1; // 保留最後一筆符合的（sheet 列號從 1 起算）
-    }
-    if (targetRow === -1) return { ok: false, error: '找不到該筆日報' };
+    updateRowById(CONFIG.SHEETS.DAILY_REPORT, 'report_id', payload.report_id, updates);
 
-    // 3) 檢查是否已超過 3 天（用台灣時間的「日期」比較，不管時分秒）
-    var todayStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
-    var diffDays = Math.round((new Date(todayStr + 'T00:00:00Z') - new Date(targetDate + 'T00:00:00Z')) / 86400000);
-    if (diffDays > 3) {
-      return { ok: false, error: '此日報已超過3天，無法修改' };
-    }
+    writeAuditLog(ctx.lineUserId, 'UPDATE', CONFIG.SHEETS.DAILY_REPORT, payload.report_id,
+      ctx.displayName + ' 修改日報: ' + (original.salesperson || original.created_by || '') + ' ' + reportDate);
 
-    // 4) 更新欄位（只更新業績數字／成交戶別／備註，不動 report_date 與提交人）
-    var editable = {
-      visitor_count: payload.visitor_count,
-      first_visit_count: payload.first_visit_count,
-      revisit_count: payload.revisit_count,
-      deal_count: payload.deal_count,
-      transaction_units: payload.transaction_units,
-      notes: payload.notes
-    };
-    for (var key in editable) {
-      var col = headers.indexOf(key);
-      if (col !== -1 && editable[key] !== undefined) {
-        sheet.getRange(targetRow, col + 1).setValue(editable[key]);
-      }
-    }
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: String(e) };
+    return ok({ report_id: payload.report_id });
+  } catch (err) {
+    return fail(err.message);
   }
 }

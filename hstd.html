@@ -2154,8 +2154,7 @@ function saveEditReport() {
   btn.disabled = true; btn.textContent = '儲 存 中…';
   gasPost('updateDailyReport', {
     lineUserId: state.user.lineUserId,
-    report_date: r.report_date,
-    submitter_name: r.salesperson || r.created_by || '',
+    report_id: r.report_id,
     visitor_count: +document.getElementById('erep_visitor').value || 0,
     first_visit_count: +document.getElementById('erep_first').value || 0,
     revisit_count: +document.getElementById('erep_revisit').value || 0,
