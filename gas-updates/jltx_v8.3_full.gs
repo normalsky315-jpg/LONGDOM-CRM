@@ -1,5 +1,5 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v8.2
+//  龍登 CRM — 吉隆天曜專用版 v8.3
 //  ★ 從 v7.0 開始，客戶資料表（Customer_Data）跟客戶登記表單是
 //  吉隆天曜專屬的客製化內容，跟華雄天地不再完全一樣（比對紙本
 //  「訪客服務表」補齊了天地版本沒有的欄位）。之後若要用天地最新
@@ -9,6 +9,16 @@
 //    3. appendCustomerData 裡「只有 admin 能指派業務」的邏輯
 //    4. generateWeeklyLeaveReport「不」排除 SKY 陳昭文（天地會排除，
 //       吉隆天曜這裡刻意不排除）
+//    5. CONFIG.INDUSTRIES / CONFIG.PURCHASE_MOTIVES 比天地多幾個選項
+//  v8.3 變更：客戶資料表單簡化，只針對吉隆天曜：
+//    1. 拿掉「地址」「購屋預算」「自備款」欄位（購屋預算是跟天地共用
+//       的原始欄位，這裡沒有另外刪表格欄位，只是表單不再顯示/送出；
+//       地址、自備款是吉隆天曜自己加的，已建立的舊資料欄位還在，不會
+//       遺失）
+//    2. 客戶職業新增：物流業、運輸業、上班族、農林漁牧業、技術設備類
+//    3. 購屋動機新增：新婚準備
+//    4. 坪數需求簡化成 3 個選項：20-30坪／30-40坪／40坪以上
+//    5. 客戶癥結點新增：回去與家人討論
 //  v8.2 變更：下週休假通報（generateWeeklyLeaveReport）不再排除
 //    SKY 陳昭文，吉隆天曜這邊他的休假也要算進通報裡（天地維持排除，
 //    只改吉隆天曜這份）
@@ -95,10 +105,14 @@ const CONFIG = {
   STATUS: { ACTIVE: 'active', INACTIVE: 'inactive', PENDING: 'pending',
             PROCESSING: 'processing', DONE: 'done' },
 
+  // ★ 吉隆天曜專屬：職業選項比天地多了物流業/運輸業/上班族/農林漁牧業/
+  // 技術設備類，重新同步時記得保留
   INDUSTRIES: ['公教軍警','醫療生技','科技資訊','金融保險','服務業',
-               '製造業','自由業','營建業','房仲業','退休','家管','其他'],
+               '製造業','自由業','營建業','房仲業','物流業','運輸業',
+               '上班族','農林漁牧業','技術設備類','退休','家管','其他'],
 
-  PURCHASE_MOTIVES: ['首購','投資置產','換屋升級','自住改善','子女購置','退休養老','其他'],
+  // ★ 吉隆天曜專屬：購屋動機比天地多了「新婚準備」，重新同步時記得保留
+  PURCHASE_MOTIVES: ['首購','投資置產','換屋升級','自住改善','子女購置','新婚準備','退休養老','其他'],
 
   INITIAL_PROJECTS: [
     { name: '吉隆天曜', code: 'JLTX' }
@@ -701,8 +715,8 @@ function submitPublicLead(payload) {
 // 欄位，天地版本沒有這些）。之後如果要用天地的版本重新同步吉隆
 // 天曜，記得保留這整段跟 appendCustomerData/updateCustomerData 裡
 // 用到這些欄位的部分，不要被覆蓋掉。
-var CUSTOMER_EXTRA_FIELDS = ['gender','marital_status','address','visit_time_slot',
-  'sqft_requirement','room_requirement_note','down_payment','introduced_units','referrer_name'];
+var CUSTOMER_EXTRA_FIELDS = ['gender','marital_status','visit_time_slot',
+  'sqft_requirement','room_requirement_note','introduced_units','referrer_name'];
 
 function ensureCustomerExtraColumns() {
   var sh = getSheet(CONFIG.SHEETS.CUSTOMER);
@@ -764,11 +778,9 @@ function appendCustomerData(payload) {
       note: payload.note || '',
       gender: payload.gender || '',
       marital_status: payload.marital_status || '',
-      address: payload.address || '',
       visit_time_slot: payload.visit_time_slot || '',
       sqft_requirement: payload.sqft_requirement || '',
       room_requirement_note: payload.room_requirement_note || '',
-      down_payment: payload.down_payment || '',
       introduced_units: payload.introduced_units || '',
       referrer_name: payload.referrer_name || ''
     });
