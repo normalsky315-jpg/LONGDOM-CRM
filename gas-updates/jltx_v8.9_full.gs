@@ -1,5 +1,9 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v8.8
+//  龍登 CRM — 吉隆天曜專用版 v8.9
+//  v8.9 變更：「戶別反應」統計（日報＋月報）改成用正規表示式直接掃
+//    棟別＋戶型，不再限定新版下拉選單的固定格式，這樣舊資料手動填的
+//    各種寫法（A3/13、A3.B3、A1-10/5、A5含車位，B5含車位…）也能正確
+//    歸類成「A棟3型」「A棟1型」等統一分類，新舊資料統合在同一份統計
 //  v8.8 變更：新增「月報表」頁面，統計整個月的接待/初訪/回籠/成交，
 //    加上跟日報一樣的居住行政區／來源管道／戶別反應分布，直接連動
 //    客戶資料表。新增 getMonthlyVisitorBreakdown 函式，把原本寫死在
@@ -1618,18 +1622,23 @@ function countByField(rows, field) {
     .sort(function(a, b) { return b.count - a.count; });
 }
 
-// 已介紹產品一筆客戶可能有多個（用「、」分隔），拆開來各自計數，這樣
-// 「戶別反應」看得出每個戶別實際被介紹過幾次；只看棟別＋戶型，樓層
-// 不同視為同一類（例如 A棟1型7樓／A棟1型8樓算同一筆）
+// 已介紹產品裡直接掃出「棟別＋戶型」，不管樓層、分隔符號、舊資料的
+// 各種寫法（新版下拉選單存的是「A棟1型5樓」，舊資料手動輸入過
+// 「A3/13」「A3.B3」「A1-10/5」「A5含車位，B5含車位」等各種格式），
+// 統一只看棟別＋戶型分類，樓層/車位/分隔符號一律忽略，這樣新舊資料
+// 才能統合成同一種分類（例如 A3/13、A3.B3 的 A3、A2/6 都會歸類成
+// 「A棟3型」「A棟2型」）
 function countByUnitField(rows) {
   var counts = {};
+  var re = /([AB])\s*棟?\s*(\d)/gi;
   rows.forEach(function(r) {
-    String(r.introduced_units || '').split('、').forEach(function(u) {
-      u = u.trim();
-      if (!u) return;
-      var key = u.replace(/\d+樓$/, '');
+    var raw = String(r.introduced_units || '');
+    var m;
+    re.lastIndex = 0;
+    while ((m = re.exec(raw)) !== null) {
+      var key = m[1].toUpperCase() + '棟' + m[2] + '型';
       counts[key] = (counts[key] || 0) + 1;
-    });
+    }
   });
   return Object.keys(counts).map(function(k) { return { label: k, count: counts[k] }; })
     .sort(function(a, b) { return b.count - a.count; });
