@@ -759,6 +759,7 @@
     <div class="modal-title">修改客戶資料</div>
     <div class="modal-subtitle" id="editCustSubtitle"></div>
     <input type="hidden" id="edit_custId">
+    <div class="field hidden" id="edit_salesWrap"><div class="field-label">承辦業務員</div><select class="sel" id="edit_salesAssign"></select></div>
     <div class="field-row">
       <div class="field"><div class="field-label">訪客日期</div><input class="inp" type="date" id="edit_visitDate"></div>
       <div class="field"><div class="field-label">訪客類別</div><select class="sel" id="edit_visitType"><option value="">請選擇</option><option>初訪</option><option>回籠</option></select></div>
@@ -1424,7 +1425,38 @@ function openEditCustModal(custId) {
   document.getElementById('edit_sqftRequirement').value = c.sqft_requirement || '';
   document.getElementById('edit_roomRequirementNote').value = c.room_requirement_note || '';
   document.getElementById('edit_introducedUnits').value = c.introduced_units || '';
+  var salesWrap = document.getElementById('edit_salesWrap');
+  if (isAdmin()) {
+    salesWrap.classList.remove('hidden');
+    loadEditSalesAssignOptions(c.project_name, c.sales_line_user_id, c.sales_name);
+  } else {
+    salesWrap.classList.add('hidden');
+  }
   openModal('editCustModal');
+}
+
+function loadEditSalesAssignOptions(project, selectedLineUserId, selectedName) {
+  var sel = document.getElementById('edit_salesAssign');
+  sel.innerHTML = '';
+  if (selectedLineUserId) {
+    var cur = document.createElement('option');
+    cur.value = selectedLineUserId; cur.dataset.name = selectedName || '';
+    cur.textContent = selectedName || '（目前業務）';
+    sel.appendChild(cur);
+  }
+  if (!project) return;
+  gasGet('getSalesByProject', { project: project, lineUserId: state.user.lineUserId }, function(res) {
+    if (!res.ok) return;
+    res.data.forEach(function(s) {
+      if (String(s.lineUserId) === String(selectedLineUserId)) return;
+      var o = document.createElement('option');
+      o.value = s.lineUserId;
+      o.dataset.name = s.name;
+      o.textContent = s.name + (s.jobTitle ? '（' + s.jobTitle + '）' : '');
+      sel.appendChild(o);
+    });
+    sel.value = selectedLineUserId || '';
+  });
 }
 
 function submitEditCustomer() {
@@ -1432,7 +1464,7 @@ function submitEditCustomer() {
   if (btn.disabled) return;
   btn.disabled = true; btn.textContent = '儲 存 中…';
 
-  gasPost('updateCustomerData', {
+  var payload = {
     lineUserId:          state.user.lineUserId,
     customer_id:         document.getElementById('edit_custId').value,
     visit_date:          document.getElementById('edit_visitDate').value,
@@ -1456,7 +1488,17 @@ function submitEditCustomer() {
     sqft_requirement:     document.getElementById('edit_sqftRequirement').value.trim(),
     room_requirement_note: document.getElementById('edit_roomRequirementNote').value.trim(),
     introduced_units:     document.getElementById('edit_introducedUnits').value.trim()
-  }, function(res) {
+  };
+  if (isAdmin()) {
+    var salesSel = document.getElementById('edit_salesAssign');
+    var salesOpt = salesSel.options[salesSel.selectedIndex];
+    if (salesOpt) {
+      payload.sales_line_user_id = salesSel.value;
+      payload.sales_name = salesOpt.dataset.name || salesOpt.textContent;
+    }
+  }
+
+  gasPost('updateCustomerData', payload, function(res) {
     btn.disabled = false; btn.textContent = '儲 存 修 改';
     if (res.ok) {
       showToast('資料已更新','success');
