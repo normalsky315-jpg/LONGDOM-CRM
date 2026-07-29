@@ -1,5 +1,5 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v8.4
+//  龍登 CRM — 吉隆天曜專用版 v8.5
 //  ★ 從 v7.0 開始，客戶資料表（Customer_Data）跟客戶登記表單是
 //  吉隆天曜專屬的客製化內容，跟華雄天地不再完全一樣（比對紙本
 //  「訪客服務表」補齊了天地版本沒有的欄位）。之後若要用天地最新
@@ -11,6 +11,12 @@
 //       吉隆天曜這裡刻意不排除）
 //    5. CONFIG.INDUSTRIES / CONFIG.PURCHASE_MOTIVES 比天地多幾個選項
 //    6. getDailyVisitorBreakdown（日報頁「當日來客分布」，天地沒有）
+//  v8.5 變更：
+//    1. 已介紹產品從自由輸入改成棟別／戶型／樓層下拉選單（可加入多筆），
+//       B棟沒有6型，A棟樓層1~15，B棟樓層1~9
+//    2. getDailyVisitorBreakdown 新增「戶別反應」統計（by_unit）：把
+//       客戶的已介紹產品拆開分別計數，跟居住行政區／來源管道一起顯示
+//       在日報頁面，方便對照廣告效益
 //  v8.4 變更：銷售日報頁面新增「當日來客分布」，直接統計 Customer_Data
 //    當天的客戶資料，顯示居住行政區／來源管道分布（不用另外手動填寫，
 //    客戶資料本來就有記錄這些欄位，日報直接連動顯示即可）。新增
@@ -1603,7 +1609,22 @@ function getDailyVisitorBreakdown(payload) {
         .sort(function(a, b) { return b.count - a.count; });
     }
 
-    return ok({ total: rows.length, by_district: countBy('district'), by_source: countBy('source') });
+    // 已介紹產品一筆客戶可能有多個（用「、」分隔），拆開來各自計數，
+    // 這樣「戶別反應」看得出每個戶別實際被介紹過幾次
+    function countByUnits() {
+      var counts = {};
+      rows.forEach(function(r) {
+        String(r.introduced_units || '').split('、').forEach(function(u) {
+          u = u.trim();
+          if (!u) return;
+          counts[u] = (counts[u] || 0) + 1;
+        });
+      });
+      return Object.keys(counts).map(function(k) { return { label: k, count: counts[k] }; })
+        .sort(function(a, b) { return b.count - a.count; });
+    }
+
+    return ok({ total: rows.length, by_district: countBy('district'), by_source: countBy('source'), by_unit: countByUnits() });
   } catch (err) { return fail(err.message); }
 }
 
