@@ -1,5 +1,9 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v8.6
+//  龍登 CRM — 吉隆天曜專用版 v8.7
+//  v8.7 變更：日報頁「戶別反應」統計改成只看棟別＋戶型分類，樓層
+//    不同不再算成不同筆（例如 A棟1型7樓、A棟1型8樓現在會合併成
+//    「A棟1型」一筆計數）。已介紹產品本身（客戶資料裡實際記錄的
+//    戶別清單，含樓層）不受影響，只有統計彙總的分類邏輯改變
 //  v8.6 變更：修改客戶資料 Modal 新增「承辦業務員」欄位，主管/admin
 //    可以直接改指派給哪位業務（業務本人仍不能改，只能看/改自己名下
 //    客戶的其他欄位）。updateCustomerData 的可編輯欄位在非業務角色時
@@ -1624,7 +1628,9 @@ function getDailyVisitorBreakdown(payload) {
         String(r.introduced_units || '').split('、').forEach(function(u) {
           u = u.trim();
           if (!u) return;
-          counts[u] = (counts[u] || 0) + 1;
+          // 只看棟別＋戶型，樓層不同視為同一類（例如 A棟1型7樓／A棟1型8樓算同一筆）
+          var key = u.replace(/\d+樓$/, '');
+          counts[key] = (counts[key] || 0) + 1;
         });
       });
       return Object.keys(counts).map(function(k) { return { label: k, count: counts[k] }; })
