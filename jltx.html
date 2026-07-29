@@ -571,10 +571,32 @@
         <div class="summary-card-date" id="weekCompareRange">—</div>
         <div class="summary-stats" id="weekCompareStats"></div>
       </div>
+      <button class="btn-mini" style="width:100%;padding:12px;margin-top:14px;" onclick="route('#/report/month')">📅 查看完整月報表</button>
       <div class="section-tag" style="margin-top:14px;">每日報表（近1個月）</div>
       <div id="reportHistoryList"><div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div></div>
     </div>
     <button class="fab" onclick="openReportModal()">+</button>
+  </div>
+
+  <!-- Monthly Report ★ 吉隆天曜專屬 -->
+  <div id="viewMonthlyReport" class="view hidden">
+    <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/report')">‹</button><div class="header-title">月報表</div><div style="width:36px;"></div></div></div>
+    <div class="list-wrap">
+      <div class="field" style="margin-bottom:14px;">
+        <div class="field-label">查詢月份</div>
+        <input class="inp" type="month" id="monthReportDate" onchange="loadMonthlyReport()">
+      </div>
+      <div class="summary-card"><div class="summary-card-label">MONTHLY SUMMARY</div><div class="summary-card-date" id="monthReportRange">—</div><div class="summary-stats"><div class="summary-stat"><div class="summary-stat-num" id="monthSumVisitor">0</div><div class="summary-stat-label">接待</div></div><div class="summary-stat"><div class="summary-stat-num" id="monthSumFirst">0</div><div class="summary-stat-label">初訪</div></div><div class="summary-stat"><div class="summary-stat-num" id="monthSumRevisit">0</div><div class="summary-stat-label">回籠</div></div><div class="summary-stat"><div class="summary-stat-num" id="monthSumDeal">0</div><div class="summary-stat-label">成交</div></div></div></div>
+      <div class="summary-card" id="monthBreakdownCard">
+        <div class="summary-card-label">本月來客分布（依客戶資料統計）</div>
+        <div style="font-size:12px;color:var(--ink-faint);margin-top:6px;">居住行政區</div>
+        <div id="monthDistrictBreakdown"></div>
+        <div style="font-size:12px;color:var(--ink-faint);margin-top:10px;">來源管道</div>
+        <div id="monthSourceBreakdown"></div>
+        <div style="font-size:12px;color:var(--ink-faint);margin-top:10px;">已介紹房型（戶別反應）</div>
+        <div id="monthUnitBreakdown"></div>
+      </div>
+    </div>
   </div>
 
   <!-- Maintenance -->
@@ -1124,6 +1146,9 @@ function route(hash) {
     case '#/report':
       if (isSales()) { route('#/home'); return; }
       document.getElementById('viewReport').classList.remove('hidden'); renderReport(); break;
+    case '#/report/month':
+      if (isSales()) { route('#/home'); return; }
+      document.getElementById('viewMonthlyReport').classList.remove('hidden'); renderMonthlyReport(); break;
     case '#/maint':    document.getElementById('viewMaint').classList.remove('hidden');    renderMaintList(); break;
     case '#/users':
       if (isSales()) { route('#/home'); return; }
@@ -2349,8 +2374,8 @@ function loadVisitorBreakdown(date) {
   });
 }
 
-function breakdownChipsHTML(items, total) {
-  if (!items || !items.length) return '<div style="font-size:12px;color:var(--ink-faint);padding:6px 0;">當日尚無客戶資料</div>';
+function breakdownChipsHTML(items, total, emptyText) {
+  if (!items || !items.length) return '<div style="font-size:12px;color:var(--ink-faint);padding:6px 0;">' + (emptyText || '當日尚無客戶資料') + '</div>';
   return '<div style="display:flex;flex-wrap:wrap;gap:6px;padding:6px 0;">' +
     items.map(function(it) {
       var pct = total ? Math.round(it.count / total * 100) : 0;
@@ -2358,6 +2383,39 @@ function breakdownChipsHTML(items, total) {
         escapeHtml(it.label) + '　' + it.count + '（' + pct + '%）</span>';
     }).join('') +
   '</div>';
+}
+
+/* ══ Monthly Report ★ 吉隆天曜專屬 ══ */
+function renderMonthlyReport() {
+  var input = document.getElementById('monthReportDate');
+  if (!input.value) input.value = todayStr().substring(0, 7);
+  loadMonthlyReport();
+}
+
+function loadMonthlyReport() {
+  var month = document.getElementById('monthReportDate').value || todayStr().substring(0, 7);
+  document.getElementById('monthReportRange').textContent = month;
+  var errHTML = '<div style="font-size:12px;color:var(--rust);padding:6px 0;">載入失敗，請確認 GAS 已部署最新版本</div>';
+  gasGet('getMonthlyVisitorBreakdown', { lineUserId: state.user.lineUserId, month: month }, function(res) {
+    if (!res.ok) {
+      document.getElementById('monthDistrictBreakdown').innerHTML = errHTML;
+      document.getElementById('monthSourceBreakdown').innerHTML = '';
+      document.getElementById('monthUnitBreakdown').innerHTML = '';
+      return;
+    }
+    var d = res.data;
+    document.getElementById('monthSumVisitor').textContent = d.total;
+    document.getElementById('monthSumFirst').textContent = d.first_visit;
+    document.getElementById('monthSumRevisit').textContent = d.revisit;
+    document.getElementById('monthSumDeal').textContent = d.deal;
+    document.getElementById('monthDistrictBreakdown').innerHTML = breakdownChipsHTML(d.by_district, d.total, '本月尚無客戶資料');
+    document.getElementById('monthSourceBreakdown').innerHTML = breakdownChipsHTML(d.by_source, d.total, '本月尚無客戶資料');
+    document.getElementById('monthUnitBreakdown').innerHTML = breakdownChipsHTML(d.by_unit, d.total, '本月尚無客戶資料');
+  }, function() {
+    document.getElementById('monthDistrictBreakdown').innerHTML = errHTML;
+    document.getElementById('monthSourceBreakdown').innerHTML = '';
+    document.getElementById('monthUnitBreakdown').innerHTML = '';
+  });
 }
 
 /* 是否在可修改天數內（含當天）；主管/admin 才會呼叫到這裡 */

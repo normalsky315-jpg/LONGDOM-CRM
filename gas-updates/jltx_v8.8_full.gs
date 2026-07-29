@@ -1,5 +1,10 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v8.7
+//  龍登 CRM — 吉隆天曜專用版 v8.8
+//  v8.8 變更：新增「月報表」頁面，統計整個月的接待/初訪/回籠/成交，
+//    加上跟日報一樣的居住行政區／來源管道／戶別反應分布，直接連動
+//    客戶資料表。新增 getMonthlyVisitorBreakdown 函式，把原本寫死在
+//    getDailyVisitorBreakdown 裡的分類統計邏輯抽成 countByField／
+//    countByUnitField 共用
 //  v8.7 變更：日報頁「戶別反應」統計改成只看棟別＋戶型分類，樓層
 //    不同不再算成不同筆（例如 A棟1型7樓、A棟1型8樓現在會合併成
 //    「A棟1型」一筆計數）。已介紹產品本身（客戶資料裡實際記錄的
@@ -18,7 +23,8 @@
 //    4. generateWeeklyLeaveReport「不」排除 SKY 陳昭文（天地會排除，
 //       吉隆天曜這裡刻意不排除）
 //    5. CONFIG.INDUSTRIES / CONFIG.PURCHASE_MOTIVES 比天地多幾個選項
-//    6. getDailyVisitorBreakdown（日報頁「當日來客分布」，天地沒有）
+//    6. getDailyVisitorBreakdown／getMonthlyVisitorBreakdown（日報／
+//       月報頁「來客分布」統計，天地沒有）
 //  v8.5 變更：
 //    1. 已介紹產品從自由輸入改成棟別／戶型／樓層下拉選單（可加入多筆），
 //       B棟沒有6型，A棟樓層1~15，B棟樓層1~9
@@ -339,6 +345,10 @@ function doGet(e) {
       case 'getDailyVisitorBreakdown':
         return jsonResponse(getDailyVisitorBreakdown(payload.lineUserId ? payload : {
           lineUserId: e.parameter.lineUserId, date: e.parameter.date
+        }));
+      case 'getMonthlyVisitorBreakdown':
+        return jsonResponse(getMonthlyVisitorBreakdown(payload.lineUserId ? payload : {
+          lineUserId: e.parameter.lineUserId, month: e.parameter.month
         }));
       case 'getDailyReportRange':
         return jsonResponse(getDailyReportRange(payload.lineUserId ? payload : {
@@ -1592,11 +1602,39 @@ function getDailyReportSummary(payload) {
   } catch (err) { return fail(err.message); }
 }
 
-// ★ 吉隆天曜專屬：日報頁面「當日來客分布」，直接統計 Customer_Data
-// 當天的客戶資料（居住行政區／來源管道分布），跟 getDailyReportSummary
-// 同一個權限規則（業務不能看，只有主管/admin 看得到），不用另外
-// 手動填寫，直接連動客戶資料表。重新同步時記得保留這個函式跟
-// doGet/doPost 裡對應的 case
+// ★ 吉隆天曜專屬：日報／月報頁面的來客分布統計，直接統計 Customer_Data
+// （居住行政區／來源管道／戶別反應），跟 getDailyReportSummary 同一個
+// 權限規則（業務不能看，只有主管/admin 看得到），不用另外手動填寫，
+// 直接連動客戶資料表。重新同步時記得保留這兩個函式跟 doGet/doPost
+// 裡對應的 case
+function countByField(rows, field) {
+  var counts = {};
+  rows.forEach(function(r) {
+    var v = String(r[field] || '').trim();
+    if (!v) return;
+    counts[v] = (counts[v] || 0) + 1;
+  });
+  return Object.keys(counts).map(function(k) { return { label: k, count: counts[k] }; })
+    .sort(function(a, b) { return b.count - a.count; });
+}
+
+// 已介紹產品一筆客戶可能有多個（用「、」分隔），拆開來各自計數，這樣
+// 「戶別反應」看得出每個戶別實際被介紹過幾次；只看棟別＋戶型，樓層
+// 不同視為同一類（例如 A棟1型7樓／A棟1型8樓算同一筆）
+function countByUnitField(rows) {
+  var counts = {};
+  rows.forEach(function(r) {
+    String(r.introduced_units || '').split('、').forEach(function(u) {
+      u = u.trim();
+      if (!u) return;
+      var key = u.replace(/\d+樓$/, '');
+      counts[key] = (counts[key] || 0) + 1;
+    });
+  });
+  return Object.keys(counts).map(function(k) { return { label: k, count: counts[k] }; })
+    .sort(function(a, b) { return b.count - a.count; });
+}
+
 function getDailyVisitorBreakdown(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
@@ -1609,35 +1647,35 @@ function getDailyVisitorBreakdown(payload) {
       return ctx.role === CONFIG.ROLES.ADMIN || r.project_name === ctx.projectName;
     });
 
-    function countBy(field) {
-      var counts = {};
-      rows.forEach(function(r) {
-        var v = String(r[field] || '').trim();
-        if (!v) return;
-        counts[v] = (counts[v] || 0) + 1;
-      });
-      return Object.keys(counts).map(function(k) { return { label: k, count: counts[k] }; })
-        .sort(function(a, b) { return b.count - a.count; });
-    }
+    return ok({ total: rows.length, by_district: countByField(rows, 'district'), by_source: countByField(rows, 'source'), by_unit: countByUnitField(rows) });
+  } catch (err) { return fail(err.message); }
+}
 
-    // 已介紹產品一筆客戶可能有多個（用「、」分隔），拆開來各自計數，
-    // 這樣「戶別反應」看得出每個戶別實際被介紹過幾次
-    function countByUnits() {
-      var counts = {};
-      rows.forEach(function(r) {
-        String(r.introduced_units || '').split('、').forEach(function(u) {
-          u = u.trim();
-          if (!u) return;
-          // 只看棟別＋戶型，樓層不同視為同一類（例如 A棟1型7樓／A棟1型8樓算同一筆）
-          var key = u.replace(/\d+樓$/, '');
-          counts[key] = (counts[key] || 0) + 1;
-        });
-      });
-      return Object.keys(counts).map(function(k) { return { label: k, count: counts[k] }; })
-        .sort(function(a, b) { return b.count - a.count; });
-    }
+// ★ 吉隆天曜專屬：月報表頁面，統計整個月（YYYY-MM）的接待/初訪/回籠/
+// 成交總數，加上跟日報一樣的居住行政區／來源管道／戶別反應分布，
+// 直接連動客戶資料表，不用另外手動彙整。權限規則同 getDailyVisitorBreakdown
+function getMonthlyVisitorBreakdown(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限');
 
-    return ok({ total: rows.length, by_district: countBy('district'), by_source: countBy('source'), by_unit: countByUnits() });
+    var month = String((payload && payload.month) || todayTW()).substring(0, 7);
+    var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER).filter(function(r) {
+      if (String(r.visit_date).substring(0, 7) !== month) return false;
+      return ctx.role === CONFIG.ROLES.ADMIN || r.project_name === ctx.projectName;
+    });
+
+    return ok({
+      month: month,
+      total: rows.length,
+      first_visit: rows.filter(function(r) { return r.visit_type === '初訪'; }).length,
+      revisit: rows.filter(function(r) { return r.visit_type === '回籠'; }).length,
+      deal: rows.filter(function(r) { return r.deal_status === '已成交'; }).length,
+      by_district: countByField(rows, 'district'),
+      by_source: countByField(rows, 'source'),
+      by_unit: countByUnitField(rows)
+    });
   } catch (err) { return fail(err.message); }
 }
 
