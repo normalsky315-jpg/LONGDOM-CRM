@@ -544,6 +544,13 @@
         <input class="inp" type="date" id="reportViewDate" onchange="loadReportForDate()">
       </div>
       <div class="summary-card"><div class="summary-card-label">DAILY SUMMARY</div><div class="summary-card-date" id="reportDate">—</div><div class="summary-stats"><div class="summary-stat"><div class="summary-stat-num" id="sumVisitor">0</div><div class="summary-stat-label">接待</div></div><div class="summary-stat"><div class="summary-stat-num" id="sumFirst">0</div><div class="summary-stat-label">初訪</div></div><div class="summary-stat"><div class="summary-stat-num" id="sumRevisit">0</div><div class="summary-stat-label">回籠</div></div><div class="summary-stat"><div class="summary-stat-num" id="sumDeal">0</div><div class="summary-stat-label">成交</div></div></div></div>
+      <div class="summary-card" id="visitorBreakdownCard">
+        <div class="summary-card-label">當日來客分布（依客戶資料統計）</div>
+        <div style="font-size:12px;color:var(--ink-faint);margin-top:6px;">居住行政區</div>
+        <div id="districtBreakdown"></div>
+        <div style="font-size:12px;color:var(--ink-faint);margin-top:10px;">來源管道</div>
+        <div id="sourceBreakdown"></div>
+      </div>
       <div id="reportList"></div>
 
       <div class="section-tag" style="margin-top:18px;">本週累計</div>
@@ -1213,6 +1220,7 @@ function loadPendingSignatures() {
         ? '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">' +
             '<button class="pending-sign-signbtn" onclick="quickMarkSigned(\'' + escapeHtml(d.deal_id) + '\')">標記已簽約</button>' +
             '<button class="pending-sign-signbtn" style="background:var(--ink-light);" onclick="openEditDealModalFromReminder(\'' + escapeHtml(d.deal_id) + '\')">編輯／延期</button>' +
+            '<button class="pending-sign-signbtn" style="background:var(--rust);" onclick="markRefundFromReminder(\'' + escapeHtml(d.deal_id) + '\')">標記退戶</button>' +
           '</div>'
         : '';
       return '<div class="pending-sign-card' + (overdue?' overdue':'') + '">' +
@@ -1817,34 +1825,47 @@ function finishDealSave(wasEdit) {
   }
 }
 
+function fillDealModalFieldsForRefund(d, custId) {
+  document.getElementById('deal_mode').value = 'refund';
+  document.getElementById('deal_id').value = d ? d.deal_id : '';
+  document.getElementById('deal_custId').value = custId;
+  document.getElementById('deal_unit').value = d ? (d.unit||'') : '';
+  document.getElementById('deal_housePrice').value = d ? (d.house_base_price||'') : '';
+  document.getElementById('deal_parkPrice').value = d ? (d.parking_base_price||'') : '';
+  document.getElementById('deal_premium').value = d ? (d.premium||'') : '';
+  document.getElementById('deal_price').value = d ? (d.deal_price||'') : '';
+  document.getElementById('deal_custName').value = d ? (d.customer_name||'') : '';
+  document.getElementById('deal_salesName').value = d ? (d.salesperson||'') : '';
+  document.getElementById('deal_deposit').value = d ? (d.deposit_amount||'') : '';
+  document.getElementById('deal_expectedSignDate').value = d ? (d.expected_sign_date||'') : '';
+  document.querySelectorAll('input[name="deal_contractStatus"]').forEach(function(r){ r.checked = !!(d && r.value === d.contract_status); });
+  setDealFieldsDisabled(true);
+  document.getElementById('deal_signDateField').classList.toggle('hidden', !(d && d.contract_status === '待簽約'));
+  document.getElementById('deal_refundReasonField').classList.remove('hidden');
+  document.getElementById('deal_refundReason').value = '';
+  document.getElementById('dealModalTitle').textContent = '標記退戶';
+  document.getElementById('dealModalSubtitle').textContent = d ? '確認以下交易明細後標記退戶' : '這筆客戶沒有找到成交明細，仍可直接標記退戶';
+  var btn = document.getElementById('deal_confirmBtn');
+  btn.textContent = '確 認 退 戶';
+  btn.className = 'btn-mini danger';
+  btn.style.flex = '2'; btn.style.padding = '14px'; btn.style.fontWeight = '600';
+  openModal('dealModal');
+}
+
 function markRefund(custId) {
   gasGet('getDealDetailByCustomer', { lineUserId: state.user.lineUserId, customer_id: custId }, function(res) {
     var d = (res.ok && res.data) ? res.data : null;
-    document.getElementById('deal_mode').value = 'refund';
-    document.getElementById('deal_id').value = d ? d.deal_id : '';
-    document.getElementById('deal_custId').value = custId;
-    document.getElementById('deal_unit').value = d ? (d.unit||'') : '';
-    document.getElementById('deal_housePrice').value = d ? (d.house_base_price||'') : '';
-    document.getElementById('deal_parkPrice').value = d ? (d.parking_base_price||'') : '';
-    document.getElementById('deal_premium').value = d ? (d.premium||'') : '';
-    document.getElementById('deal_price').value = d ? (d.deal_price||'') : '';
-    document.getElementById('deal_custName').value = d ? (d.customer_name||'') : '';
-    document.getElementById('deal_salesName').value = d ? (d.salesperson||'') : '';
-    document.getElementById('deal_deposit').value = d ? (d.deposit_amount||'') : '';
-    document.getElementById('deal_expectedSignDate').value = d ? (d.expected_sign_date||'') : '';
-    document.querySelectorAll('input[name="deal_contractStatus"]').forEach(function(r){ r.checked = !!(d && r.value === d.contract_status); });
-    setDealFieldsDisabled(true);
-    document.getElementById('deal_signDateField').classList.toggle('hidden', !(d && d.contract_status === '待簽約'));
-    document.getElementById('deal_refundReasonField').classList.remove('hidden');
-    document.getElementById('deal_refundReason').value = '';
-    document.getElementById('dealModalTitle').textContent = '標記退戶';
-    document.getElementById('dealModalSubtitle').textContent = d ? '確認以下交易明細後標記退戶' : '這筆客戶沒有找到成交明細，仍可直接標記退戶';
-    var btn = document.getElementById('deal_confirmBtn');
-    btn.textContent = '確 認 退 戶';
-    btn.className = 'btn-mini danger';
-    btn.style.flex = '2'; btn.style.padding = '14px'; btn.style.fontWeight = '600';
-    openModal('dealModal');
+    fillDealModalFieldsForRefund(d, custId);
   });
+}
+
+/* 首頁「待簽約提醒」卡片的標記退戶按鈕，直接從已經抓回來的
+   state.pendingSignaturesRaw 找資料，不用再打一次 API——這樣客戶
+   即使已經超過「近期客戶」14天的顯示範圍，還是能在這裡直接標記退戶 */
+function markRefundFromReminder(dealId) {
+  var d = (state.pendingSignaturesRaw || []).filter(function(r){ return r.deal_id === dealId; })[0];
+  if (!d) { showToast('找不到這筆資料，請重新整理','error'); return; }
+  fillDealModalFieldsForRefund(d, d.customer_id);
 }
 
 function confirmRefund() {
@@ -2198,6 +2219,28 @@ function loadReportForDate() {
       return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">'+escapeHtml(r.salesperson||r.created_by)+'</div><span class="list-item-meta">'+r.report_date+'</span></div><div class="list-item-meta"><span>接待 '+(r.visitor_count||0)+'</span><span>初訪 '+(r.first_visit_count||0)+'</span><span>回籠 '+(r.revisit_count||0)+'</span><span>成交 '+(r.deal_count||0)+'</span></div>'+(r.notes?'<div class="list-item-desc">'+escapeHtml(r.notes)+'</div>':'')+'<div class="list-item-actions">'+editBtn+'<button class="btn-mini danger" onclick="deleteReport(\''+r.report_id+'\')">刪除</button></div></div>';
     }).join(''):'<div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-text">當日尚未有日報提交</div></div>';
   });
+  loadVisitorBreakdown(date);
+}
+
+/* ★ 吉隆天曜專屬：日報頁面「當日來客分布」，直接統計 Customer_Data
+   當天的客戶資料（居住行政區／來源管道），不用另外手動填寫 */
+function loadVisitorBreakdown(date) {
+  gasGet('getDailyVisitorBreakdown', { lineUserId: state.user.lineUserId, date: date }, function(res) {
+    if (!res.ok) return;
+    document.getElementById('districtBreakdown').innerHTML = breakdownChipsHTML(res.data.by_district, res.data.total);
+    document.getElementById('sourceBreakdown').innerHTML = breakdownChipsHTML(res.data.by_source, res.data.total);
+  });
+}
+
+function breakdownChipsHTML(items, total) {
+  if (!items || !items.length) return '<div style="font-size:12px;color:var(--ink-faint);padding:6px 0;">當日尚無客戶資料</div>';
+  return '<div style="display:flex;flex-wrap:wrap;gap:6px;padding:6px 0;">' +
+    items.map(function(it) {
+      var pct = total ? Math.round(it.count / total * 100) : 0;
+      return '<span style="background:var(--border);border-radius:8px;padding:4px 10px;font-size:12px;color:var(--ink);">' +
+        escapeHtml(it.label) + '　' + it.count + '（' + pct + '%）</span>';
+    }).join('') +
+  '</div>';
 }
 
 /* 是否在可修改天數內（含當天）；主管/admin 才會呼叫到這裡 */

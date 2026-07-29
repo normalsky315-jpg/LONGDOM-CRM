@@ -1190,6 +1190,7 @@ function loadPendingSignatures() {
         ? '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">' +
             '<button class="pending-sign-signbtn" onclick="quickMarkSigned(\'' + escapeHtml(d.deal_id) + '\')">標記已簽約</button>' +
             '<button class="pending-sign-signbtn" style="background:var(--ink-light);" onclick="openEditDealModalFromReminder(\'' + escapeHtml(d.deal_id) + '\')">編輯／延期</button>' +
+            '<button class="pending-sign-signbtn" style="background:var(--rust);" onclick="markRefundFromReminder(\'' + escapeHtml(d.deal_id) + '\')">標記退戶</button>' +
           '</div>'
         : '';
       return '<div class="pending-sign-card' + (overdue?' overdue':'') + '">' +
@@ -1777,34 +1778,47 @@ function finishDealSave(wasEdit) {
   }
 }
 
+function fillDealModalFieldsForRefund(d, custId) {
+  document.getElementById('deal_mode').value = 'refund';
+  document.getElementById('deal_id').value = d ? d.deal_id : '';
+  document.getElementById('deal_custId').value = custId;
+  document.getElementById('deal_unit').value = d ? (d.unit||'') : '';
+  document.getElementById('deal_housePrice').value = d ? (d.house_base_price||'') : '';
+  document.getElementById('deal_parkPrice').value = d ? (d.parking_base_price||'') : '';
+  document.getElementById('deal_premium').value = d ? (d.premium||'') : '';
+  document.getElementById('deal_price').value = d ? (d.deal_price||'') : '';
+  document.getElementById('deal_custName').value = d ? (d.customer_name||'') : '';
+  document.getElementById('deal_salesName').value = d ? (d.salesperson||'') : '';
+  document.getElementById('deal_deposit').value = d ? (d.deposit_amount||'') : '';
+  document.getElementById('deal_expectedSignDate').value = d ? (d.expected_sign_date||'') : '';
+  document.querySelectorAll('input[name="deal_contractStatus"]').forEach(function(r){ r.checked = !!(d && r.value === d.contract_status); });
+  setDealFieldsDisabled(true);
+  document.getElementById('deal_signDateField').classList.toggle('hidden', !(d && d.contract_status === '待簽約'));
+  document.getElementById('deal_refundReasonField').classList.remove('hidden');
+  document.getElementById('deal_refundReason').value = '';
+  document.getElementById('dealModalTitle').textContent = '標記退戶';
+  document.getElementById('dealModalSubtitle').textContent = d ? '確認以下交易明細後標記退戶' : '這筆客戶沒有找到成交明細，仍可直接標記退戶';
+  var btn = document.getElementById('deal_confirmBtn');
+  btn.textContent = '確 認 退 戶';
+  btn.className = 'btn-mini danger';
+  btn.style.flex = '2'; btn.style.padding = '14px'; btn.style.fontWeight = '600';
+  openModal('dealModal');
+}
+
 function markRefund(custId) {
   gasGet('getDealDetailByCustomer', { lineUserId: state.user.lineUserId, customer_id: custId }, function(res) {
     var d = (res.ok && res.data) ? res.data : null;
-    document.getElementById('deal_mode').value = 'refund';
-    document.getElementById('deal_id').value = d ? d.deal_id : '';
-    document.getElementById('deal_custId').value = custId;
-    document.getElementById('deal_unit').value = d ? (d.unit||'') : '';
-    document.getElementById('deal_housePrice').value = d ? (d.house_base_price||'') : '';
-    document.getElementById('deal_parkPrice').value = d ? (d.parking_base_price||'') : '';
-    document.getElementById('deal_premium').value = d ? (d.premium||'') : '';
-    document.getElementById('deal_price').value = d ? (d.deal_price||'') : '';
-    document.getElementById('deal_custName').value = d ? (d.customer_name||'') : '';
-    document.getElementById('deal_salesName').value = d ? (d.salesperson||'') : '';
-    document.getElementById('deal_deposit').value = d ? (d.deposit_amount||'') : '';
-    document.getElementById('deal_expectedSignDate').value = d ? (d.expected_sign_date||'') : '';
-    document.querySelectorAll('input[name="deal_contractStatus"]').forEach(function(r){ r.checked = !!(d && r.value === d.contract_status); });
-    setDealFieldsDisabled(true);
-    document.getElementById('deal_signDateField').classList.toggle('hidden', !(d && d.contract_status === '待簽約'));
-    document.getElementById('deal_refundReasonField').classList.remove('hidden');
-    document.getElementById('deal_refundReason').value = '';
-    document.getElementById('dealModalTitle').textContent = '標記退戶';
-    document.getElementById('dealModalSubtitle').textContent = d ? '確認以下交易明細後標記退戶' : '這筆客戶沒有找到成交明細，仍可直接標記退戶';
-    var btn = document.getElementById('deal_confirmBtn');
-    btn.textContent = '確 認 退 戶';
-    btn.className = 'btn-mini danger';
-    btn.style.flex = '2'; btn.style.padding = '14px'; btn.style.fontWeight = '600';
-    openModal('dealModal');
+    fillDealModalFieldsForRefund(d, custId);
   });
+}
+
+/* 首頁「待簽約提醒」卡片的標記退戶按鈕，直接從已經抓回來的
+   state.pendingSignaturesRaw 找資料，不用再打一次 API——這樣客戶
+   即使已經超過「近期客戶」14天的顯示範圍，還是能在這裡直接標記退戶 */
+function markRefundFromReminder(dealId) {
+  var d = (state.pendingSignaturesRaw || []).filter(function(r){ return r.deal_id === dealId; })[0];
+  if (!d) { showToast('找不到這筆資料，請重新整理','error'); return; }
+  fillDealModalFieldsForRefund(d, d.customer_id);
 }
 
 function confirmRefund() {

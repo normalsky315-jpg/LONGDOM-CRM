@@ -1,5 +1,5 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v8.3
+//  龍登 CRM — 吉隆天曜專用版 v8.4
 //  ★ 從 v7.0 開始，客戶資料表（Customer_Data）跟客戶登記表單是
 //  吉隆天曜專屬的客製化內容，跟華雄天地不再完全一樣（比對紙本
 //  「訪客服務表」補齊了天地版本沒有的欄位）。之後若要用天地最新
@@ -10,6 +10,12 @@
 //    4. generateWeeklyLeaveReport「不」排除 SKY 陳昭文（天地會排除，
 //       吉隆天曜這裡刻意不排除）
 //    5. CONFIG.INDUSTRIES / CONFIG.PURCHASE_MOTIVES 比天地多幾個選項
+//    6. getDailyVisitorBreakdown（日報頁「當日來客分布」，天地沒有）
+//  v8.4 變更：銷售日報頁面新增「當日來客分布」，直接統計 Customer_Data
+//    當天的客戶資料，顯示居住行政區／來源管道分布（不用另外手動填寫，
+//    客戶資料本來就有記錄這些欄位，日報直接連動顯示即可）。新增
+//    getDailyVisitorBreakdown 函式，權限規則比照既有的
+//    getDailyReportSummary（業務看不到，只有主管/admin 看得到）
 //  v8.3 變更：客戶資料表單簡化，只針對吉隆天曜：
 //    1. 拿掉「地址」「購屋預算」「自備款」欄位（購屋預算是跟天地共用
 //       的原始欄位，這裡沒有另外刪表格欄位，只是表單不再顯示/送出；
@@ -314,6 +320,10 @@ function doGet(e) {
         return jsonResponse(deleteCustomerData(payload));
       case 'getDailyReportSummary':
         return jsonResponse(getDailyReportSummary(payload.lineUserId ? payload : {
+          lineUserId: e.parameter.lineUserId, date: e.parameter.date
+        }));
+      case 'getDailyVisitorBreakdown':
+        return jsonResponse(getDailyVisitorBreakdown(payload.lineUserId ? payload : {
           lineUserId: e.parameter.lineUserId, date: e.parameter.date
         }));
       case 'getDailyReportRange':
@@ -1562,6 +1572,38 @@ function getDailyReportSummary(payload) {
       s.total_deals       += Number(r.deal_count       || 0);
     });
     return ok(s);
+  } catch (err) { return fail(err.message); }
+}
+
+// ★ 吉隆天曜專屬：日報頁面「當日來客分布」，直接統計 Customer_Data
+// 當天的客戶資料（居住行政區／來源管道分布），跟 getDailyReportSummary
+// 同一個權限規則（業務不能看，只有主管/admin 看得到），不用另外
+// 手動填寫，直接連動客戶資料表。重新同步時記得保留這個函式跟
+// doGet/doPost 裡對應的 case
+function getDailyVisitorBreakdown(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限');
+
+    var date = String((payload && payload.date) || todayTW()).substring(0, 10);
+    var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER).filter(function(r) {
+      if (String(r.visit_date).substring(0, 10) !== date) return false;
+      return ctx.role === CONFIG.ROLES.ADMIN || r.project_name === ctx.projectName;
+    });
+
+    function countBy(field) {
+      var counts = {};
+      rows.forEach(function(r) {
+        var v = String(r[field] || '').trim();
+        if (!v) return;
+        counts[v] = (counts[v] || 0) + 1;
+      });
+      return Object.keys(counts).map(function(k) { return { label: k, count: counts[k] }; })
+        .sort(function(a, b) { return b.count - a.count; });
+    }
+
+    return ok({ total: rows.length, by_district: countBy('district'), by_source: countBy('source') });
   } catch (err) { return fail(err.message); }
 }
 
