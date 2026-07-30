@@ -392,6 +392,10 @@
         <div class="stat-card"><div class="stat-num" id="statRevisit">—</div><div class="stat-label">回籠</div></div>
         <div class="stat-card"><div class="stat-num" id="statDeal">—</div><div class="stat-label">成交</div></div>
       </div>
+      <!-- 本月各業務接待統計（主管/admin 才顯示，讓主管看得到底下每個
+           業務各自接了幾組，不是只有案場加總） -->
+      <div class="section-tag hidden" id="salesBreakdownLabel" style="margin-top:14px;">本月各業務接待統計</div>
+      <div id="salesBreakdownList"></div>
       <!-- 近期客戶總表（主管/admin 才顯示） -->
       <div class="recent-customers-wrap hidden" id="recentCustomersSection">
         <div class="section-tag" style="margin-top:10px;">近7天客戶資料</div>
@@ -1071,8 +1075,13 @@ window.addEventListener('hashchange', function(){ route(location.hash); });
 
 function route(hash) {
   if (!state.user) { showLogin(); return; }
-  if (location.hash !== hash) location.hash = hash;
   hash = hash || '#/home';
+  // 只負責改 location.hash，實際換頁交給下面的 hashchange 監聽器去做，
+  // 不要在這裡設定 hash 之後又緊接著往下執行 switch——那樣 hashchange
+  // 觸發後會再跑一次同一個 case，等於同一頁 render 兩次。像客戶指派
+  // 業務下拉選單這種「非同步 append」的畫面，兩次 render 會讓每個
+  // 業務名字重複出現兩次
+  if (location.hash !== hash) { location.hash = hash; return; }
   document.querySelectorAll('#appScreen .view').forEach(function(v){ v.classList.add('hidden'); });
   switch(hash) {
     case '#/home':     document.getElementById('viewHome').classList.remove('hidden');     renderHome(); break;
@@ -1135,6 +1144,7 @@ function renderHome() {
     document.getElementById('statFirst').textContent   = rows.filter(function(r){ return r.visit_type==='初訪'; }).length;
     document.getElementById('statRevisit').textContent = rows.filter(function(r){ return r.visit_type==='回籠'; }).length;
     document.getElementById('statDeal').textContent    = rows.filter(function(r){ return r.deal_status==='已成交'; }).length;
+    if (isAdmin()) renderSalesBreakdown(rows);
   });
 
   // 今日休假人員
@@ -1151,6 +1161,26 @@ function renderHome() {
   loadPendingSignatures();
   loadTaskReminders();
   loadFollowupReminders();
+}
+
+// 首頁「本月各業務接待統計」：主管/admin 看的是整個範圍（案場/全部）
+// 的加總，業務自己看不到這塊，加這個明細讓主管一眼看出底下每個
+// 業務各自接了幾組，不用自己心算
+function renderSalesBreakdown(rows) {
+  var bySales = {};
+  rows.forEach(function(r) {
+    var name = r.sales_name || '未指定';
+    if (!bySales[name]) bySales[name] = { total: 0, first: 0, revisit: 0 };
+    bySales[name].total++;
+    if (r.visit_type === '初訪') bySales[name].first++;
+    if (r.visit_type === '回籠') bySales[name].revisit++;
+  });
+  var names = Object.keys(bySales).sort(function(a,b){ return bySales[b].total - bySales[a].total; });
+  document.getElementById('salesBreakdownLabel').classList.remove('hidden');
+  document.getElementById('salesBreakdownList').innerHTML = names.length ? names.map(function(name) {
+    var s = bySales[name];
+    return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">' + escapeHtml(name) + '</div><div class="list-item-title" style="font-weight:600;">' + s.total + ' 組</div></div><div class="list-item-meta"><span>初訪 ' + s.first + '</span><span>回籠 ' + s.revisit + '</span></div></div>';
+  }).join('') : '<div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-text">本月尚無客戶資料</div></div>';
 }
 
 /* ══ 任務提醒 ══ */
