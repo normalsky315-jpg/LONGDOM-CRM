@@ -386,9 +386,9 @@
         <div class="section-tag" style="margin-top:14px;">待追蹤客戶</div>
         <div id="followupReminderList"></div>
       </div>
-      <div class="section-tag">本月概況</div>
+      <div class="section-tag">本月接待共 <span id="statTotal">—</span> 組</div>
       <div class="stat-grid">
-        <div class="stat-card"><div class="stat-num" id="statVisitor">—</div><div class="stat-label">接待</div></div>
+        <div class="stat-card"><div class="stat-num" id="statFirst">—</div><div class="stat-label">初訪</div></div>
         <div class="stat-card"><div class="stat-num" id="statRevisit">—</div><div class="stat-label">回籠</div></div>
         <div class="stat-card"><div class="stat-num" id="statDeal">—</div><div class="stat-label">成交</div></div>
       </div>
@@ -1198,7 +1198,8 @@ function renderHome() {
     if (!res.ok) return;
     var ym = new Date().toISOString().substring(0,7);
     var rows = res.data.filter(function(r){ return String(r.visit_date).indexOf(ym)===0; });
-    document.getElementById('statVisitor').textContent = rows.length;
+    document.getElementById('statTotal').textContent   = rows.length;
+    document.getElementById('statFirst').textContent   = rows.filter(function(r){ return r.visit_type==='初訪'; }).length;
     document.getElementById('statRevisit').textContent = rows.filter(function(r){ return r.visit_type==='回籠'; }).length;
     document.getElementById('statDeal').textContent    = rows.filter(function(r){ return r.deal_status==='已成交'; }).length;
   });
@@ -2198,9 +2199,22 @@ function submitCustomer() {
     referrer_name: document.getElementById('cust_referrerName').value.trim()
   }, function(res) {
     btn.disabled=false; btn.textContent='送 出 登 記';
-    if (res.ok) { showToast('客戶資料已建立','success'); resetCustomerForm(); setTimeout(function(){ route('#/home'); },1200); }
+    if (res.ok) {
+      showToast('客戶資料已建立','success');
+      if (res.data && res.data.duplicate_phone) alert(duplicatePhoneMessage(res.data.duplicate_records));
+      resetCustomerForm(); setTimeout(function(){ route('#/home'); },1200);
+    }
     else { showToast(res.error||'送出失敗','error'); }
   }, function(){ btn.disabled=false; btn.textContent='送 出 登 記'; showToast('連線失敗','error'); });
+}
+
+// 建檔時同電話已有其他客戶資料的提醒文字（不擋建檔，只是提示，
+// 可能是換業務接手或客戶回訪）
+function duplicatePhoneMessage(records) {
+  var lines = (records || []).map(function(d) {
+    return '・' + (d.customer_name || '') + '　' + (d.visit_date || '') + '　業務：' + (d.sales_name || '');
+  }).join('\n');
+  return '⚠️ 這支電話已經有客戶資料：\n' + lines + '\n\n請確認是否為同一位客戶（可能是換業務接手或客戶回訪），此筆已正常建檔。';
 }
 
 function resetCustomerForm() {
