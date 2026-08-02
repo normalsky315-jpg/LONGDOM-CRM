@@ -345,6 +345,11 @@
           <div class="feature-card-title">我的客戶</div>
           <div class="feature-card-desc" id="myCustomerDesc">全部歷史紀錄</div>
         </div>
+        <div class="feature-card" onclick="route('#/reservation')" style="border-top:2px solid var(--gold);">
+          <div class="feature-card-icon">📆</div>
+          <div class="feature-card-title">預約賞屋</div>
+          <div class="feature-card-desc" id="reservationDesc">尚無待到訪預約</div>
+        </div>
         <div class="feature-card task" onclick="route('#/task')">
           <div class="feature-card-icon">📋</div>
           <div class="feature-card-title">任務系統</div>
@@ -386,6 +391,10 @@
         <div class="section-tag" style="margin-top:14px;">待追蹤客戶</div>
         <div id="followupReminderList"></div>
       </div>
+      <div class="pending-sign-wrap hidden" id="reservationReminderWrap">
+        <div class="section-tag" style="margin-top:14px;">預約賞屋提醒</div>
+        <div id="reservationReminderList"></div>
+      </div>
       <div class="section-tag">本月接待共 <span id="statTotal">—</span> 組</div>
       <div class="stat-grid">
         <div class="stat-card"><div class="stat-num" id="statFirst">—</div><div class="stat-label">初訪</div></div>
@@ -417,7 +426,7 @@
 
   <!-- Customer -->
   <div id="viewCustomer" class="view hidden">
-    <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">客戶資料登記</div><div style="width:36px;"></div></div></div>
+    <div class="app-header"><div class="header-row"><button class="header-back" onclick="state.pendingReservationConversion=null;route('#/home')">‹</button><div class="header-title">客戶資料登記</div><div style="width:36px;"></div></div></div>
     <div class="form-wrap">
       <div class="section">
         <div class="section-header"><div class="section-num">1</div><div class="section-name">案場與接待資訊</div></div>
@@ -569,6 +578,21 @@
     </div>
   </div>
 
+  <!-- Reservation -->
+  <div id="viewReservation" class="view hidden">
+    <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">預約賞屋</div><div style="width:36px;"></div></div></div>
+    <div class="list-wrap">
+      <div class="list-tabs">
+        <div class="list-tab active" data-status="active" onclick="switchReservationTab(this)">待到訪</div>
+        <div class="list-tab" data-status="visited" onclick="switchReservationTab(this)">已到訪</div>
+        <div class="list-tab" data-status="converted" onclick="switchReservationTab(this)">已轉客戶</div>
+        <div class="list-tab" data-status="closed" onclick="switchReservationTab(this)">爽約／取消</div>
+      </div>
+      <div id="reservationList"></div>
+    </div>
+    <button class="fab" onclick="openReservationModal()">+</button>
+  </div>
+
   <!-- Users -->
   <div id="viewUsers" class="view hidden">
     <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">使用者管理</div><div style="width:36px;"></div></div></div>
@@ -628,6 +652,7 @@
 <div class="modal-mask" id="taskModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title" id="taskModalTitle">新增任務</div><div class="modal-subtitle">建立後可指派並追蹤完成狀態</div><input type="hidden" id="task_id"><div class="field"><div class="field-label">任務類型</div><select class="sel" id="task_type"><option value="sales_task">📋 銷售跟進</option><option value="site_issue">⚠️ 現場問題</option><option value="reminder">🔔 提醒</option><option value="daily_follow">👥 客戶追蹤</option><option value="maintenance">🔧 維修</option></select></div><div class="field"><div class="field-label">任務標題 <span class="req">*</span></div><input class="inp" type="text" id="task_title" placeholder="例：聯絡王先生確認再訪日期"></div><div class="field"><div class="field-label">詳細說明</div><textarea class="ta" id="task_desc" placeholder="補充資訊…"></textarea></div><div class="field-row"><div class="field"><div class="field-label">優先度</div><select class="sel" id="task_priority"><option value="normal">一般</option><option value="high">高</option><option value="urgent">緊急</option><option value="low">低</option></select></div><div class="field"><div class="field-label">截止日期</div><input class="inp" type="date" id="task_due"></div></div><div class="field"><div class="field-label">指派對象</div><select class="sel" id="task_assign"><option value="">不指定</option></select></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('taskModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitTask()">建 立 任 務</button></div></div></div>
 <div class="modal-mask" id="reportModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">提交日報</div><div class="modal-subtitle">當日業績資料填寫</div><div class="field"><div class="field-label">日期</div><input class="inp" type="date" id="rep_date"></div><div class="field-row"><div class="field"><div class="field-label">接待總組數</div><input class="inp" type="number" id="rep_visitor" min="0" value="0"></div><div class="field"><div class="field-label">初訪</div><input class="inp" type="number" id="rep_first" min="0" value="0"></div></div><div class="field-row"><div class="field"><div class="field-label">回籠</div><input class="inp" type="number" id="rep_revisit" min="0" value="0"></div><div class="field"><div class="field-label">成交</div><input class="inp" type="number" id="rep_deal" min="0" value="0"></div></div><div class="field"><div class="field-label">成交戶別</div><input class="inp" type="text" id="rep_units" placeholder="A3-12F"></div><div class="field"><div class="field-label">備註</div><textarea class="ta" id="rep_notes" placeholder="特殊事項…"></textarea></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('reportModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitReport()">提 交 日 報</button></div></div></div>
 <div class="modal-mask" id="editReportModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">修改日報</div><div class="modal-subtitle" id="editRepMeta">僅限提交後3天內可修改</div><div class="field-row"><div class="field"><div class="field-label">接待總組數</div><input class="inp" type="number" id="erep_visitor" min="0"></div><div class="field"><div class="field-label">初訪</div><input class="inp" type="number" id="erep_first" min="0"></div></div><div class="field-row"><div class="field"><div class="field-label">回籠</div><input class="inp" type="number" id="erep_revisit" min="0"></div><div class="field"><div class="field-label">成交</div><input class="inp" type="number" id="erep_deal" min="0"></div></div><div class="field"><div class="field-label">成交戶別</div><input class="inp" type="text" id="erep_units" placeholder="A3-12F"></div><div class="field"><div class="field-label">備註</div><textarea class="ta" id="erep_notes" placeholder="特殊事項…"></textarea></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('editReportModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="saveEditReport()">儲 存 修 改</button></div></div></div>
+<div class="modal-mask" id="reservationModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">新增預約賞屋</div><div class="modal-subtitle">客戶到訪後可一鍵轉為正式客戶資料</div><div class="field-row"><div class="field"><div class="field-label">姓名 <span class="req">*</span></div><input class="inp" type="text" id="resv_name" placeholder="請輸入姓名"></div><div class="field"><div class="field-label">電話 <span class="req">*</span></div><input class="inp" type="tel" id="resv_phone" placeholder="0912345678"></div></div><div class="field-row"><div class="field"><div class="field-label">預約日期 <span class="req">*</span></div><input class="inp" type="date" id="resv_date"></div><div class="field"><div class="field-label">預約時間</div><input class="inp" type="time" id="resv_time"></div></div><div class="field"><div class="field-label">來源管道</div><input class="inp" type="text" id="resv_source" placeholder="例：591、FB廣告、朋友介紹"></div><div class="field"><div class="field-label">備註</div><textarea class="ta" id="resv_note" placeholder="補充資訊…"></textarea></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('reservationModal')">取消</button><button class="btn-mini primary" id="resv_submitBtn" style="flex:2;padding:14px;font-weight:600;" onclick="submitReservation()">建 立 預 約</button></div></div></div>
 <div class="modal-mask" id="maintModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title" id="maintModalTitle">維修通報</div><div class="modal-subtitle">通報後將自動推播給主管</div><input type="hidden" id="maint_id"><div class="field"><div class="field-label">問題類型 <span class="req">*</span></div><select class="sel" id="maint_type"><option value="">請選擇</option><option>燈具/電路</option><option>水管/漏水</option><option>空調</option><option>家具/門窗</option><option>清潔</option><option>樣品屋外觀</option><option>其他</option></select></div><div class="field"><div class="field-label">位置 / 戶別</div><input class="inp" type="text" id="maint_location" placeholder="例：A棟3F樣品屋客廳"></div><div class="field"><div class="field-label">問題描述 <span class="req">*</span></div><textarea class="ta" id="maint_desc" placeholder="詳細描述狀況…"></textarea></div><div class="field"><div class="field-label">優先度</div><select class="sel" id="maint_priority"><option value="normal">一般</option><option value="high" selected>高</option><option value="urgent">緊急</option></select></div><div class="field"><div class="field-label">現場照片（選填）</div><input class="inp" type="file" accept="image/*" capture="environment" id="maint_photo" onchange="previewMaintPhoto(event)"><div id="maint_photoPreview" style="margin-top:8px;"></div></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('maintModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitMaint()">送 出 通 報</button></div></div></div>
 
 <!-- 主管排假 Modal -->
@@ -830,7 +855,10 @@ var state = {
   reportHistoryRaw: [],
   reportHistoryExpanded: false,
   myCustomersRaw: [],
-  myCustomerFilterSales: 'all'
+  myCustomerFilterSales: 'all',
+  reservationsRaw: [],
+  reservationTab: 'active',
+  pendingReservationConversion: null
 };
 
 var DISTRICTS = ['楠梓區','左營區','鼓山區','三民區','苓雅區','新興區','前金區','鹽埕區','前鎮區','小港區','仁武區','鳳山區','其他'];
@@ -1087,6 +1115,7 @@ function route(hash) {
     case '#/home':     document.getElementById('viewHome').classList.remove('hidden');     renderHome(); break;
     case '#/customer': document.getElementById('viewCustomer').classList.remove('hidden'); renderCustomerForm(); break;
     case '#/mycustomers': document.getElementById('viewMyCustomers').classList.remove('hidden'); renderMyCustomers(); break;
+    case '#/reservation': document.getElementById('viewReservation').classList.remove('hidden'); renderReservationView(); break;
     case '#/task':     document.getElementById('viewTask').classList.remove('hidden');     renderTaskList(); break;
     case '#/report':
       if (isSales()) { route('#/home'); return; }
@@ -1161,6 +1190,7 @@ function renderHome() {
   loadPendingSignatures();
   loadTaskReminders();
   loadFollowupReminders();
+  loadReservationReminders();
 }
 
 // 首頁「本月各業務接待統計」：主管/admin 看的是整個範圍（案場/全部）
@@ -1265,6 +1295,42 @@ function loadFollowupReminders() {
         '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">' +
           callBtn +
           '<button class="pending-sign-signbtn" style="background:var(--ink-light);" onclick="openContactLogModal(\'' + escapeHtml(r.customer_id) + '\',\'' + escapeHtml(r.customer_name||'') + '\')">追蹤紀錄</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  });
+}
+
+/* ══ 預約賞屋提醒（首頁）：今日／明日有預約的客戶，讓業務提前知道，
+   跟待簽約/待追蹤同一種提醒卡片樣式 ══ */
+function loadReservationReminders() {
+  var wrap = document.getElementById('reservationReminderWrap');
+  var box  = document.getElementById('reservationReminderList');
+  gasGet('getReservationList', { lineUserId: state.user.lineUserId }, function(res) {
+    var descEl = document.getElementById('reservationDesc');
+    if (!res.ok) { wrap.classList.add('hidden'); box.innerHTML=''; return; }
+    var active = res.data.filter(function(r){ return r.status === '預約'; });
+    if (descEl) descEl.textContent = active.length > 0 ? active.length + ' 筆待到訪' : '尚無待到訪預約';
+    var today = todayStr();
+    var tomorrow = dateToStr(new Date(Date.now() + 86400000));
+    var upcoming = active.filter(function(r){ return r.scheduled_date && r.scheduled_date <= tomorrow; });
+    if (!upcoming.length) { wrap.classList.add('hidden'); box.innerHTML=''; return; }
+    upcoming.sort(function(a,b){ return String(a.scheduled_date).localeCompare(String(b.scheduled_date)) || String(a.scheduled_time||'').localeCompare(String(b.scheduled_time||'')); });
+    wrap.classList.remove('hidden');
+    box.innerHTML = upcoming.map(function(r) {
+      var overdue = r.scheduled_date < today;
+      var dayLabel = overdue ? '⚠️ 已逾期　' : (r.scheduled_date === today ? '今日　' : '明日　');
+      var callBtn = r.phone
+        ? '<a class="pending-sign-signbtn" style="background:var(--teal);text-decoration:none;text-align:center;" href="tel:' + escapeHtml(String(r.phone)) + '">📞 撥打</a>'
+        : '';
+      return '<div class="pending-sign-card' + (overdue?' overdue':'') + '">' +
+        '<div class="pending-sign-main">' +
+          '<div class="pending-sign-unit">' + escapeHtml(r.customer_name||'') + '</div>' +
+          '<div class="pending-sign-meta">' + dayLabel + escapeHtml(r.scheduled_date||'') + (r.scheduled_time?' '+escapeHtml(r.scheduled_time):'') + (!isSales()?'　<span>👤 '+escapeHtml(r.sales_name||'')+'</span>':'') + '</div>' +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">' +
+          callBtn +
+          '<button class="pending-sign-signbtn" onclick="markReservationVisited(\'' + escapeHtml(r.reservation_id) + '\')">標記已到訪</button>' +
         '</div>' +
       '</div>';
     }).join('');
@@ -1979,6 +2045,12 @@ function renderCustomerForm() {
 
   var budSel = document.getElementById('cust_budget');
   budSel.onchange = function(){ document.getElementById('cust_budgetOtherWrap').classList.toggle('hidden', this.value !== '其他'); };
+
+  // 從「預約賞屋」轉入的客戶，帶入姓名/電話，不用重打
+  if (state.pendingReservationConversion) {
+    document.getElementById('cust_name').value  = state.pendingReservationConversion.customer_name || '';
+    document.getElementById('cust_phone').value = state.pendingReservationConversion.phone || '';
+  }
 }
 
 function onCustProjectChange() {
@@ -2064,6 +2136,11 @@ function submitCustomer() {
     if (res.ok) {
       showToast('客戶資料已建立','success');
       if (res.data && res.data.duplicate_phone) alert(duplicatePhoneMessage(res.data.duplicate_records));
+      if (state.pendingReservationConversion) {
+        var reservationId = state.pendingReservationConversion.reservation_id;
+        state.pendingReservationConversion = null;
+        gasPost('markReservationConverted', { lineUserId: state.user.lineUserId, reservation_id: reservationId, customer_id: res.data.customer_id }, function(){});
+      }
       resetCustomerForm(); setTimeout(function(){ route('#/home'); },1200);
     }
     else { showToast(res.error||'送出失敗','error'); }
@@ -2089,6 +2166,119 @@ function resetCustomerForm() {
   ['cust_distOtherWrap','cust_againDateWrap','cust_industryOtherWrap','cust_motiveOtherWrap',
    'cust_sourceOtherWrap','cust_budgetOtherWrap','cust_issueOtherWrap','cust_againOtherWrap'
   ].forEach(function(id){ document.getElementById(id).classList.add('hidden'); });
+}
+
+/* ══ 預約賞屋 ══ */
+var RESERVATION_STATUS_CLASS = { '預約':'status-pending', '已到訪':'status-processing', '已轉客戶':'status-done', '爽約':'status-inactive', '取消':'status-inactive' };
+
+function renderReservationView() {
+  var box = document.getElementById('reservationList');
+  box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div>';
+  gasGet('getReservationList', { lineUserId: state.user.lineUserId }, function(res) {
+    if (!res.ok) { box.innerHTML=''; showToast(res.error,'error'); return; }
+    state.reservationsRaw = res.data || [];
+    renderReservationList();
+  });
+}
+
+function switchReservationTab(el) {
+  document.querySelectorAll('#viewReservation .list-tab').forEach(function(t){ t.classList.remove('active'); });
+  el.classList.add('active');
+  state.reservationTab = el.dataset.status;
+  renderReservationList();
+}
+
+function renderReservationList() {
+  var box = document.getElementById('reservationList');
+  var tab = state.reservationTab || 'active';
+  var rows = (state.reservationsRaw || []).filter(function(r) {
+    if (tab === 'active')    return r.status === '預約';
+    if (tab === 'visited')   return r.status === '已到訪';
+    if (tab === 'converted') return r.status === '已轉客戶';
+    if (tab === 'closed')    return r.status === '爽約' || r.status === '取消';
+    return true;
+  });
+  rows.sort(function(a,b){ return String(a.scheduled_date||'').localeCompare(String(b.scheduled_date||'')) || String(a.scheduled_time||'').localeCompare(String(b.scheduled_time||'')); });
+  if (!rows.length) { box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📆</div><div class="empty-state-text">目前沒有相關預約</div></div>'; return; }
+  box.innerHTML = rows.map(reservationRowHTML).join('');
+}
+
+function reservationRowHTML(r) {
+  var statusCls  = RESERVATION_STATUS_CLASS[r.status] || 'status-pending';
+  var statusPill = '<span class="status-pill ' + statusCls + '">' + escapeHtml(r.status||'預約') + '</span>';
+  var callBtn = r.phone
+    ? '<a class="btn-mini" style="text-decoration:none;text-align:center;" href="tel:' + escapeHtml(String(r.phone)) + '">📞 撥打</a>'
+    : '';
+  var actions = '';
+  if (r.status === '預約') {
+    actions = '<button class="btn-mini primary" onclick="markReservationVisited(\'' + escapeHtml(r.reservation_id) + '\')">標記已到訪</button>' +
+              '<button class="btn-mini danger" onclick="markReservationNoShow(\'' + escapeHtml(r.reservation_id) + '\')">標記爽約</button>';
+  } else if (r.status === '已到訪') {
+    actions = '<button class="btn-mini primary" onclick="convertReservationToCustomer(\'' + escapeHtml(r.reservation_id) + '\')">轉為客戶資料</button>';
+  }
+  var who = !isSales() ? '<span>👤 ' + escapeHtml(r.sales_name||'') + '</span>' : '';
+  return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">' + escapeHtml(r.customer_name||'') + '</div>' + statusPill + '</div>' +
+    '<div class="list-item-meta"><span>📅 ' + escapeHtml(r.scheduled_date||'') + (r.scheduled_time?' '+escapeHtml(r.scheduled_time):'') + '</span>' + who + (r.source?'<span>'+escapeHtml(r.source)+'</span>':'') + '</div>' +
+    (r.note ? '<div class="list-item-desc">' + escapeHtml(r.note) + '</div>' : '') +
+    '<div class="list-item-actions">' + callBtn + actions + '</div></div>';
+}
+
+function openReservationModal() {
+  ['resv_name','resv_phone','resv_source','resv_note','resv_time'].forEach(function(id){ document.getElementById(id).value=''; });
+  document.getElementById('resv_date').value = todayStr();
+  openModal('reservationModal');
+}
+
+function submitReservation() {
+  var name  = document.getElementById('resv_name').value.trim();
+  var phone = document.getElementById('resv_phone').value.trim();
+  var date  = document.getElementById('resv_date').value;
+  if (!name || !phone || !date) { showToast('請填寫姓名、電話及預約日期','error'); return; }
+  var btn = document.getElementById('resv_submitBtn');
+  if (btn.disabled) return;
+  btn.disabled = true; btn.textContent = '送 出 中…';
+  gasPost('appendReservation', {
+    lineUserId: state.user.lineUserId,
+    customer_name: name, phone: phone,
+    scheduled_date: date, scheduled_time: document.getElementById('resv_time').value,
+    source: document.getElementById('resv_source').value.trim(),
+    note: document.getElementById('resv_note').value.trim()
+  }, function(res) {
+    btn.disabled = false; btn.textContent = '建 立 預 約';
+    if (res.ok) {
+      showToast('預約已建立','success');
+      if (res.data && res.data.duplicate_phone) alert(duplicatePhoneMessage(res.data.duplicate_records));
+      closeModal('reservationModal');
+      renderReservationView();
+      loadReservationReminders();
+    } else { showToast(res.error||'送出失敗','error'); }
+  }, function(){ btn.disabled=false; btn.textContent='建 立 預 約'; showToast('連線失敗','error'); });
+}
+
+function markReservationVisited(id) {
+  gasPost('updateReservationStatus', { lineUserId: state.user.lineUserId, reservation_id: id, status: '已到訪' }, function(res) {
+    if (res.ok) { showToast('已標記到訪','success'); renderReservationView(); loadReservationReminders(); }
+    else { showToast(res.error,'error'); }
+  });
+}
+
+function markReservationNoShow(id) {
+  if (!confirm('確定將這筆預約標記為爽約嗎？')) return;
+  gasPost('updateReservationStatus', { lineUserId: state.user.lineUserId, reservation_id: id, status: '爽約' }, function(res) {
+    if (res.ok) { showToast('已標記爽約','success'); renderReservationView(); loadReservationReminders(); }
+    else { showToast(res.error,'error'); }
+  });
+}
+
+// 已到訪的預約「轉為客戶資料」：把姓名/電話帶到既有的客戶登記表單，
+// 業務只要補其他欄位，不用重打姓名電話；送出成功後 submitCustomer()
+// 會呼叫 markReservationConverted 把這筆預約標記完成並連回新建的客戶
+function convertReservationToCustomer(id) {
+  var r = (state.reservationsRaw || []).filter(function(x){ return x.reservation_id === id; })[0];
+  if (!r) { showToast('找不到這筆預約，請重新整理','error'); return; }
+  state.pendingReservationConversion = { reservation_id: r.reservation_id, customer_name: r.customer_name, phone: r.phone };
+  showToast('已帶入預約資料，請完成客戶登記','success');
+  route('#/customer');
 }
 
 /* ══ Task ══ */
@@ -2633,7 +2823,7 @@ function doActivateUser(id) {
 /* ══ Modal ══ */
 function openModal(id) { document.getElementById(id).classList.add('show'); document.body.style.overflow='hidden'; }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); document.body.style.overflow=''; }
-['taskModal','reportModal','maintModal','dealModal','editCustModal','changeLogModal'].forEach(function(id) {
+['taskModal','reportModal','maintModal','dealModal','editCustModal','changeLogModal','reservationModal'].forEach(function(id) {
   document.getElementById(id).addEventListener('click',function(e){ if(e.target.id===id) closeModal(id); });
 });
 
