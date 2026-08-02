@@ -553,6 +553,11 @@
   <div id="viewReport" class="view hidden">
     <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">銷售日報</div><div style="width:36px;"></div></div></div>
     <div class="list-wrap">
+      <div class="list-tabs">
+        <div class="list-tab active">日</div>
+        <div class="list-tab" onclick="route('#/report/week')">週</div>
+        <div class="list-tab" onclick="route('#/report/month')">月</div>
+      </div>
       <div class="field" style="margin-bottom:14px;">
         <div class="field-label">查詢日期</div>
         <input class="inp" type="date" id="reportViewDate" onchange="loadReportForDate()">
@@ -575,17 +580,47 @@
         <div class="summary-card-date" id="weekCompareRange">—</div>
         <div class="summary-stats" id="weekCompareStats"></div>
       </div>
-      <button class="btn-mini" style="width:100%;padding:12px;margin-top:14px;" onclick="route('#/report/month')">📅 查看完整月報表</button>
       <div class="section-tag" style="margin-top:14px;">每日報表（近1個月）</div>
       <div id="reportHistoryList"><div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div></div>
     </div>
     <button class="fab" onclick="openReportModal()">+</button>
   </div>
 
+  <!-- Weekly Report ★ 吉隆天曜專屬 -->
+  <div id="viewWeeklyReport" class="view hidden">
+    <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/report')">‹</button><div class="header-title">週報表</div><div style="width:36px;"></div></div></div>
+    <div class="list-wrap">
+      <div class="list-tabs">
+        <div class="list-tab" onclick="route('#/report')">日</div>
+        <div class="list-tab active">週</div>
+        <div class="list-tab" onclick="route('#/report/month')">月</div>
+      </div>
+      <div class="field" style="margin-bottom:14px;">
+        <div class="field-label">查詢週次</div>
+        <input class="inp" type="week" id="weekReportDate" onchange="loadWeeklyReport()">
+      </div>
+      <div class="summary-card"><div class="summary-card-label">WEEKLY SUMMARY</div><div class="summary-card-date" id="weekReportRange">—</div><div class="summary-stats"><div class="summary-stat"><div class="summary-stat-num" id="weekSumVisitor">0</div><div class="summary-stat-label">接待</div></div><div class="summary-stat"><div class="summary-stat-num" id="weekSumFirst">0</div><div class="summary-stat-label">初訪</div></div><div class="summary-stat"><div class="summary-stat-num" id="weekSumRevisit">0</div><div class="summary-stat-label">回籠</div></div><div class="summary-stat"><div class="summary-stat-num" id="weekSumDeal">0</div><div class="summary-stat-label">成交</div></div></div></div>
+      <div class="summary-card" id="weekBreakdownCard">
+        <div class="summary-card-label">本週來客分布（依客戶資料統計）</div>
+        <div style="font-size:12px;color:var(--ink-faint);margin-top:6px;">居住行政區</div>
+        <div id="weekDistrictBreakdown"></div>
+        <div style="font-size:12px;color:var(--ink-faint);margin-top:10px;">來源管道</div>
+        <div id="weekSourceBreakdown"></div>
+        <div style="font-size:12px;color:var(--ink-faint);margin-top:10px;">已介紹房型（戶別反應）</div>
+        <div id="weekUnitBreakdown"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Monthly Report ★ 吉隆天曜專屬 -->
   <div id="viewMonthlyReport" class="view hidden">
     <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/report')">‹</button><div class="header-title">月報表</div><div style="width:36px;"></div></div></div>
     <div class="list-wrap">
+      <div class="list-tabs">
+        <div class="list-tab" onclick="route('#/report')">日</div>
+        <div class="list-tab" onclick="route('#/report/week')">週</div>
+        <div class="list-tab active">月</div>
+      </div>
       <div class="field" style="margin-bottom:14px;">
         <div class="field-label">查詢月份</div>
         <input class="inp" type="month" id="monthReportDate" onchange="loadMonthlyReport()">
@@ -1155,6 +1190,9 @@ function route(hash) {
     case '#/report':
       if (isSales()) { route('#/home'); return; }
       document.getElementById('viewReport').classList.remove('hidden'); renderReport(); break;
+    case '#/report/week':
+      if (isSales()) { route('#/home'); return; }
+      document.getElementById('viewWeeklyReport').classList.remove('hidden'); renderWeeklyReport(); break;
     case '#/report/month':
       if (isSales()) { route('#/home'); return; }
       document.getElementById('viewMonthlyReport').classList.remove('hidden'); renderMonthlyReport(); break;
@@ -2429,6 +2467,65 @@ function breakdownChipsHTML(items, total, emptyText) {
         escapeHtml(it.label) + '　' + it.count + '（' + pct + '%）</span>';
     }).join('') +
   '</div>';
+}
+
+/* ══ Weekly Report ★ 吉隆天曜專屬 ══ */
+// input[type=week] 存的是 ISO 週次字串（例如 "2026-W31"），這兩個
+// helper 負責字串<->週一~週日日期範圍互轉，全部用 UTC 運算避免受
+// 使用者瀏覽器時區影響（這裡只是單純算日期，不代表任何時間點）
+function fmtUTCDate(d) {
+  return d.getUTCFullYear() + '-' + String(d.getUTCMonth()+1).padStart(2,'0') + '-' + String(d.getUTCDate()).padStart(2,'0');
+}
+function isoWeekRangeFromString(weekStr) {
+  var parts = weekStr.split('-W');
+  var year = +parts[0], week = +parts[1];
+  var simple = new Date(Date.UTC(year, 0, 1 + (week - 1) * 7));
+  var dow = simple.getUTCDay() || 7;
+  var monday = new Date(simple);
+  monday.setUTCDate(simple.getUTCDate() - dow + 1);
+  var sunday = new Date(monday);
+  sunday.setUTCDate(monday.getUTCDate() + 6);
+  return [fmtUTCDate(monday), fmtUTCDate(sunday)];
+}
+function isoWeekStringFromDate(dateStr) {
+  var p = dateStr.split('-').map(Number);
+  var date = new Date(Date.UTC(p[0], p[1]-1, p[2]));
+  var dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  var yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  var weekNo = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+  return date.getUTCFullYear() + '-W' + String(weekNo).padStart(2, '0');
+}
+function renderWeeklyReport() {
+  var input = document.getElementById('weekReportDate');
+  if (!input.value) input.value = isoWeekStringFromDate(todayStr());
+  loadWeeklyReport();
+}
+function loadWeeklyReport() {
+  var weekStr = document.getElementById('weekReportDate').value || isoWeekStringFromDate(todayStr());
+  var range = isoWeekRangeFromString(weekStr);
+  document.getElementById('weekReportRange').textContent = range[0] + ' ~ ' + range[1];
+  var errHTML = '<div style="font-size:12px;color:var(--rust);padding:6px 0;">載入失敗，請確認 GAS 已部署最新版本</div>';
+  gasGet('getWeeklyVisitorBreakdown', { lineUserId: state.user.lineUserId, startDate: range[0], endDate: range[1] }, function(res) {
+    if (!res.ok) {
+      document.getElementById('weekDistrictBreakdown').innerHTML = errHTML;
+      document.getElementById('weekSourceBreakdown').innerHTML = '';
+      document.getElementById('weekUnitBreakdown').innerHTML = '';
+      return;
+    }
+    var d = res.data;
+    document.getElementById('weekSumVisitor').textContent = d.total;
+    document.getElementById('weekSumFirst').textContent = d.first_visit;
+    document.getElementById('weekSumRevisit').textContent = d.revisit;
+    document.getElementById('weekSumDeal').textContent = d.deal;
+    document.getElementById('weekDistrictBreakdown').innerHTML = breakdownChipsHTML(d.by_district, d.total, '本週尚無客戶資料');
+    document.getElementById('weekSourceBreakdown').innerHTML = breakdownChipsHTML(d.by_source, d.total, '本週尚無客戶資料');
+    document.getElementById('weekUnitBreakdown').innerHTML = breakdownChipsHTML(d.by_unit, d.total, '本週尚無客戶資料');
+  }, function() {
+    document.getElementById('weekDistrictBreakdown').innerHTML = errHTML;
+    document.getElementById('weekSourceBreakdown').innerHTML = '';
+    document.getElementById('weekUnitBreakdown').innerHTML = '';
+  });
 }
 
 /* ══ Monthly Report ★ 吉隆天曜專屬 ══ */
