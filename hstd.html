@@ -545,6 +545,13 @@
         <input class="inp" type="date" id="reportViewDate" onchange="loadReportForDate()">
       </div>
       <div class="summary-card"><div class="summary-card-label">DAILY SUMMARY</div><div class="summary-card-date" id="reportDate">—</div><div class="summary-stats"><div class="summary-stat"><div class="summary-stat-num" id="sumVisitor">0</div><div class="summary-stat-label">接待</div></div><div class="summary-stat"><div class="summary-stat-num" id="sumFirst">0</div><div class="summary-stat-label">初訪</div></div><div class="summary-stat"><div class="summary-stat-num" id="sumRevisit">0</div><div class="summary-stat-label">回籠</div></div><div class="summary-stat"><div class="summary-stat-num" id="sumDeal">0</div><div class="summary-stat-label">成交</div></div></div></div>
+      <div class="summary-card" id="visitorBreakdownCard">
+        <div class="summary-card-label">當日來客分布（依客戶資料統計）</div>
+        <div style="font-size:12px;color:var(--ink-faint);margin-top:6px;">居住行政區</div>
+        <div id="districtBreakdown"></div>
+        <div style="font-size:12px;color:var(--ink-faint);margin-top:10px;">來源管道</div>
+        <div id="sourceBreakdown"></div>
+      </div>
       <div id="reportList"></div>
 
       <div class="section-tag" style="margin-top:18px;">本週累計</div>
@@ -553,10 +560,30 @@
         <div class="summary-card-date" id="weekCompareRange">—</div>
         <div class="summary-stats" id="weekCompareStats"></div>
       </div>
+      <button class="btn-mini" style="width:100%;padding:12px;margin-top:14px;" onclick="route('#/report/month')">📅 查看完整月報表</button>
       <div class="section-tag" style="margin-top:14px;">每日報表（近1個月）</div>
       <div id="reportHistoryList"><div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div></div>
     </div>
     <button class="fab" onclick="openReportModal()">+</button>
+  </div>
+
+  <!-- Monthly Report -->
+  <div id="viewMonthlyReport" class="view hidden">
+    <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/report')">‹</button><div class="header-title">月報表</div><div style="width:36px;"></div></div></div>
+    <div class="list-wrap">
+      <div class="field" style="margin-bottom:14px;">
+        <div class="field-label">查詢月份</div>
+        <input class="inp" type="month" id="monthReportDate" onchange="loadMonthlyReport()">
+      </div>
+      <div class="summary-card"><div class="summary-card-label">MONTHLY SUMMARY</div><div class="summary-card-date" id="monthReportRange">—</div><div class="summary-stats"><div class="summary-stat"><div class="summary-stat-num" id="monthSumVisitor">0</div><div class="summary-stat-label">接待</div></div><div class="summary-stat"><div class="summary-stat-num" id="monthSumFirst">0</div><div class="summary-stat-label">初訪</div></div><div class="summary-stat"><div class="summary-stat-num" id="monthSumRevisit">0</div><div class="summary-stat-label">回籠</div></div><div class="summary-stat"><div class="summary-stat-num" id="monthSumDeal">0</div><div class="summary-stat-label">成交</div></div></div></div>
+      <div class="summary-card" id="monthBreakdownCard">
+        <div class="summary-card-label">本月來客分布（依客戶資料統計）</div>
+        <div style="font-size:12px;color:var(--ink-faint);margin-top:6px;">居住行政區</div>
+        <div id="monthDistrictBreakdown"></div>
+        <div style="font-size:12px;color:var(--ink-faint);margin-top:10px;">來源管道</div>
+        <div id="monthSourceBreakdown"></div>
+      </div>
+    </div>
   </div>
 
   <!-- Maintenance -->
@@ -1120,6 +1147,9 @@ function route(hash) {
     case '#/report':
       if (isSales()) { route('#/home'); return; }
       document.getElementById('viewReport').classList.remove('hidden'); renderReport(); break;
+    case '#/report/month':
+      if (isSales()) { route('#/home'); return; }
+      document.getElementById('viewMonthlyReport').classList.remove('hidden'); renderMonthlyReport(); break;
     case '#/maint':    document.getElementById('viewMaint').classList.remove('hidden');    renderMaintList(); break;
     case '#/users':
       if (isSales()) { route('#/home'); return; }
@@ -2413,6 +2443,66 @@ function loadReportForDate() {
       var editBtn = canEdit ? '<button class="btn-mini" style="padding:4px 10px;font-size:11px;" onclick="openEditReportModal('+idx+')">✏️ 修改</button>' : '';
       return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">'+escapeHtml(r.salesperson||r.created_by)+'</div><span class="list-item-meta">'+r.report_date+'</span></div><div class="list-item-meta"><span>接待 '+(r.visitor_count||0)+'</span><span>初訪 '+(r.first_visit_count||0)+'</span><span>回籠 '+(r.revisit_count||0)+'</span><span>成交 '+(r.deal_count||0)+'</span></div>'+(r.notes?'<div class="list-item-desc">'+escapeHtml(r.notes)+'</div>':'')+'<div class="list-item-actions">'+editBtn+'<button class="btn-mini danger" onclick="deleteReport(\''+r.report_id+'\')">刪除</button></div></div>';
     }).join(''):'<div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-text">當日尚未有日報提交</div></div>';
+  });
+  loadVisitorBreakdown(date);
+}
+
+/* 日報頁面「當日來客分布」，直接統計 Customer_Data 當天的客戶資料
+   （居住行政區／來源管道），不用另外手動填寫 */
+function loadVisitorBreakdown(date) {
+  var errHTML = '<div style="font-size:12px;color:var(--rust);padding:6px 0;">載入失敗，請確認 GAS 已部署最新版本</div>';
+  gasGet('getDailyVisitorBreakdown', { lineUserId: state.user.lineUserId, date: date }, function(res) {
+    if (!res.ok) {
+      document.getElementById('districtBreakdown').innerHTML = errHTML;
+      document.getElementById('sourceBreakdown').innerHTML = '';
+      return;
+    }
+    document.getElementById('districtBreakdown').innerHTML = breakdownChipsHTML(res.data.by_district, res.data.total);
+    document.getElementById('sourceBreakdown').innerHTML = breakdownChipsHTML(res.data.by_source, res.data.total);
+  }, function() {
+    document.getElementById('districtBreakdown').innerHTML = errHTML;
+    document.getElementById('sourceBreakdown').innerHTML = '';
+  });
+}
+
+function breakdownChipsHTML(items, total, emptyText) {
+  if (!items || !items.length) return '<div style="font-size:12px;color:var(--ink-faint);padding:6px 0;">' + (emptyText || '當日尚無客戶資料') + '</div>';
+  return '<div style="display:flex;flex-wrap:wrap;gap:6px;padding:6px 0;">' +
+    items.map(function(it) {
+      var pct = total ? Math.round(it.count / total * 100) : 0;
+      return '<span style="background:var(--border);border-radius:8px;padding:4px 10px;font-size:12px;color:var(--ink);">' +
+        escapeHtml(it.label) + '　' + it.count + '（' + pct + '%）</span>';
+    }).join('') +
+  '</div>';
+}
+
+/* ══ Monthly Report ══ */
+function renderMonthlyReport() {
+  var input = document.getElementById('monthReportDate');
+  if (!input.value) input.value = todayStr().substring(0, 7);
+  loadMonthlyReport();
+}
+
+function loadMonthlyReport() {
+  var month = document.getElementById('monthReportDate').value || todayStr().substring(0, 7);
+  document.getElementById('monthReportRange').textContent = month;
+  var errHTML = '<div style="font-size:12px;color:var(--rust);padding:6px 0;">載入失敗，請確認 GAS 已部署最新版本</div>';
+  gasGet('getMonthlyVisitorBreakdown', { lineUserId: state.user.lineUserId, month: month }, function(res) {
+    if (!res.ok) {
+      document.getElementById('monthDistrictBreakdown').innerHTML = errHTML;
+      document.getElementById('monthSourceBreakdown').innerHTML = '';
+      return;
+    }
+    var d = res.data;
+    document.getElementById('monthSumVisitor').textContent = d.total;
+    document.getElementById('monthSumFirst').textContent = d.first_visit;
+    document.getElementById('monthSumRevisit').textContent = d.revisit;
+    document.getElementById('monthSumDeal').textContent = d.deal;
+    document.getElementById('monthDistrictBreakdown').innerHTML = breakdownChipsHTML(d.by_district, d.total, '本月尚無客戶資料');
+    document.getElementById('monthSourceBreakdown').innerHTML = breakdownChipsHTML(d.by_source, d.total, '本月尚無客戶資料');
+  }, function() {
+    document.getElementById('monthDistrictBreakdown').innerHTML = errHTML;
+    document.getElementById('monthSourceBreakdown').innerHTML = '';
   });
 }
 
