@@ -713,7 +713,7 @@
 <div class="modal-mask" id="reportModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">提交日報</div><div class="modal-subtitle">當日業績資料填寫</div><div class="field"><div class="field-label">日期</div><input class="inp" type="date" id="rep_date"></div><div class="field-row"><div class="field"><div class="field-label">初訪</div><input class="inp" type="number" id="rep_first" min="0" value="0"></div><div class="field"><div class="field-label">回籠</div><input class="inp" type="number" id="rep_revisit" min="0" value="0"></div></div><div class="field-row"><div class="field"><div class="field-label">接待總組數</div><input class="inp" type="number" id="rep_visitor" min="0" value="0"></div><div class="field"><div class="field-label">成交</div><input class="inp" type="number" id="rep_deal" min="0" value="0"></div></div><div class="field"><div class="field-label">成交戶別</div><input class="inp" type="text" id="rep_units" placeholder="A3-12F"></div><div class="field"><div class="field-label">備註</div><textarea class="ta" id="rep_notes" placeholder="特殊事項…"></textarea></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('reportModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitReport()">提 交 日 報</button></div></div></div>
 <div class="modal-mask" id="editReportModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">修改日報</div><div class="modal-subtitle" id="editRepMeta">僅限提交後3天內可修改</div><div class="field-row"><div class="field"><div class="field-label">初訪</div><input class="inp" type="number" id="erep_first" min="0"></div><div class="field"><div class="field-label">回籠</div><input class="inp" type="number" id="erep_revisit" min="0"></div></div><div class="field-row"><div class="field"><div class="field-label">接待總組數</div><input class="inp" type="number" id="erep_visitor" min="0"></div><div class="field"><div class="field-label">成交</div><input class="inp" type="number" id="erep_deal" min="0"></div></div><div class="field"><div class="field-label">成交戶別</div><input class="inp" type="text" id="erep_units" placeholder="A3-12F"></div><div class="field"><div class="field-label">備註</div><textarea class="ta" id="erep_notes" placeholder="特殊事項…"></textarea></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('editReportModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="saveEditReport()">儲 存 修 改</button></div></div></div>
 <div class="modal-mask" id="reservationModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">新增預約賞屋</div><div class="modal-subtitle">客戶到訪後可一鍵轉為正式客戶資料</div><div class="field-row"><div class="field"><div class="field-label">姓名 <span class="req">*</span></div><input class="inp" type="text" id="resv_name" placeholder="請輸入姓名"></div><div class="field"><div class="field-label">電話 <span class="req">*</span></div><input class="inp" type="tel" id="resv_phone" placeholder="0912345678"></div></div><div class="field-row"><div class="field"><div class="field-label">預約日期 <span class="req">*</span></div><input class="inp" type="date" id="resv_date"></div><div class="field"><div class="field-label">預約時間</div><input class="inp" type="time" id="resv_time"></div></div><div class="field"><div class="field-label">來源管道</div><input class="inp" type="text" id="resv_source" placeholder="例：591、FB廣告、朋友介紹"></div><div class="field"><div class="field-label">備註</div><textarea class="ta" id="resv_note" placeholder="補充資訊…"></textarea></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('reservationModal')">取消</button><button class="btn-mini primary" id="resv_submitBtn" style="flex:2;padding:14px;font-weight:600;" onclick="submitReservation()">建 立 預 約</button></div></div></div>
-<div class="modal-mask" id="maintModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title" id="maintModalTitle">維修通報</div><div class="modal-subtitle">通報後將自動推播給主管</div><input type="hidden" id="maint_id"><div class="field"><div class="field-label">問題類型 <span class="req">*</span></div><select class="sel" id="maint_type"><option value="">請選擇</option><option>燈具/電路</option><option>水管/漏水</option><option>空調</option><option>家具/門窗</option><option>清潔</option><option>樣品屋外觀</option><option>其他</option></select></div><div class="field"><div class="field-label">位置 / 戶別</div><input class="inp" type="text" id="maint_location" placeholder="例：A棟3F樣品屋客廳"></div><div class="field"><div class="field-label">問題描述 <span class="req">*</span></div><textarea class="ta" id="maint_desc" placeholder="詳細描述狀況…"></textarea></div><div class="field"><div class="field-label">優先度</div><select class="sel" id="maint_priority"><option value="normal">一般</option><option value="high" selected>高</option><option value="urgent">緊急</option></select></div><div class="field"><div class="field-label">現場照片（選填）</div><input class="inp" type="file" accept="image/*" capture="environment" id="maint_photo" onchange="previewMaintPhoto(event)"><div id="maint_photoPreview" style="margin-top:8px;"></div></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('maintModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitMaint()">送 出 通 報</button></div></div></div>
+<div class="modal-mask" id="maintModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title" id="maintModalTitle">維修通報</div><div class="modal-subtitle">通報後將自動推播給主管</div><input type="hidden" id="maint_id"><div class="field"><div class="field-label">問題類型 <span class="req">*</span></div><select class="sel" id="maint_type"><option value="">請選擇</option><option>燈具/電路</option><option>水管/漏水</option><option>空調</option><option>家具/門窗</option><option>清潔</option><option>樣品屋外觀</option><option>其他</option></select></div><div class="field"><div class="field-label">位置 / 戶別</div><input class="inp" type="text" id="maint_location" placeholder="例：A棟3F樣品屋客廳"></div><div class="field"><div class="field-label">問題描述 <span class="req">*</span></div><textarea class="ta" id="maint_desc" placeholder="詳細描述狀況…"></textarea></div><div class="field"><div class="field-label">優先度</div><select class="sel" id="maint_priority"><option value="normal">一般</option><option value="high" selected>高</option><option value="urgent">緊急</option></select></div><div class="field"><div class="field-label">現場照片（選填）</div><input class="inp" type="file" accept="image/*" capture="environment" id="maint_photo" onchange="previewMaintPhoto(event)"><div id="maint_photoPreview" style="margin-top:8px;"></div></div><div class="field"><div class="field-label">附件檔案（選填，例如報價單、說明文件，最大10MB）</div><input class="inp" type="file" id="maint_file" onchange="previewMaintFile(event)"><div id="maint_filePreview" style="margin-top:8px;"></div></div><div style="display:flex;gap:10px;margin-top:18px;"><button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('maintModal')">取消</button><button class="btn-mini primary" style="flex:2;padding:14px;font-weight:600;" onclick="submitMaint()">送 出 通 報</button></div></div></div>
 
 <!-- 主管排假 Modal -->
 <div class="modal-mask" id="leaveAssignModal">
@@ -2821,7 +2821,8 @@ function renderMaintList() {
       }
       act += '<button class="btn-mini danger" onclick="deleteMaint(\''+m.maintenance_id+'\')">刪除</button>';
       var photo = m.photo_url ? '<a href="'+escapeHtml(m.photo_url)+'" target="_blank" rel="noopener"><img src="'+escapeHtml(m.photo_url)+'" style="max-width:100px;max-height:100px;border-radius:8px;margin-top:8px;display:block;"></a>' : '';
-      return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">🔧 '+escapeHtml(m.issue_type)+(m.location?' @ '+escapeHtml(m.location):'')+'</div>'+sp+'</div><div class="list-item-desc">'+escapeHtml(m.description||'')+'</div>'+photo+'<div class="list-item-meta">'+priPill+'<span>👤 '+escapeHtml(m.reported_by||'')+'</span><span>📅 '+String(m.created_at||'').substring(0,10)+'</span></div><div class="list-item-actions">'+act+'</div></div>';
+      var file = m.file_url ? '<a href="'+escapeHtml(m.file_url)+'" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px;font-size:12px;color:var(--teal);">📎 '+escapeHtml(m.file_name||'附件檔案')+'</a>' : '';
+      return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">🔧 '+escapeHtml(m.issue_type)+(m.location?' @ '+escapeHtml(m.location):'')+'</div>'+sp+'</div><div class="list-item-desc">'+escapeHtml(m.description||'')+'</div>'+photo+file+'<div class="list-item-meta">'+priPill+'<span>👤 '+escapeHtml(m.reported_by||'')+'</span><span>📅 '+String(m.created_at||'').substring(0,10)+'</span></div><div class="list-item-actions">'+act+'</div></div>';
     }).join('');
   });
 }
@@ -2837,6 +2838,9 @@ function deleteMaint(id) {
   });
 }
 var maintPhotoBase64 = null;
+var maintFileBase64 = null;
+var maintFileName = null;
+var maintFileMime = null;
 
 function openMaintModal(){
   document.getElementById('maint_id').value = '';
@@ -2850,6 +2854,9 @@ function openMaintModal(){
   maintPhotoBase64 = null;
   document.getElementById('maint_photo').value = '';
   document.getElementById('maint_photoPreview').innerHTML = '';
+  maintFileBase64 = null; maintFileName = null; maintFileMime = null;
+  document.getElementById('maint_file').value = '';
+  document.getElementById('maint_filePreview').innerHTML = '';
   openModal('maintModal');
 }
 function openEditMaintModal(id) {
@@ -2867,6 +2874,11 @@ function openEditMaintModal(id) {
   document.getElementById('maint_photo').value = '';
   document.getElementById('maint_photoPreview').innerHTML = m.photo_url
     ? '<img src="'+escapeHtml(m.photo_url)+'" style="max-width:120px;max-height:120px;border-radius:8px;"><div style="font-size:11px;color:var(--ink-faint);margin-top:4px;">目前的照片，重新選擇會覆蓋掉</div>'
+    : '';
+  maintFileBase64 = null; maintFileName = null; maintFileMime = null;
+  document.getElementById('maint_file').value = '';
+  document.getElementById('maint_filePreview').innerHTML = m.file_url
+    ? '<a href="'+escapeHtml(m.file_url)+'" target="_blank" rel="noopener">📎 '+escapeHtml(m.file_name||'目前的附件')+'</a><div style="font-size:11px;color:var(--ink-faint);margin-top:4px;">重新選擇會覆蓋掉</div>'
     : '';
   openModal('maintModal');
 }
@@ -2897,6 +2909,31 @@ function previewMaintPhoto(evt) {
   reader.readAsDataURL(file);
 }
 
+/* 附件檔案不限類型（PDF、Word、Excel…），原始檔案直接轉 base64 上傳，
+   不像照片會壓縮，所以限制大小（10MB），避免上傳超久或超出
+   Apps Script 單次請求大小限制 */
+var MAINT_FILE_MAX_BYTES = 10 * 1024 * 1024;
+function previewMaintFile(evt) {
+  var file = evt.target.files && evt.target.files[0];
+  var preview = document.getElementById('maint_filePreview');
+  if (!file) { maintFileBase64 = null; maintFileName = null; maintFileMime = null; preview.innerHTML = ''; return; }
+  if (file.size > MAINT_FILE_MAX_BYTES) {
+    showToast('檔案太大（超過10MB），請選擇較小的檔案','error');
+    evt.target.value = '';
+    maintFileBase64 = null; maintFileName = null; maintFileMime = null;
+    preview.innerHTML = '';
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    maintFileBase64 = e.target.result.split(',')[1];
+    maintFileName = file.name;
+    maintFileMime = file.type || 'application/octet-stream';
+    preview.innerHTML = '📎 ' + escapeHtml(file.name) + '（' + Math.round(file.size/1024) + ' KB）';
+  };
+  reader.readAsDataURL(file);
+}
+
 function submitMaint() {
   var type=document.getElementById('maint_type').value;
   var desc=document.getElementById('maint_desc').value.trim();
@@ -2905,18 +2942,20 @@ function submitMaint() {
   if (btn.disabled) return;
   var maintId = document.getElementById('maint_id').value;
   var isEdit = !!maintId;
+  var resetText = isEdit ? '儲 存 修 改' : '送 出 通 報';
   btn.disabled=true; btn.textContent = isEdit ? '儲 存 中…' : '送 出 中…';
 
-  function finishSubmit(photoUrl) {
+  function finishSubmit(photoUrl, fileUrl, fileName) {
     var payload = {
       lineUserId:state.user.lineUserId, issue_type:type,
       location:document.getElementById('maint_location').value.trim(),
       description:desc, priority:document.getElementById('maint_priority').value,
-      photo_url: photoUrl || ''
+      photo_url: photoUrl || '',
+      file_url: fileUrl || '',
+      file_name: fileName || ''
     };
     if (isEdit) payload.maintenance_id = maintId;
     gasPost(isEdit ? 'updateMaintenance' : 'appendMaintenance', payload, function(res){
-      var resetText = isEdit ? '儲 存 修 改' : '送 出 通 報';
       btn.disabled=false; btn.textContent = resetText;
       if (res.ok) {
         showToast(isEdit ? '維修通報已更新' : '維修通報已送出','success'); closeModal('maintModal');
@@ -2926,10 +2965,27 @@ function submitMaint() {
         document.getElementById('maint_photo').value='';
         document.getElementById('maint_photoPreview').innerHTML='';
         maintPhotoBase64 = null;
+        document.getElementById('maint_file').value='';
+        document.getElementById('maint_filePreview').innerHTML='';
+        maintFileBase64 = null; maintFileName = null; maintFileMime = null;
         renderMaintList();
       }
       else { showToast(res.error,'error'); }
-    }, function(){ btn.disabled=false; btn.textContent = isEdit ? '儲 存 修 改' : '送 出 通 報'; showToast('連線失敗','error'); });
+    }, function(){ btn.disabled=false; btn.textContent = resetText; showToast('連線失敗','error'); });
+  }
+
+  function uploadFileIfNeeded(photoUrl) {
+    if (!maintFileBase64) { finishSubmit(photoUrl, '', ''); return; }
+    btn.textContent = '上 傳 附 件 中…';
+    gasPostJson('uploadMaintenanceFile', {
+      lineUserId: state.user.lineUserId,
+      file_base64: maintFileBase64,
+      mime_type: maintFileMime,
+      file_name: maintFileName
+    }, function(res) {
+      if (res.ok) { finishSubmit(photoUrl, res.data.file_url, res.data.file_name); }
+      else { btn.disabled=false; btn.textContent = resetText; showToast('附件上傳失敗：'+res.error,'error'); }
+    }, function(){ btn.disabled=false; btn.textContent = resetText; showToast('附件上傳連線失敗','error'); });
   }
 
   if (maintPhotoBase64) {
@@ -2939,11 +2995,11 @@ function submitMaint() {
       photo_base64: maintPhotoBase64,
       mime_type: 'image/jpeg'
     }, function(res) {
-      if (res.ok) { finishSubmit(res.data.photo_url); }
-      else { btn.disabled=false; btn.textContent = isEdit ? '儲 存 修 改' : '送 出 通 報'; showToast('照片上傳失敗：'+res.error,'error'); }
-    }, function(){ btn.disabled=false; btn.textContent = isEdit ? '儲 存 修 改' : '送 出 通 報'; showToast('照片上傳連線失敗','error'); });
+      if (res.ok) { uploadFileIfNeeded(res.data.photo_url); }
+      else { btn.disabled=false; btn.textContent = resetText; showToast('照片上傳失敗：'+res.error,'error'); }
+    }, function(){ btn.disabled=false; btn.textContent = resetText; showToast('照片上傳連線失敗','error'); });
   } else {
-    finishSubmit('');
+    uploadFileIfNeeded('');
   }
 }
 
