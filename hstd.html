@@ -2706,7 +2706,14 @@ function renderWeekTotal() {
   var prevEnd = dateToStr(prevDays[todayIdx]);
   var cur = sumReportFields(filterReportsByRange(rows, curStart, todayStr()));
   var prev = sumReportFields(filterReportsByRange(rows, dateToStr(prevDays[0]), prevEnd));
-  document.getElementById('weekCompareRange').textContent = curStart + ' ~ ' + todayStr() + '（vs 上週同期）';
+  // 「本週至今」跟「上週同期」比的是同樣天數（例如今天是週三，就是
+  // 本週一~週三 vs 上週一~週三），不是整週比整週，才不會拿「完整
+  // 上週」硬比「只過一半的本週」；週一當天兩者都只有一天，日期範圍
+  // 會變成同一天，這裡特別標一下文字，避免看起來像打錯
+  var rangeText = (curStart === todayStr())
+    ? '本週剛開始（僅 ' + todayStr() + ' 這天）'
+    : curStart + ' ~ ' + todayStr() + '（本週至今）';
+  document.getElementById('weekCompareRange').textContent = rangeText + '　vs 上週同期';
   document.getElementById('weekCompareStats').innerHTML = weekStatsHTML(cur, prev);
 }
 
