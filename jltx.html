@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>吉隆天曜 CRM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://static.line-scdn.net">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700&family=Noto+Sans+TC:wght@300;400;500&display=swap" rel="stylesheet">
 <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
@@ -27,7 +30,7 @@
   .screen.active{display:block;}
 
   /* ── 品牌背景動畫（Ken Burns 緩慢位移縮放 + 光澤掃過）──
-     只套用在登入頁／首頁 hero，這兩個區塊用同一張 assets/login-bg.jpg 當背景 */
+     只套用在登入頁／首頁 hero，這兩個區塊用同一張 assets/login-bg.webp 當背景 */
   @keyframes bgKenBurns{
     0%  {background-size:130%;background-position:20% 30%;}
     100%{background-size:150%;background-position:70% 60%;}
@@ -47,14 +50,14 @@
   }
 
   /* Loading */
-  #loadingScreen{display:none;flex-direction:column;align-items:center;justify-content:center;background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;color:#4A3A24;}
+  #loadingScreen{display:none;flex-direction:column;align-items:center;justify-content:center;background:#F2EAD8 url('assets/login-bg.webp') center/cover no-repeat;color:#4A3A24;}
   #loadingScreen.active{display:flex;}
   .spinner{width:32px;height:32px;border:3px solid rgba(139,110,66,0.2);border-top-color:#8A6D3F;border-radius:50%;animation:spin 0.7s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
   .loading-text{margin-top:16px;font-size:10px;letter-spacing:4px;color:rgba(74,58,36,0.5);}
 
   /* Login */
-  #loginScreen{background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;display:none;flex-direction:column;padding:0 28px;padding-top:max(60px,env(safe-area-inset-top));padding-bottom:max(40px,env(safe-area-inset-bottom));min-height:100%;position:relative;}
+  #loginScreen{background:#F2EAD8 url('assets/login-bg.webp') center/cover no-repeat;display:none;flex-direction:column;padding:0 28px;padding-top:max(60px,env(safe-area-inset-top));padding-bottom:max(40px,env(safe-area-inset-bottom));min-height:100%;position:relative;}
   #loginScreen::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.55),rgba(255,255,255,0.15) 40%,rgba(255,255,255,0.55));pointer-events:none;}
   #loginScreen>*{position:relative;z-index:1;}
   #loginScreen.active{display:flex;}
@@ -84,7 +87,7 @@
   .login-error.show{opacity:1;}
 
   /* Pending */
-  #pendingScreen{background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;display:none;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px;text-align:center;min-height:100%;}
+  #pendingScreen{background:#F2EAD8 url('assets/login-bg.webp') center/cover no-repeat;display:none;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px;text-align:center;min-height:100%;}
   #pendingScreen.active{display:flex;}
   .pending-icon{font-size:56px;margin-bottom:20px;animation:pulse 2s ease-in-out infinite;}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
@@ -98,14 +101,14 @@
   .view.hidden{display:none;}
 
   /* Header */
-  .app-header{background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;position:relative;padding:0 16px;padding-top:max(16px,env(safe-area-inset-top));}
+  .app-header{background:#F2EAD8 url('assets/login-bg.webp') center/cover no-repeat;position:relative;padding:0 16px;padding-top:max(16px,env(safe-area-inset-top));}
   .app-header::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.6),rgba(255,255,255,0.25));pointer-events:none;}
   .header-row{position:relative;z-index:1;display:flex;align-items:center;height:52px;gap:8px;}
   .header-back{width:36px;height:36px;border:none;background:rgba(139,110,66,0.12);border-radius:8px;color:#8A6D3F;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
   .header-title{font-family:'Noto Serif TC',serif;font-size:16px;font-weight:600;color:#4A3A24;flex:1;text-align:center;}
 
   /* Home */
-  .home-hero{background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;position:relative;padding:0 20px 26px;padding-top:max(16px,env(safe-area-inset-top));}
+  .home-hero{background:#F2EAD8 url('assets/login-bg.webp') center/cover no-repeat;position:relative;padding:0 20px 26px;padding-top:max(16px,env(safe-area-inset-top));}
   .home-hero::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.5),rgba(255,255,255,0.2) 60%,rgba(255,255,255,0.55));pointer-events:none;}
   .home-hero>*{position:relative;z-index:1;}
   .home-tag{font-size:9px;letter-spacing:3px;color:#A8875A;margin-bottom:8px;padding-top:16px;display:flex;align-items:center;gap:8px;}
@@ -290,7 +293,7 @@
 <!-- Login -->
 <div class="screen" id="loginScreen">
   <div class="login-logo">
-    <img src="assets/logo.png" alt="龍登國際廣告">
+    <img src="assets/logo.webp" alt="龍登國際廣告">
     <div class="login-logo-text">
       <div class="login-brand">龍登國際廣告</div>
       <div class="login-brand-en">Long Dorn Advertising</div>
@@ -328,7 +331,7 @@
   <!-- Home -->
   <div id="viewHome" class="view">
     <div class="home-hero">
-      <div class="home-tag"><img src="assets/logo.png" alt="龍登國際廣告">WELCOME BACK</div>
+      <div class="home-tag"><img src="assets/logo.webp" alt="龍登國際廣告">WELCOME BACK</div>
       <div class="home-greeting" id="homeGreeting">您好</div>
       <div class="home-context" id="homeContext"></div>
     </div>
@@ -386,7 +389,8 @@
         <div class="section-tag" style="margin-top:14px;">待追蹤客戶</div>
         <div id="followupReminderList"></div>
       </div>
-      <div class="section-tag">本月接待共 <span id="statTotal">—</span> 組</div>
+      <div class="section-tag"><span id="statCumulativePrefix">累積接待共</span> <span id="statCumulative">—</span> 組</div>
+      <div class="section-tag" style="margin-top:6px;">本月接待共 <span id="statTotal">—</span> 組</div>
       <div class="stat-grid">
         <div class="stat-card"><div class="stat-num" id="statFirst">—</div><div class="stat-label">初訪</div></div>
         <div class="stat-card"><div class="stat-num" id="statRevisit">—</div><div class="stat-label">回籠</div></div>
@@ -399,6 +403,11 @@
       <!-- 近期客戶總表（主管/admin 才顯示） -->
       <div class="recent-customers-wrap hidden" id="recentCustomersSection">
         <div class="section-tag" style="margin-top:10px;">近7天客戶資料</div>
+        <div style="display:flex;gap:8px;margin:8px 0;">
+          <input class="inp" type="text" id="recentSearchName" placeholder="🔍 搜尋姓名" oninput="renderRecentCustomers()" style="flex:1;">
+          <input class="inp" type="date" id="recentSearchDate" onchange="renderRecentCustomers()" style="width:140px;flex-shrink:0;">
+          <button type="button" class="btn-mini" style="flex-shrink:0;" onclick="document.getElementById('recentSearchName').value='';document.getElementById('recentSearchDate').value='';renderRecentCustomers();">清除</button>
+        </div>
         <div class="recent-filter-bar" id="recentFilterBar">
           <div class="filter-chip active" data-sales="all" onclick="filterRecentCustomers(this)">全部</div>
         </div>
@@ -652,6 +661,11 @@
   <div id="viewMyCustomers" class="view hidden">
     <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">我的客戶</div><div style="width:36px;"></div></div></div>
     <div class="list-wrap">
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <input class="inp" type="text" id="myCustomerSearchName" placeholder="🔍 搜尋姓名" oninput="renderMyCustomerList()" style="flex:1;">
+        <input class="inp" type="date" id="myCustomerSearchDate" onchange="renderMyCustomerList()" style="width:140px;flex-shrink:0;">
+        <button type="button" class="btn-mini" style="flex-shrink:0;" onclick="document.getElementById('myCustomerSearchName').value='';document.getElementById('myCustomerSearchDate').value='';renderMyCustomerList();">清除</button>
+      </div>
       <div class="recent-filter-bar hidden" id="myCustomerFilterBar"></div>
       <div id="myCustomerList"></div>
     </div>
@@ -983,27 +997,18 @@ async function initApp() {
 function proceedAfterProfile() {
   var saved = loadSession();
   if (saved && saved.lineUserId) {
-    // ★ 加上 timeout 保護：GAS 超過 8 秒沒回應就跳登入畫面，不卡 loading
-    var timedOut = false;
-    var timer = setTimeout(function() {
-      timedOut = true;
-      console.warn('checkAutoLogin timeout, fallback to login');
-      clearSession();
-      showLogin();
-    }, 8000);
-
+    // ★ 修正：gasGet 內部（gasFetch）已經有 10 秒逾時 + 自動重試一次，
+    // 這裡不用再包一層 timeout。且逾時／網路失敗不代表 session 真的
+    // 失效，只有伺服器明確回應「驗證失敗」才清 session，避免使用者
+    // 因為 GAS 一時反應慢或網路小抖動就被強制登出、要重新輸入密碼。
     gasGet('checkAutoLogin', { lineUserId: saved.lineUserId }, function(res) {
-      if (timedOut) return;
-      clearTimeout(timer);
       if (res.ok) {
         if (res.data.status === 'pending') { showScreen('pendingScreen'); return; }
         saveSession(saved.lineUserId, res.data);
         onLoginSuccess(res.data);
       } else { clearSession(); showLogin(); }
     }, function() {
-      if (timedOut) return;
-      clearTimeout(timer);
-      clearSession();
+      console.warn('checkAutoLogin failed (network/timeout), keeping session and showing login');
       showLogin();
     });
   } else { showLogin(); }
@@ -1030,6 +1035,34 @@ function loadSession() {
 }
 function clearSession() { try { localStorage.removeItem(STORAGE_KEY); } catch(e){} }
 
+/* ══ 共用底層：帶逾時（10秒）與自動重試一次的 fetch ══
+   GAS 後端偶爾回應很慢或短暫失敗，直接判定失敗會誤傷仍然有效的
+   登入狀態或畫面資料，所以統一在這裡重試，gasGet/gasPost/gasPostJson
+   都共用同一套邏輯。 */
+function gasFetch(url, onSuccess, onFail, options, attemptsLeft) {
+  if (attemptsLeft == null) attemptsLeft = 1;
+  var done = false;
+  var timer = setTimeout(function(){
+    if (done) return;
+    done = true;
+    retryOrFail(new Error('連線逾時（10秒）'));
+  }, 10000);
+
+  fetch(url, options)
+    .then(function(r){ if (done) return; if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(data){ if (done) return; done = true; clearTimeout(timer); if (onSuccess) onSuccess(data); })
+    .catch(function(err){ if (done) return; done = true; clearTimeout(timer); retryOrFail(err); });
+
+  function retryOrFail(err) {
+    if (attemptsLeft > 0) {
+      setTimeout(function(){ gasFetch(url, onSuccess, onFail, options, attemptsLeft - 1); }, 700);
+    } else {
+      console.error('gasFetch', url, err);
+      if (onFail) onFail(err); else console.warn('gasFetch uncaught error:', err);
+    }
+  }
+}
+
 /* ══ API：GET ══ */
 function gasGet(action, params, onSuccess, onFail) {
   var url = GAS_URL + '?action=' + encodeURIComponent(action);
@@ -1038,20 +1071,14 @@ function gasGet(action, params, onSuccess, onFail) {
       if (params[k] != null) url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
     });
   }
-  fetch(url)
-    .then(function(r){ return r.json(); })
-    .then(function(data){ if (onSuccess) onSuccess(data); })
-    .catch(function(err){ console.error('gasGet', action, err); if (onFail) onFail(err); });
+  gasFetch(url, onSuccess, onFail);
 }
 
 /* ══ API：POST → 改用 GET+payload 避免 CORS ══ */
 function gasPost(action, payload, onSuccess, onFail) {
   var url = GAS_URL + '?action=' + encodeURIComponent(action)
             + '&payload=' + encodeURIComponent(JSON.stringify(payload || {}));
-  fetch(url)
-    .then(function(r){ return r.json(); })
-    .then(function(data){ if (onSuccess) onSuccess(data); })
-    .catch(function(err){ console.error('gasPost', action, err); if (onFail) onFail(err); });
+  gasFetch(url, onSuccess, onFail);
 }
 
 /* ══ 真正的 POST，專門給資料量大的呼叫用（例如上傳照片）══
@@ -1061,14 +1088,11 @@ function gasPost(action, payload, onSuccess, onFail) {
    GAS 網頁應用程式沒有處理 OPTIONS 預檢的能力，用 application/json
    當 Content-Type 會直接被瀏覽器擋下來）。 */
 function gasPostJson(action, payload, onSuccess, onFail) {
-  fetch(GAS_URL, {
+  gasFetch(GAS_URL, onSuccess, onFail, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({ action: action, payload: payload || {} })
-  })
-    .then(function(r){ return r.json(); })
-    .then(function(data){ if (onSuccess) onSuccess(data); })
-    .catch(function(err){ console.error('gasPostJson', action, err); if (onFail) onFail(err); });
+  });
 }
 
 /* ══ Screen 切換 ══ */
@@ -1243,6 +1267,11 @@ function renderHome() {
 
   gasGet('getCustomerList', { lineUserId: u.lineUserId }, function(res) {
     if (!res.ok) return;
+    // 累積總數：業務只看得到自己接待過的客戶（後端 getCustomerList 已經
+    // 依角色篩選過），主管/admin 看到的是案場/全體累積客戶數
+    document.getElementById('statCumulative').textContent = res.data.length;
+    document.getElementById('statCumulativePrefix').textContent =
+      isSales() ? '我目前累積接待共' : '累積客戶總數共';
     var ym = new Date().toISOString().substring(0,7);
     var rows = res.data.filter(function(r){ return String(r.visit_date).indexOf(ym)===0; });
     document.getElementById('statTotal').textContent   = rows.length;
@@ -1430,7 +1459,8 @@ function renderMyCustomerList() {
   if (state.myCustomerFilterSales !== 'all') {
     list = list.filter(function(r){ return r.sales_name === state.myCustomerFilterSales; });
   }
-  if (!list.length) { box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📁</div><div class="empty-state-text">尚無客戶資料</div></div>'; return; }
+  list = applyCustomerSearch(list, 'myCustomerSearchName', 'myCustomerSearchDate');
+  if (!list.length) { box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📁</div><div class="empty-state-text">尚無符合條件的客戶資料</div></div>'; return; }
   box.innerHTML = sortByDateDesc(list).map(function(c){ return myCustomerCardHTML(c); }).join('');
 }
 
@@ -1746,14 +1776,30 @@ function sortByDateDesc(list) {
   });
 }
 
+/* ══ 客戶搜尋：依姓名（模糊比對）／訪客日期（精確比對）篩選 ══ */
+function applyCustomerSearch(list, nameInputId, dateInputId) {
+  var nameEl = document.getElementById(nameInputId);
+  var dateEl = document.getElementById(dateInputId);
+  var name = nameEl ? nameEl.value.trim() : '';
+  var date = dateEl ? dateEl.value : '';
+  if (name) {
+    list = list.filter(function(r){ return String(r.customer_name||'').indexOf(name) >= 0; });
+  }
+  if (date) {
+    list = list.filter(function(r){ return String(r.visit_date||'').substring(0,10) === date; });
+  }
+  return list;
+}
+
 function renderRecentCustomers() {
   var box = document.getElementById('recentCustomerList');
   var list = state.recentCustomers;
   if (state.recentFilterSales !== 'all') {
     list = list.filter(function(r){ return r.sales_name === state.recentFilterSales; });
   }
+  list = applyCustomerSearch(list, 'recentSearchName', 'recentSearchDate');
   if (!list.length) {
-    box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👤</div><div class="empty-state-text">近7天暫無客戶資料</div></div>';
+    box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👤</div><div class="empty-state-text">沒有符合條件的客戶資料</div></div>';
     return;
   }
   box.innerHTML = sortByDateDesc(list).map(function(c){ return recentCustCardHTML(c); }).join('');
@@ -2058,6 +2104,33 @@ function openNextQueuedDeal() {
 
 /* ══ Customer Form ══ */
 function renderCustomerForm() {
+  // ★ 修正：案場/業務清單是登入時非同步抓的，若當時網路不穩或 GAS
+  // 逾時，state.projects 會是空的——之前遇到這種情況會直接用空資料
+  // 渲染表單，結果案場欄位空白、業務指派下拉只剩「指派給自己」。
+  // 現在改成：資料還沒準備好時先顯示載入中，重新抓一次成功後才
+  // 真正渲染表單；最多自動重試 3 次，仍失敗才顯示手動重試按鈕。
+  if (!state.projects.length) {
+    state._custFormRetries = (state._custFormRetries || 0) + 1;
+    var projSelLoading = document.getElementById('cust_project');
+    if (state._custFormRetries > 3) {
+      projSelLoading.innerHTML = '<option value="">載入失敗，請點下方按鈕重試</option>';
+      var formWrap = document.querySelector('#viewCustomer .form-wrap');
+      if (formWrap && !document.getElementById('custFormRetryBtn')) {
+        var btn = document.createElement('button');
+        btn.id = 'custFormRetryBtn';
+        btn.className = 'btn-mini primary';
+        btn.style.cssText = 'margin:12px 20px;width:calc(100% - 40px);';
+        btn.textContent = '重新載入案場／業務資料';
+        btn.onclick = function(){ btn.remove(); state._custFormRetries = 0; renderCustomerForm(); };
+        formWrap.insertBefore(btn, formWrap.firstChild);
+      }
+      return;
+    }
+    projSelLoading.innerHTML = '<option value="">載入中…</option>';
+    loadGlobalData(function(){ renderCustomerForm(); });
+    return;
+  }
+  state._custFormRetries = 0;
   var projSel = document.getElementById('cust_project');
   if (projSel.children.length <= 1) {
     projSel.innerHTML = '<option value="">請選擇案場</option>';
@@ -2171,7 +2244,7 @@ function loadCustSalesAssignOptions(project) {
   sel.innerHTML = '<option value="">指派給自己（' + escapeHtml(state.user.displayName) + '）</option>';
   if (!project) return;
   gasGet('getSalesByProject', { project: project, lineUserId: state.user.lineUserId }, function(res) {
-    if (!res.ok) return;
+    if (!res.ok) { showToast(res.error || '業務名單載入失敗','error'); return; }
     res.data.forEach(function(s) {
       var o = document.createElement('option');
       o.value = s.lineUserId;
@@ -2179,6 +2252,10 @@ function loadCustSalesAssignOptions(project) {
       o.textContent = s.name + (s.jobTitle ? '（' + s.jobTitle + '）' : '');
       sel.appendChild(o);
     });
+  }, function() {
+    // 逾時／網路失敗（已經內建重試過一次還是失敗）：讓 admin 知道
+    // 業務名單沒載入成功，而不是誤以為「這個案場真的只有自己」
+    showToast('業務名單載入失敗，請重新整理再試','error');
   });
 }
 

@@ -1,5 +1,19 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.4
+//  龍登 CRM — 吉隆天曜專用版 v9.6
+//  v9.6 變更：getUserContext 效能優化（★ 這是目前系統「感覺很慢」
+//    最主要的原因，強烈建議部署）：
+//    1. getUserContext 在整份程式碼裡被呼叫超過 50 次，幾乎每一支 API
+//       進來都會先呼叫一次，原本每次都重新完整讀一遍 User_Role_Table
+//       整張表；光首頁一次載入前端就會平行發出 7、8 個 API 請求，
+//       等於同一張表在一兩秒內被整張重複讀了 7、8 次
+//    2. 改用 CacheService 快取 60 秒：同一使用者 60 秒內的後續請求
+//       直接吃快取，不用再讀表；找不到使用者的結果不快取（避免新
+//       使用者剛送出審核申請卻被「查無此人」的結果卡住）
+//    3. 新增 invalidateUserContextCache，在 verifyAccess／
+//       updateUserRole（含 approveUser／rejectUser）等會改到
+//       User_Role_Table 的地方主動清快取，讓核准使用者、調整角色
+//       這類操作可以馬上生效，不用等 60 秒快取過期
+//  v9.5 變更：CONFIG.INDUSTRIES 新增「自營商」「餐飲業」兩個職業選項
 //  v9.4 變更：LINE 官方帳號問答功能跟華雄天地 v9.31 同步更新（★ 目前
 //    兩案場共用同一個 LINE 官方帳號，Webhook 網址現況指到華雄天地，
 //    這份程式碼的 LINE 相關功能實際上收不到訊息，保留是為了將來
@@ -178,7 +192,8 @@ const CONFIG = {
   // 技術設備類，重新同步時記得保留
   INDUSTRIES: ['公教軍警','醫療生技','科技資訊','金融保險','服務業',
                '製造業','自由業','營建業','房仲業','物流業','運輸業',
-               '上班族','農林漁牧業','技術設備類','退休','家管','其他'],
+               '上班族','農林漁牧業','技術設備類','自營商','餐飲業',
+               '退休','家管','其他'],
 
   // ★ 吉隆天曜專屬：購屋動機比天地多了「新婚準備」，重新同步時記得保留
   PURCHASE_MOTIVES: ['首購','投資置產','換屋升級','自住改善','子女購置','新婚準備','退休養老','其他'],
@@ -318,8 +333,24 @@ function deleteRowById(sheetName, idField, idValue, opts) {
 }
 
 // ==================== User Context ====================
+// ★ 效能優化：getUserContext 在整份程式碼裡被呼叫了超過 50 次，幾乎
+// 每一支 API 進來都會先呼叫一次，原本每次都重新完整讀一遍
+// User_Role_Table 整張表——光是首頁一次載入就會平行發出 7、8 個
+// API 請求，等於同一張表在一兩秒內被整張重複讀了 7、8 次，這是
+// 目前系統「感覺很慢」最大的單一原因。
+// 改用 CacheService 快取 60 秒：同一個使用者在 60 秒內的後續請求
+// 直接吃快取，不用再讀表；60 秒後自動過期重新讀一次。另外在所有
+// 會改到 User_Role_Table 的地方（登入、審核、修改角色）主動清快取，
+// 讓「核准使用者」「調整角色」這種操作可以馬上生效，不用等 60 秒。
+// 找不到使用者（best 為 null）的結果不快取，避免使用者剛送出審核
+// 申請、資料才剛寫入表格，卻因為前一次查詢的「查無此人」被快取住。
 function getUserContext(lineUserId) {
   if (!lineUserId) return null;
+  var cache = CacheService.getScriptCache();
+  var cacheKey = 'userctx_' + lineUserId;
+  var cached = cache.get(cacheKey);
+  if (cached) return JSON.parse(cached);
+
   var rows = readSheetAsObjects(CONFIG.SHEETS.USER_ROLE);
   var ROLE_PRIORITY = { admin: 3, manager: 2, sales: 1 };
   var best = null;
@@ -335,7 +366,7 @@ function getUserContext(lineUserId) {
     if (rp > bp) best = rows[i];
   }
   if (!best) return null;
-  return {
+  var result = {
     lineUserId:  best.line_user_id,
     displayName: best.display_name,
     role:        best.role,
@@ -343,6 +374,13 @@ function getUserContext(lineUserId) {
     jobTitle:    best.job_title,
     status:      best.status
   };
+  cache.put(cacheKey, JSON.stringify(result), 60);
+  return result;
+}
+
+function invalidateUserContextCache(lineUserId) {
+  if (!lineUserId) return;
+  try { CacheService.getScriptCache().remove('userctx_' + lineUserId); } catch (e) {}
 }
 
 // ==================== HTTP Router ====================
@@ -605,6 +643,7 @@ function verifyAccess(payload) {
         updateRowById(CONFIG.SHEETS.USER_ROLE, 'line_user_id', lineUserId, {
           project_name: selectedProject, updated_at: nowTW()
         });
+        invalidateUserContextCache(lineUserId);
       }
       return ok({ status: 'pending' });
     }
@@ -614,6 +653,7 @@ function verifyAccess(payload) {
       display_name: displayName || ctx.displayName,
       updated_at: nowTW()
     });
+    invalidateUserContextCache(lineUserId);
     writeAuditLog(lineUserId, 'LOGIN', CONFIG.SHEETS.USER_ROLE, lineUserId, 'login success: ' + (displayName || ctx.displayName));
 
     return ok({
@@ -699,6 +739,7 @@ function updateUserRole(payload) {
 
     var success = updateRowById(CONFIG.SHEETS.USER_ROLE, 'line_user_id', targetId, updates);
     if (!success) return fail('使用者不存在');
+    invalidateUserContextCache(targetId);
 
     writeAuditLog(ctx.lineUserId, 'UPDATE', CONFIG.SHEETS.USER_ROLE, targetId,
       ctx.displayName + ' 修改 ' + targetId);

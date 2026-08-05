@@ -1,5 +1,29 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.31
+//  龍登 CRM — 華雄天地專用版 v9.33
+//  v9.33 變更：getUserContext 效能優化（★ 這是目前系統「感覺很慢」
+//    最主要的原因，強烈建議部署）：
+//    1. getUserContext 在整份程式碼裡被呼叫超過 60 次，幾乎每一支 API
+//       進來都會先呼叫一次，原本每次都重新完整讀一遍 User_Role_Table
+//       整張表；光首頁一次載入前端就會平行發出 7、8 個 API 請求，
+//       等於同一張表在一兩秒內被整張重複讀了 7、8 次
+//    2. 改用 CacheService 快取 60 秒：同一使用者 60 秒內的後續請求
+//       直接吃快取，不用再讀表；找不到使用者的結果不快取（避免新
+//       使用者剛送出審核申請卻被「查無此人」的結果卡住）
+//    3. 新增 invalidateUserContextCache，在 verifyAccess／
+//       updateUserRole（含 approveUser／rejectUser）等會改到
+//       User_Role_Table 的地方主動清快取，讓核准使用者、調整角色
+//       這類操作可以馬上生效，不用等 60 秒快取過期
+//  v9.32 變更：客戶資料新增「已介紹產品」棟別／戶別／樓層欄位：
+//    1. 新增 CUSTOMER_EXTRA_FIELDS／ensureCustomerExtraColumns：
+//       Customer_Data 試算表原本沒有 introduced_units 欄位，
+//       appendObjectToSheet／updateRowById 只認得既有表頭，沒有這個
+//       欄位的話資料會被靜默丟掉，所以 appendCustomerData／
+//       updateCustomerData 執行前都先呼叫這個函式確保表頭存在，第一次
+//       執行時會自動在 Customer_Data 工作表最後補一欄 introduced_units
+//    2. appendCustomerData／updateCustomerData 都支援讀寫這個欄位
+//    3. 對應前端 hstd.html 新增的棟別／戶別／樓層下拉選單（A棟
+//       3F~17F 6戶、18F~24F 4戶、25F~29F 2戶；B棟 3F~23F 6戶、
+//       24F~29F 4戶），每個「棟別＋戶別＋樓層」組合存成獨立字串
 //  v9.31 變更：LINE 官方帳號問答功能兩項修正：
 //    1. 只在跟官方帳號一對一私訊時才會回應，群組/多人聊天室裡的訊息
 //       一律忽略——避免官方帳號被加進群組後，任何人在群組打指令，
@@ -540,8 +564,24 @@ function deleteRowById(sheetName, idField, idValue, opts) {
 }
 
 // ==================== User Context ====================
+// ★ 效能優化：getUserContext 在整份程式碼裡被呼叫了超過 60 次，幾乎
+// 每一支 API 進來都會先呼叫一次，原本每次都重新完整讀一遍
+// User_Role_Table 整張表——光是首頁一次載入就會平行發出 7、8 個
+// API 請求，等於同一張表在一兩秒內被整張重複讀了 7、8 次，這是
+// 目前系統「感覺很慢」最大的單一原因。
+// 改用 CacheService 快取 60 秒：同一個使用者在 60 秒內的後續請求
+// 直接吃快取，不用再讀表；60 秒後自動過期重新讀一次。另外在所有
+// 會改到 User_Role_Table 的地方（登入、審核、修改角色）主動清快取，
+// 讓「核准使用者」「調整角色」這種操作可以馬上生效，不用等 60 秒。
+// 找不到使用者（best 為 null）的結果不快取，避免使用者剛送出審核
+// 申請、資料才剛寫入表格，卻因為前一次查詢的「查無此人」被快取住。
 function getUserContext(lineUserId) {
   if (!lineUserId) return null;
+  var cache = CacheService.getScriptCache();
+  var cacheKey = 'userctx_' + lineUserId;
+  var cached = cache.get(cacheKey);
+  if (cached) return JSON.parse(cached);
+
   var rows = readSheetAsObjects(CONFIG.SHEETS.USER_ROLE);
   var ROLE_PRIORITY = { admin: 3, manager: 2, sales: 1 };
   var best = null;
@@ -557,7 +597,7 @@ function getUserContext(lineUserId) {
     if (rp > bp) best = rows[i];
   }
   if (!best) return null;
-  return {
+  var result = {
     lineUserId:  best.line_user_id,
     displayName: best.display_name,
     role:        best.role,
@@ -565,6 +605,13 @@ function getUserContext(lineUserId) {
     jobTitle:    best.job_title,
     status:      best.status
   };
+  cache.put(cacheKey, JSON.stringify(result), 60);
+  return result;
+}
+
+function invalidateUserContextCache(lineUserId) {
+  if (!lineUserId) return;
+  try { CacheService.getScriptCache().remove('userctx_' + lineUserId); } catch (e) {}
 }
 
 // ==================== HTTP Router ====================
@@ -837,6 +884,7 @@ function verifyAccess(payload) {
         updateRowById(CONFIG.SHEETS.USER_ROLE, 'line_user_id', lineUserId, {
           project_name: selectedProject, updated_at: nowTW()
         });
+        invalidateUserContextCache(lineUserId);
       }
       return ok({ status: 'pending' });
     }
@@ -846,6 +894,7 @@ function verifyAccess(payload) {
       display_name: displayName || ctx.displayName,
       updated_at: nowTW()
     });
+    invalidateUserContextCache(lineUserId);
     writeAuditLog(lineUserId, 'LOGIN', CONFIG.SHEETS.USER_ROLE, lineUserId, 'login success: ' + (displayName || ctx.displayName));
 
     return ok({
@@ -931,6 +980,7 @@ function updateUserRole(payload) {
 
     var success = updateRowById(CONFIG.SHEETS.USER_ROLE, 'line_user_id', targetId, updates);
     if (!success) return fail('使用者不存在');
+    invalidateUserContextCache(targetId);
 
     writeAuditLog(ctx.lineUserId, 'UPDATE', CONFIG.SHEETS.USER_ROLE, targetId,
       ctx.displayName + ' 修改 ' + targetId);
@@ -985,6 +1035,21 @@ function getIndustryList()       { return ok(CONFIG.INDUSTRIES); }
 function getPurchaseMotiveList() { return ok(CONFIG.PURCHASE_MOTIVES); }
 
 // ==================== Customer Module ====================
+// ★ 客戶資料表額外欄位（原本天地版本的試算表沒有這個欄位，第一次
+// 使用前要先確保表頭存在，否則 appendObjectToSheet/updateRowById
+// 都只認得既有表頭，資料會被靜默丟掉）。重新同步時記得保留這段跟
+// appendCustomerData/updateCustomerData 裡用到的部分，不要被覆蓋掉。
+var CUSTOMER_EXTRA_FIELDS = ['introduced_units'];
+
+function ensureCustomerExtraColumns() {
+  var sh = getSheet(CONFIG.SHEETS.CUSTOMER);
+  if (!sh) return;
+  var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var missing = CUSTOMER_EXTRA_FIELDS.filter(function(h){ return headers.indexOf(h) < 0; });
+  if (!missing.length) return;
+  sh.getRange(1, headers.length + 1, 1, missing.length).setValues([missing]);
+}
+
 function appendCustomerData(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
@@ -1005,6 +1070,7 @@ function appendCustomerData(payload) {
       .filter(function(r) { return String(r.phone || '').trim() === phone; })
       .map(function(r) { return { customer_name: r.customer_name, visit_date: String(r.visit_date || '').substring(0, 10), sales_name: r.sales_name }; });
 
+    ensureCustomerExtraColumns();
     var customerId = genId('CUST');
     appendObjectToSheet(CONFIG.SHEETS.CUSTOMER, {
       customer_id: customerId,
@@ -1027,6 +1093,7 @@ function appendCustomerData(payload) {
       room_types: payload.room_types || '',
       budget: payload.budget || '',
       issues: payload.issues || '',
+      introduced_units: payload.introduced_units || '',
       revisit_plan: payload.revisit_plan || '',
       deal_status: '未成交',
       deal_unit: '',
@@ -1651,11 +1718,12 @@ function updateCustomerData(payload) {
       if (diffDays > 14) return fail('超過14天，無法修改');
     }
 
+    ensureCustomerExtraColumns();
     var editableFields = [
       'visit_date','visit_type','customer_name','phone','age_range','district',
       'occupation_industry','purchase_motive','source','room_types',
       'budget','issues','revisit_plan','status_note','note'
-    ];
+    ].concat(CUSTOMER_EXTRA_FIELDS);
     if (ctx.role !== CONFIG.ROLES.SALES) {
       editableFields = editableFields.concat(['sales_name','sales_line_user_id']);
     }

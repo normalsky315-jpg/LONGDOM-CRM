@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>華雄天地 CRM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://static.line-scdn.net">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700&family=Noto+Sans+TC:wght@300;400;500&display=swap" rel="stylesheet">
 <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
@@ -27,7 +30,7 @@
   .screen.active{display:block;}
 
   /* ── 品牌背景動畫（Ken Burns 緩慢位移縮放 + 光澤掃過）──
-     只套用在登入頁／首頁 hero，這兩個區塊用同一張 assets/login-bg.jpg 當背景 */
+     只套用在登入頁／首頁 hero，這兩個區塊用同一張 assets/login-bg.webp 當背景 */
   @keyframes bgKenBurns{
     0%  {background-size:130%;background-position:20% 30%;}
     100%{background-size:150%;background-position:70% 60%;}
@@ -47,14 +50,14 @@
   }
 
   /* Loading */
-  #loadingScreen{display:none;flex-direction:column;align-items:center;justify-content:center;background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;color:#4A3A24;}
+  #loadingScreen{display:none;flex-direction:column;align-items:center;justify-content:center;background:#F2EAD8 url('assets/login-bg.webp') center/cover no-repeat;color:#4A3A24;}
   #loadingScreen.active{display:flex;}
   .spinner{width:32px;height:32px;border:3px solid rgba(139,110,66,0.2);border-top-color:#8A6D3F;border-radius:50%;animation:spin 0.7s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
   .loading-text{margin-top:16px;font-size:10px;letter-spacing:4px;color:rgba(74,58,36,0.5);}
 
   /* Login */
-  #loginScreen{background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;display:none;flex-direction:column;padding:0 28px;padding-top:max(60px,env(safe-area-inset-top));padding-bottom:max(40px,env(safe-area-inset-bottom));min-height:100%;position:relative;}
+  #loginScreen{background:#F2EAD8 url('assets/login-bg.webp') center/cover no-repeat;display:none;flex-direction:column;padding:0 28px;padding-top:max(60px,env(safe-area-inset-top));padding-bottom:max(40px,env(safe-area-inset-bottom));min-height:100%;position:relative;}
   #loginScreen::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.55),rgba(255,255,255,0.15) 40%,rgba(255,255,255,0.55));pointer-events:none;}
   #loginScreen>*{position:relative;z-index:1;}
   #loginScreen.active{display:flex;}
@@ -84,7 +87,7 @@
   .login-error.show{opacity:1;}
 
   /* Pending */
-  #pendingScreen{background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;display:none;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px;text-align:center;min-height:100%;}
+  #pendingScreen{background:#F2EAD8 url('assets/login-bg.webp') center/cover no-repeat;display:none;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px;text-align:center;min-height:100%;}
   #pendingScreen.active{display:flex;}
   .pending-icon{font-size:56px;margin-bottom:20px;animation:pulse 2s ease-in-out infinite;}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
@@ -98,14 +101,14 @@
   .view.hidden{display:none;}
 
   /* Header */
-  .app-header{background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;position:relative;padding:0 16px;padding-top:max(16px,env(safe-area-inset-top));}
+  .app-header{background:#F2EAD8 url('assets/login-bg.webp') center/cover no-repeat;position:relative;padding:0 16px;padding-top:max(16px,env(safe-area-inset-top));}
   .app-header::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.6),rgba(255,255,255,0.25));pointer-events:none;}
   .header-row{position:relative;z-index:1;display:flex;align-items:center;height:52px;gap:8px;}
   .header-back{width:36px;height:36px;border:none;background:rgba(139,110,66,0.12);border-radius:8px;color:#8A6D3F;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
   .header-title{font-family:'Noto Serif TC',serif;font-size:16px;font-weight:600;color:#4A3A24;flex:1;text-align:center;}
 
   /* Home */
-  .home-hero{background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;position:relative;padding:0 20px 26px;padding-top:max(16px,env(safe-area-inset-top));}
+  .home-hero{background:#F2EAD8 url('assets/login-bg.webp') center/cover no-repeat;position:relative;padding:0 20px 26px;padding-top:max(16px,env(safe-area-inset-top));}
   .home-hero::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.5),rgba(255,255,255,0.2) 60%,rgba(255,255,255,0.55));pointer-events:none;}
   .home-hero>*{position:relative;z-index:1;}
   .home-tag{font-size:9px;letter-spacing:3px;color:#A8875A;margin-bottom:8px;padding-top:16px;display:flex;align-items:center;gap:8px;}
@@ -290,7 +293,7 @@
 <!-- Login -->
 <div class="screen" id="loginScreen">
   <div class="login-logo">
-    <img src="assets/logo.png" alt="龍登國際廣告">
+    <img src="assets/logo.webp" alt="龍登國際廣告">
     <div class="login-logo-text">
       <div class="login-brand">龍登國際廣告</div>
       <div class="login-brand-en">Long Dorn Advertising</div>
@@ -328,7 +331,7 @@
   <!-- Home -->
   <div id="viewHome" class="view">
     <div class="home-hero">
-      <div class="home-tag"><img src="assets/logo.png" alt="龍登國際廣告">WELCOME BACK</div>
+      <div class="home-tag"><img src="assets/logo.webp" alt="龍登國際廣告">WELCOME BACK</div>
       <div class="home-greeting" id="homeGreeting">您好</div>
       <div class="home-context" id="homeContext"></div>
     </div>
@@ -395,7 +398,8 @@
         <div class="section-tag" style="margin-top:14px;">預約賞屋提醒</div>
         <div id="reservationReminderList"></div>
       </div>
-      <div class="section-tag">本月接待共 <span id="statTotal">—</span> 組</div>
+      <div class="section-tag"><span id="statCumulativePrefix">累積接待共</span> <span id="statCumulative">—</span> 組</div>
+      <div class="section-tag" style="margin-top:6px;">本月接待共 <span id="statTotal">—</span> 組</div>
       <div class="stat-grid">
         <div class="stat-card"><div class="stat-num" id="statFirst">—</div><div class="stat-label">初訪</div></div>
         <div class="stat-card"><div class="stat-num" id="statRevisit">—</div><div class="stat-label">回籠</div></div>
@@ -408,6 +412,11 @@
       <!-- 近期客戶總表（主管/admin 才顯示） -->
       <div class="recent-customers-wrap hidden" id="recentCustomersSection">
         <div class="section-tag" style="margin-top:10px;">近7天客戶資料</div>
+        <div style="display:flex;gap:8px;margin:8px 0;">
+          <input class="inp" type="text" id="recentSearchName" placeholder="🔍 搜尋姓名" oninput="renderRecentCustomers()" style="flex:1;">
+          <input class="inp" type="date" id="recentSearchDate" onchange="renderRecentCustomers()" style="width:140px;flex-shrink:0;">
+          <button type="button" class="btn-mini" style="flex-shrink:0;" onclick="document.getElementById('recentSearchName').value='';document.getElementById('recentSearchDate').value='';renderRecentCustomers();">清除</button>
+        </div>
         <div class="recent-filter-bar" id="recentFilterBar">
           <div class="filter-chip active" data-sales="all" onclick="filterRecentCustomers(this)">全部</div>
         </div>
@@ -489,6 +498,17 @@
             </select>
             <div class="extra-inp hidden" id="cust_budgetOtherWrap"><input class="inp" type="text" id="cust_budgetOther" placeholder="請輸入預算範圍"></div>
           </div>
+        </div>
+        <div class="field">
+          <div class="field-label">已介紹產品</div>
+          <div class="field-row">
+            <div class="field"><div class="field-label" style="font-size:11px;">棟別</div><select class="sel" id="cust_unitBuilding"><option value="A">A棟</option><option value="B">B棟</option></select></div>
+            <div class="field"><div class="field-label" style="font-size:11px;">戶別</div><select class="sel" id="cust_unitType"></select></div>
+            <div class="field"><div class="field-label" style="font-size:11px;">樓層</div><select class="sel" id="cust_unitFloor"></select></div>
+          </div>
+          <button type="button" class="btn-mini" style="margin-top:6px;" onclick="addIntroducedUnit()">＋ 加入清單</button>
+          <div id="introducedUnitsList" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
+          <input type="hidden" id="cust_introducedUnits">
         </div>
         <div class="field">
           <div class="field-label">客戶癥結點（可多選）</div>
@@ -633,6 +653,11 @@
   <div id="viewMyCustomers" class="view hidden">
     <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">我的客戶</div><div style="width:36px;"></div></div></div>
     <div class="list-wrap">
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <input class="inp" type="text" id="myCustomerSearchName" placeholder="🔍 搜尋姓名" oninput="renderMyCustomerList()" style="flex:1;">
+        <input class="inp" type="date" id="myCustomerSearchDate" onchange="renderMyCustomerList()" style="width:140px;flex-shrink:0;">
+        <button type="button" class="btn-mini" style="flex-shrink:0;" onclick="document.getElementById('myCustomerSearchName').value='';document.getElementById('myCustomerSearchDate').value='';renderMyCustomerList();">清除</button>
+      </div>
       <div class="recent-filter-bar hidden" id="myCustomerFilterBar"></div>
       <div id="myCustomerList"></div>
     </div>
@@ -841,6 +866,7 @@
       <div class="field"><div class="field-label">預計再訪</div><input class="inp" type="text" id="edit_revisit"></div>
     </div>
     <div class="field"><div class="field-label">客戶癥結點</div><input class="inp" type="text" id="edit_issues"></div>
+    <div class="field"><div class="field-label">已介紹產品（棟別/戶別/樓層）</div><input class="inp" type="text" id="edit_introducedUnits"></div>
     <div class="field"><div class="field-label">接待狀況</div><textarea class="ta" id="edit_note" style="min-height:80px;"></textarea></div>
     <div class="field"><div class="field-label">備註</div><textarea class="ta" id="edit_extra" style="min-height:60px;"></textarea></div>
     <div style="display:flex;gap:10px;margin-top:18px;">
@@ -972,27 +998,18 @@ async function initApp() {
 function proceedAfterProfile() {
   var saved = loadSession();
   if (saved && saved.lineUserId) {
-    // ★ 加上 timeout 保護：GAS 超過 8 秒沒回應就跳登入畫面，不卡 loading
-    var timedOut = false;
-    var timer = setTimeout(function() {
-      timedOut = true;
-      console.warn('checkAutoLogin timeout, fallback to login');
-      clearSession();
-      showLogin();
-    }, 8000);
-
+    // ★ 修正：gasGet 內部（gasFetch）已經有 10 秒逾時 + 自動重試一次，
+    // 這裡不用再包一層 timeout。且逾時／網路失敗不代表 session 真的
+    // 失效，只有伺服器明確回應「驗證失敗」才清 session，避免使用者
+    // 因為 GAS 一時反應慢或網路小抖動就被強制登出、要重新輸入密碼。
     gasGet('checkAutoLogin', { lineUserId: saved.lineUserId }, function(res) {
-      if (timedOut) return;
-      clearTimeout(timer);
       if (res.ok) {
         if (res.data.status === 'pending') { showScreen('pendingScreen'); return; }
         saveSession(saved.lineUserId, res.data);
         onLoginSuccess(res.data);
       } else { clearSession(); showLogin(); }
     }, function() {
-      if (timedOut) return;
-      clearTimeout(timer);
-      clearSession();
+      console.warn('checkAutoLogin failed (network/timeout), keeping session and showing login');
       showLogin();
     });
   } else { showLogin(); }
@@ -1019,6 +1036,34 @@ function loadSession() {
 }
 function clearSession() { try { localStorage.removeItem(STORAGE_KEY); } catch(e){} }
 
+/* ══ 共用底層：帶逾時（10秒）與自動重試一次的 fetch ══
+   GAS 後端偶爾回應很慢或短暫失敗，直接判定失敗會誤傷仍然有效的
+   登入狀態或畫面資料，所以統一在這裡重試，gasGet/gasPost/gasPostJson
+   都共用同一套邏輯。 */
+function gasFetch(url, onSuccess, onFail, options, attemptsLeft) {
+  if (attemptsLeft == null) attemptsLeft = 1;
+  var done = false;
+  var timer = setTimeout(function(){
+    if (done) return;
+    done = true;
+    retryOrFail(new Error('連線逾時（10秒）'));
+  }, 10000);
+
+  fetch(url, options)
+    .then(function(r){ if (done) return; if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(data){ if (done) return; done = true; clearTimeout(timer); if (onSuccess) onSuccess(data); })
+    .catch(function(err){ if (done) return; done = true; clearTimeout(timer); retryOrFail(err); });
+
+  function retryOrFail(err) {
+    if (attemptsLeft > 0) {
+      setTimeout(function(){ gasFetch(url, onSuccess, onFail, options, attemptsLeft - 1); }, 700);
+    } else {
+      console.error('gasFetch', url, err);
+      if (onFail) onFail(err); else console.warn('gasFetch uncaught error:', err);
+    }
+  }
+}
+
 /* ══ API：GET ══ */
 function gasGet(action, params, onSuccess, onFail) {
   var url = GAS_URL + '?action=' + encodeURIComponent(action);
@@ -1027,20 +1072,14 @@ function gasGet(action, params, onSuccess, onFail) {
       if (params[k] != null) url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
     });
   }
-  fetch(url)
-    .then(function(r){ return r.json(); })
-    .then(function(data){ if (onSuccess) onSuccess(data); })
-    .catch(function(err){ console.error('gasGet', action, err); if (onFail) onFail(err); });
+  gasFetch(url, onSuccess, onFail);
 }
 
 /* ══ API：POST → 改用 GET+payload 避免 CORS ══ */
 function gasPost(action, payload, onSuccess, onFail) {
   var url = GAS_URL + '?action=' + encodeURIComponent(action)
             + '&payload=' + encodeURIComponent(JSON.stringify(payload || {}));
-  fetch(url)
-    .then(function(r){ return r.json(); })
-    .then(function(data){ if (onSuccess) onSuccess(data); })
-    .catch(function(err){ console.error('gasPost', action, err); if (onFail) onFail(err); });
+  gasFetch(url, onSuccess, onFail);
 }
 
 /* ══ 真正的 POST，專門給資料量大的呼叫用（例如上傳照片）══
@@ -1050,14 +1089,11 @@ function gasPost(action, payload, onSuccess, onFail) {
    GAS 網頁應用程式沒有處理 OPTIONS 預檢的能力，用 application/json
    當 Content-Type 會直接被瀏覽器擋下來）。 */
 function gasPostJson(action, payload, onSuccess, onFail) {
-  fetch(GAS_URL, {
+  gasFetch(GAS_URL, onSuccess, onFail, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({ action: action, payload: payload || {} })
-  })
-    .then(function(r){ return r.json(); })
-    .then(function(data){ if (onSuccess) onSuccess(data); })
-    .catch(function(err){ console.error('gasPostJson', action, err); if (onFail) onFail(err); });
+  });
 }
 
 /* ══ Screen 切換 ══ */
@@ -1233,6 +1269,11 @@ function renderHome() {
 
   gasGet('getCustomerList', { lineUserId: u.lineUserId }, function(res) {
     if (!res.ok) return;
+    // 累積總數：業務只看得到自己接待過的客戶（後端 getCustomerList 已經
+    // 依角色篩選過），主管/admin 看到的是案場/全體累積客戶數
+    document.getElementById('statCumulative').textContent = res.data.length;
+    document.getElementById('statCumulativePrefix').textContent =
+      isSales() ? '我目前累積接待共' : '累積客戶總數共';
     var ym = new Date().toISOString().substring(0,7);
     var rows = res.data.filter(function(r){ return String(r.visit_date).indexOf(ym)===0; });
     document.getElementById('statTotal').textContent   = rows.length;
@@ -1409,7 +1450,7 @@ var FIELD_LABELS = {
   age_range:'年齡區間', district:'居住區域', occupation_industry:'職業',
   purchase_motive:'購屋動機', source:'來源管道', room_types:'需求房型',
   budget:'購屋預算', issues:'癥結點', revisit_plan:'預計再訪',
-  status_note:'接待狀況', note:'備註'
+  status_note:'接待狀況', note:'備註', introduced_units:'已介紹產品'
 };
 
 function renderMyCustomers() {
@@ -1454,7 +1495,8 @@ function renderMyCustomerList() {
   if (state.myCustomerFilterSales !== 'all') {
     list = list.filter(function(r){ return r.sales_name === state.myCustomerFilterSales; });
   }
-  if (!list.length) { box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📁</div><div class="empty-state-text">尚無客戶資料</div></div>'; return; }
+  list = applyCustomerSearch(list, 'myCustomerSearchName', 'myCustomerSearchDate');
+  if (!list.length) { box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📁</div><div class="empty-state-text">尚無符合條件的客戶資料</div></div>'; return; }
   box.innerHTML = sortByDateDesc(list).map(function(c){ return myCustomerCardHTML(c); }).join('');
 }
 
@@ -1534,6 +1576,7 @@ function openEditCustModal(custId) {
   document.getElementById('edit_budget').value = c.budget || '';
   document.getElementById('edit_revisit').value = c.revisit_plan || '';
   document.getElementById('edit_issues').value = c.issues || '';
+  document.getElementById('edit_introducedUnits').value = c.introduced_units || '';
   document.getElementById('edit_note').value = c.status_note || '';
   document.getElementById('edit_extra').value = c.note || '';
   var salesWrap = document.getElementById('edit_salesWrap');
@@ -1591,6 +1634,7 @@ function submitEditCustomer() {
     budget:              document.getElementById('edit_budget').value.trim(),
     revisit_plan:        document.getElementById('edit_revisit').value.trim(),
     issues:              document.getElementById('edit_issues').value.trim(),
+    introduced_units:    document.getElementById('edit_introducedUnits').value.trim(),
     status_note:         document.getElementById('edit_note').value.trim(),
     note:                document.getElementById('edit_extra').value.trim()
   };
@@ -1757,14 +1801,30 @@ function sortByDateDesc(list) {
   });
 }
 
+/* ══ 客戶搜尋：依姓名（模糊比對）／訪客日期（精確比對）篩選 ══ */
+function applyCustomerSearch(list, nameInputId, dateInputId) {
+  var nameEl = document.getElementById(nameInputId);
+  var dateEl = document.getElementById(dateInputId);
+  var name = nameEl ? nameEl.value.trim() : '';
+  var date = dateEl ? dateEl.value : '';
+  if (name) {
+    list = list.filter(function(r){ return String(r.customer_name||'').indexOf(name) >= 0; });
+  }
+  if (date) {
+    list = list.filter(function(r){ return String(r.visit_date||'').substring(0,10) === date; });
+  }
+  return list;
+}
+
 function renderRecentCustomers() {
   var box = document.getElementById('recentCustomerList');
   var list = state.recentCustomers;
   if (state.recentFilterSales !== 'all') {
     list = list.filter(function(r){ return r.sales_name === state.recentFilterSales; });
   }
+  list = applyCustomerSearch(list, 'recentSearchName', 'recentSearchDate');
   if (!list.length) {
-    box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👤</div><div class="empty-state-text">近7天暫無客戶資料</div></div>';
+    box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👤</div><div class="empty-state-text">沒有符合條件的客戶資料</div></div>';
     return;
   }
   box.innerHTML = sortByDateDesc(list).map(function(c){ return recentCustCardHTML(c); }).join('');
@@ -2068,6 +2128,33 @@ function openNextQueuedDeal() {
 
 /* ══ Customer Form ══ */
 function renderCustomerForm() {
+  // ★ 修正：案場清單是登入時非同步抓的，若當時網路不穩或 GAS 逾時，
+  // state.projects 會是空的——之前遇到這種情況會直接用空資料渲染
+  // 表單，結果案場欄位空白。現在改成：資料還沒準備好時先顯示載入
+  // 中，重新抓一次成功後才真正渲染表單；最多自動重試 3 次，仍失敗
+  // 才顯示手動重試按鈕。
+  if (!state.projects.length) {
+    state._custFormRetries = (state._custFormRetries || 0) + 1;
+    var projSelLoading = document.getElementById('cust_project');
+    if (state._custFormRetries > 3) {
+      projSelLoading.innerHTML = '<option value="">載入失敗，請點下方按鈕重試</option>';
+      var formWrapErr = document.querySelector('#viewCustomer .form-wrap');
+      if (formWrapErr && !document.getElementById('custFormRetryBtn')) {
+        var btnErr = document.createElement('button');
+        btnErr.id = 'custFormRetryBtn';
+        btnErr.className = 'btn-mini primary';
+        btnErr.style.cssText = 'margin:12px 20px;width:calc(100% - 40px);';
+        btnErr.textContent = '重新載入案場資料';
+        btnErr.onclick = function(){ btnErr.remove(); state._custFormRetries = 0; renderCustomerForm(); };
+        formWrapErr.insertBefore(btnErr, formWrapErr.firstChild);
+      }
+      return;
+    }
+    projSelLoading.innerHTML = '<option value="">載入中…</option>';
+    loadGlobalData(function(){ renderCustomerForm(); });
+    return;
+  }
+  state._custFormRetries = 0;
   var projSel = document.getElementById('cust_project');
   if (projSel.children.length <= 1) {
     projSel.innerHTML = '<option value="">請選擇案場</option>';
@@ -2112,6 +2199,9 @@ function renderCustomerForm() {
   var budSel = document.getElementById('cust_budget');
   budSel.onchange = function(){ document.getElementById('cust_budgetOtherWrap').classList.toggle('hidden', this.value !== '其他'); };
 
+  document.getElementById('cust_unitBuilding').onchange = populateUnitTypeSelect;
+  populateUnitTypeSelect();
+
   // 從「預約賞屋」轉入的客戶，帶入姓名/電話，不用重打
   if (state.pendingReservationConversion) {
     document.getElementById('cust_name').value  = state.pendingReservationConversion.customer_name || '';
@@ -2121,6 +2211,75 @@ function renderCustomerForm() {
 
 function onCustProjectChange() {
   // 接待人員固定為自己，不需要撈案場業務清單
+}
+
+/* ★ 華雄天地專屬：已介紹產品改成棟別／戶別／樓層下拉選單。
+   兩棟戶數都隨樓層往上遞減，同一個戶別在不同樓層可能對應完全
+   不同的房型，所以「棟別＋戶別＋樓層」三者合在一起才是唯一的
+   房型識別，缺一不可：
+   A棟 3F~17F 6戶（戶別1.2.3.5.6.7）、18F~24F 4戶（戶別1.2.3.5）、
+        25F~29F 2戶（戶別1.2）
+   B棟 3F~23F 6戶（戶別1.2.3.5.6.7）、24F~29F 4戶（戶別1.2.3.5） */
+var HSTD_UNIT_BANDS = {
+  A: [
+    { minFloor: 3,  maxFloor: 17, numbers: ['1','2','3','5','6','7'] },
+    { minFloor: 18, maxFloor: 24, numbers: ['1','2','3','5'] },
+    { minFloor: 25, maxFloor: 29, numbers: ['1','2'] }
+  ],
+  B: [
+    { minFloor: 3,  maxFloor: 23, numbers: ['1','2','3','5','6','7'] },
+    { minFloor: 24, maxFloor: 29, numbers: ['1','2','3','5'] }
+  ]
+};
+function populateUnitTypeSelect() {
+  var building = document.getElementById('cust_unitBuilding').value;
+  var typeSel = document.getElementById('cust_unitType');
+  var numbersSet = {};
+  HSTD_UNIT_BANDS[building].forEach(function(band){
+    band.numbers.forEach(function(n){ numbersSet[n] = true; });
+  });
+  var numbers = Object.keys(numbersSet).sort(function(a,b){ return Number(a) - Number(b); });
+  typeSel.innerHTML = numbers.map(function(n){ return '<option value="' + n + '">' + n + '</option>'; }).join('');
+  typeSel.onchange = populateUnitFloorSelect;
+  populateUnitFloorSelect();
+}
+function populateUnitFloorSelect() {
+  var building = document.getElementById('cust_unitBuilding').value;
+  var number = document.getElementById('cust_unitType').value;
+  var floorSel = document.getElementById('cust_unitFloor');
+  var matching = HSTD_UNIT_BANDS[building].filter(function(band){ return band.numbers.indexOf(number) >= 0; });
+  var minFloor = Math.min.apply(null, matching.map(function(b){ return b.minFloor; }));
+  var maxFloor = Math.max.apply(null, matching.map(function(b){ return b.maxFloor; }));
+  var opts = '';
+  for (var f = minFloor; f <= maxFloor; f++) opts += '<option value="' + f + '">' + f + '樓</option>';
+  floorSel.innerHTML = opts;
+}
+function addIntroducedUnit() {
+  var b = document.getElementById('cust_unitBuilding').value;
+  var n = document.getElementById('cust_unitType').value;
+  var f = document.getElementById('cust_unitFloor').value;
+  var label = '棟別' + b + ' 戶別' + n + ' 樓層' + f;
+  var hidden = document.getElementById('cust_introducedUnits');
+  var list = hidden.value ? hidden.value.split('、') : [];
+  if (list.indexOf(label) >= 0) { showToast('已經加入過了','error'); return; }
+  list.push(label);
+  hidden.value = list.join('、');
+  renderIntroducedUnitsList();
+}
+function removeIntroducedUnit(label) {
+  var hidden = document.getElementById('cust_introducedUnits');
+  var list = hidden.value ? hidden.value.split('、') : [];
+  list = list.filter(function(x){ return x !== label; });
+  hidden.value = list.join('、');
+  renderIntroducedUnitsList();
+}
+function renderIntroducedUnitsList() {
+  var hidden = document.getElementById('cust_introducedUnits');
+  var list = hidden.value ? hidden.value.split('、') : [];
+  document.getElementById('introducedUnitsList').innerHTML = list.map(function(u) {
+    return '<span style="background:var(--border);border-radius:8px;padding:4px 10px;font-size:12px;color:var(--ink);">' +
+      escapeHtml(u) + ' <a href="javascript:void(0)" onclick="removeIntroducedUnit(\'' + escapeHtml(u) + '\')" style="color:var(--rust);margin-left:4px;text-decoration:none;">✕</a></span>';
+  }).join('');
 }
 
 function toggleOther(wrapId, show) {
@@ -2197,6 +2356,7 @@ function submitCustomer() {
     room_types: getChecks('cust_room').join('、'),
     budget: budget,
     issues: issues.join('、'),
+    introduced_units: document.getElementById('cust_introducedUnits').value.trim(),
     revisit_plan: again,
     status_note: note
   }, function(res) {
@@ -2226,7 +2386,8 @@ function duplicatePhoneMessage(records) {
 
 function resetCustomerForm() {
   ['cust_name','cust_phone','cust_note','cust_distOther','cust_againDate',
-   'cust_industryOther','cust_motiveOther','cust_sourceOther','cust_budgetOther','cust_issueOther','cust_againOther'
+   'cust_industryOther','cust_motiveOther','cust_sourceOther','cust_budgetOther','cust_issueOther','cust_againOther',
+   'cust_introducedUnits'
   ].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
   document.querySelectorAll('#viewCustomer input[type="radio"]').forEach(function(r){ r.checked=false; });
   document.querySelectorAll('#viewCustomer input[type="checkbox"]').forEach(function(c){ c.checked=false; });
@@ -2234,6 +2395,9 @@ function resetCustomerForm() {
   ['cust_distOtherWrap','cust_againDateWrap','cust_industryOtherWrap','cust_motiveOtherWrap',
    'cust_sourceOtherWrap','cust_budgetOtherWrap','cust_issueOtherWrap','cust_againOtherWrap'
   ].forEach(function(id){ document.getElementById(id).classList.add('hidden'); });
+  document.getElementById('cust_unitBuilding').value = 'A';
+  populateUnitTypeSelect();
+  document.getElementById('introducedUnitsList').innerHTML = '';
 }
 
 /* ══ 預約賞屋 ══ */
