@@ -438,7 +438,19 @@
             <select class="sel hidden" id="cust_salesAssign"></select>
           </div>
         </div>
-        <div class="field"><div class="field-label">訪客類別 <span class="req">*</span></div><div class="chips"><label class="chip"><input type="radio" name="cust_visitType" value="初訪"><span class="chip-label">初訪</span></label><label class="chip"><input type="radio" name="cust_visitType" value="回籠"><span class="chip-label">回籠</span></label></div></div>
+        <div class="field"><div class="field-label">訪客類別 <span class="req">*</span></div><div class="chips"><label class="chip"><input type="radio" name="cust_visitType" value="初訪" onchange="toggleCustLinkWrap(this.value)"><span class="chip-label">初訪</span></label><label class="chip"><input type="radio" name="cust_visitType" value="回籠" onchange="toggleCustLinkWrap(this.value)"><span class="chip-label">回籠</span></label></div></div>
+        <div class="field hidden" id="cust_linkWrap">
+          <div class="field-label">關聯先前來訪紀錄（選填，用姓名或電話搜尋）</div>
+          <input class="inp" type="text" id="cust_linkSearch" placeholder="輸入姓名或電話搜尋…" oninput="searchLinkCustomer()">
+          <div id="cust_linkResults"></div>
+          <div class="hidden" id="cust_linkSelected" style="margin-top:8px;background:var(--gold-soft);border-radius:8px;padding:8px 10px;font-size:13px;display:flex;justify-content:space-between;align-items:center;">
+            <span id="cust_linkSelectedText"></span>
+            <a href="javascript:void(0)" onclick="clearLinkCustomer()" style="color:var(--rust);text-decoration:none;font-weight:600;">✕</a>
+          </div>
+          <input type="hidden" id="cust_linkedCustomerId">
+          <input type="hidden" id="cust_linkedCustomerName">
+          <input type="hidden" id="cust_linkedVisitDate">
+        </div>
         <div class="field">
           <div class="field-label">來訪時段</div>
           <div class="chips">
@@ -1492,7 +1504,8 @@ function myCustomerCardHTML(c) {
     c.room_types   ? '🛏 ' + escapeHtml(String(c.room_types))  : '',
     c.sqft_requirement ? '📐 ' + escapeHtml(String(c.sqft_requirement)) : '',
     c.issues       ? '⚠️ ' + escapeHtml(String(c.issues))      : '',
-    c.revisit_plan ? '📅 再訪：' + escapeHtml(String(c.revisit_plan)) : ''
+    c.revisit_plan ? '📅 再訪：' + escapeHtml(String(c.revisit_plan)) : '',
+    c.linked_customer_name ? '🔗 關聯：' + escapeHtml(String(c.linked_customer_name)) + (c.linked_visit_date?'（'+escapeHtml(String(c.linked_visit_date))+'）':'') : ''
   ].filter(Boolean);
 
   var editBtn = canEdit
@@ -1852,7 +1865,8 @@ function recentCustCardHTML(c) {
     c.room_types       ? '🛏 ' + escapeHtml(String(c.room_types))         : '',
     c.sqft_requirement ? '📐 ' + escapeHtml(String(c.sqft_requirement))   : '',
     c.issues           ? '⚠️ ' + escapeHtml(String(c.issues))             : '',
-    c.revisit_plan     ? '📅 再訪：' + escapeHtml(String(c.revisit_plan)) : ''
+    c.revisit_plan     ? '📅 再訪：' + escapeHtml(String(c.revisit_plan)) : '',
+    c.linked_customer_name ? '🔗 關聯：' + escapeHtml(String(c.linked_customer_name)) + (c.linked_visit_date?'（'+escapeHtml(String(c.linked_visit_date))+'）':'') : ''
   ].filter(Boolean);
 
   return '<div class="cust-card">' +
@@ -2278,6 +2292,58 @@ function loadCustSalesAssignOptions(project) {
 function toggleOther(wrapId, show) {
   document.getElementById(wrapId).classList.toggle('hidden', !show);
 }
+
+/* ══ 回訪客人關聯：登記回籠客人時，用姓名／電話搜尋自己權限範圍內的
+   歷史客戶資料，把這筆新的回訪紀錄跟原本初訪的那筆連結起來 ══ */
+function toggleCustLinkWrap(visitType) {
+  var wrap = document.getElementById('cust_linkWrap');
+  wrap.classList.toggle('hidden', visitType !== '回籠');
+  if (visitType !== '回籠') clearLinkCustomer();
+}
+
+var custLinkSearchTimer = null;
+function searchLinkCustomer() {
+  clearTimeout(custLinkSearchTimer);
+  var kw = document.getElementById('cust_linkSearch').value.trim();
+  var box = document.getElementById('cust_linkResults');
+  if (!kw) { box.innerHTML = ''; return; }
+  custLinkSearchTimer = setTimeout(function() {
+    gasGet('searchMyCustomers', { lineUserId: state.user.lineUserId, keyword: kw }, function(res) {
+      if (!res.ok) { box.innerHTML = ''; return; }
+      if (!res.data.length) {
+        box.innerHTML = '<div style="font-size:12px;color:var(--ink-faint);padding:6px 2px;">查無符合的客戶資料</div>';
+        return;
+      }
+      box.innerHTML = res.data.map(function(c) {
+        return '<div style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-top:6px;cursor:pointer;" ' +
+          'onclick="pickLinkCustomer(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\',\'' + escapeHtml(c.visit_date||'') + '\')">' +
+          '<div style="font-weight:600;">' + escapeHtml(c.customer_name||'') + '　' + escapeHtml(c.phone||'') + '</div>' +
+          '<div style="font-size:11px;color:var(--ink-faint);margin-top:2px;">' + escapeHtml(c.visit_date||'') + '　' + escapeHtml(c.visit_type||'') + '　' + escapeHtml(c.project_name||'') + '</div>' +
+        '</div>';
+      }).join('');
+    }, function(){ box.innerHTML = '<div style="font-size:12px;color:var(--rust);padding:6px 2px;">搜尋失敗，請重試</div>'; });
+  }, 300);
+}
+
+function pickLinkCustomer(id, name, visitDate) {
+  document.getElementById('cust_linkedCustomerId').value = id;
+  document.getElementById('cust_linkedCustomerName').value = name;
+  document.getElementById('cust_linkedVisitDate').value = visitDate;
+  document.getElementById('cust_linkSelectedText').textContent = '已連結：' + name + '（' + visitDate + '）';
+  document.getElementById('cust_linkSelected').classList.remove('hidden');
+  document.getElementById('cust_linkResults').innerHTML = '';
+  document.getElementById('cust_linkSearch').value = '';
+}
+
+function clearLinkCustomer() {
+  document.getElementById('cust_linkedCustomerId').value = '';
+  document.getElementById('cust_linkedCustomerName').value = '';
+  document.getElementById('cust_linkedVisitDate').value = '';
+  document.getElementById('cust_linkSelected').classList.add('hidden');
+  document.getElementById('cust_linkSearch').value = '';
+  document.getElementById('cust_linkResults').innerHTML = '';
+}
+
 function toggleAgain(showDate) {
   document.getElementById('cust_againDateWrap').classList.toggle('hidden', !showDate);
   if (!showDate) document.getElementById('cust_againOtherWrap').classList.add('hidden');
@@ -2359,7 +2425,10 @@ function submitCustomer() {
     sqft_requirement: getRadio('cust_sqft'),
     room_requirement_note: document.getElementById('cust_roomRequirementNote').value.trim(),
     introduced_units: document.getElementById('cust_introducedUnits').value.trim(),
-    referrer_name: document.getElementById('cust_referrerName').value.trim()
+    referrer_name: document.getElementById('cust_referrerName').value.trim(),
+    linked_customer_id: document.getElementById('cust_linkedCustomerId').value,
+    linked_customer_name: document.getElementById('cust_linkedCustomerName').value,
+    linked_visit_date: document.getElementById('cust_linkedVisitDate').value
   }, function(res) {
     btn.disabled=false; btn.textContent='送 出 登 記';
     if (res.ok) {
@@ -2394,6 +2463,8 @@ function resetCustomerForm() {
   document.getElementById('cust_unitBuilding').value = 'A';
   populateUnitTypeSelect();
   document.getElementById('introducedUnitsList').innerHTML = '';
+  document.getElementById('cust_linkWrap').classList.add('hidden');
+  clearLinkCustomer();
 }
 
 /* ══ Task ══ */
