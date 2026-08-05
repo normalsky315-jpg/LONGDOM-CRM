@@ -903,7 +903,11 @@
       <div class="field"><div class="field-label">聯絡方式</div><select class="sel" id="contactLog_method"><option value="電話">📞 電話</option><option value="LINE">💬 LINE</option><option value="到訪">🚶 到訪</option><option value="其他">其他</option></select></div>
     </div>
     <div class="field"><div class="field-label">接洽內容 / 備註</div><textarea class="ta" id="contactLog_note" style="min-height:70px;" placeholder="例如：客戶還在考慮，說下週會跟家人討論"></textarea></div>
-    <div class="field"><div class="field-label">下次預計追蹤日期（選填，會在首頁提醒）</div><input class="inp" type="date" id="contactLog_next"></div>
+    <div class="field" id="contactLog_nextWrap"><div class="field-label">下次預計追蹤日期（選填，會在首頁提醒）</div><input class="inp" type="date" id="contactLog_next"></div>
+    <label class="chip" style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;">
+      <input type="checkbox" id="contactLog_done" onchange="document.getElementById('contactLog_nextWrap').classList.toggle('hidden', this.checked)">
+      <span class="chip-label">✅ 追蹤完成，不用再提醒</span>
+    </label>
     <div style="display:flex;gap:10px;margin-top:14px;">
       <button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('contactLogModal')">關閉</button>
       <button class="btn-mini primary" id="contactLogSubmitBtn" style="flex:2;padding:14px;font-weight:600;" onclick="submitContactLog()">新 增 記 錄</button>
@@ -1673,6 +1677,8 @@ function openContactLogModal(custId, custName) {
   document.getElementById('contactLog_method').value = '電話';
   document.getElementById('contactLog_note').value = '';
   document.getElementById('contactLog_next').value = '';
+  document.getElementById('contactLog_done').checked = false;
+  document.getElementById('contactLog_nextWrap').classList.remove('hidden');
   loadContactLogList(custId);
   openModal('contactLogModal');
 }
@@ -1707,19 +1713,29 @@ function submitContactLog() {
   if (btn.disabled) return;
   btn.disabled = true; btn.textContent = '送 出 中…';
 
+  // 勾選「追蹤完成」時，不管日期欄位有沒有填，強制送出空的
+  // next_followup_date——這樣這筆會變成該客戶最新一筆追蹤紀錄，
+  // getPendingFollowups 抓的是「最新一筆有沒有 next_followup_date」，
+  // 沒有的話就不會再出現在首頁提醒，等於自然地被移除，不用額外做
+  // 「標記完成」的專屬 API
+  var isDone = document.getElementById('contactLog_done').checked;
+  var note = document.getElementById('contactLog_note').value.trim();
+
   gasPost('appendContactLog', {
     lineUserId:         state.user.lineUserId,
     customer_id:        custId,
     contact_date:       document.getElementById('contactLog_date').value || todayStr(),
     contact_method:     document.getElementById('contactLog_method').value,
-    note:               document.getElementById('contactLog_note').value.trim(),
-    next_followup_date: document.getElementById('contactLog_next').value
+    note:               isDone ? (note || '追蹤完成') : note,
+    next_followup_date: isDone ? '' : document.getElementById('contactLog_next').value
   }, function(res) {
     btn.disabled = false; btn.textContent = '新 增 記 錄';
     if (res.ok) {
-      showToast('已新增追蹤記錄','success');
+      showToast(isDone ? '已標記追蹤完成' : '已新增追蹤記錄','success');
       document.getElementById('contactLog_note').value = '';
       document.getElementById('contactLog_next').value = '';
+      document.getElementById('contactLog_done').checked = false;
+      document.getElementById('contactLog_nextWrap').classList.remove('hidden');
       loadContactLogList(custId);
       loadFollowupReminders();
     } else { showToast(res.error,'error'); }
