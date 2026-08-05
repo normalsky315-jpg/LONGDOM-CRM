@@ -985,6 +985,21 @@ function getIndustryList()       { return ok(CONFIG.INDUSTRIES); }
 function getPurchaseMotiveList() { return ok(CONFIG.PURCHASE_MOTIVES); }
 
 // ==================== Customer Module ====================
+// ★ 客戶資料表額外欄位（原本天地版本的試算表沒有這個欄位，第一次
+// 使用前要先確保表頭存在，否則 appendObjectToSheet/updateRowById
+// 都只認得既有表頭，資料會被靜默丟掉）。重新同步時記得保留這段跟
+// appendCustomerData/updateCustomerData 裡用到的部分，不要被覆蓋掉。
+var CUSTOMER_EXTRA_FIELDS = ['introduced_units'];
+
+function ensureCustomerExtraColumns() {
+  var sh = getSheet(CONFIG.SHEETS.CUSTOMER);
+  if (!sh) return;
+  var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var missing = CUSTOMER_EXTRA_FIELDS.filter(function(h){ return headers.indexOf(h) < 0; });
+  if (!missing.length) return;
+  sh.getRange(1, headers.length + 1, 1, missing.length).setValues([missing]);
+}
+
 function appendCustomerData(payload) {
   try {
     var ctx = getUserContext(payload.lineUserId);
@@ -1005,6 +1020,7 @@ function appendCustomerData(payload) {
       .filter(function(r) { return String(r.phone || '').trim() === phone; })
       .map(function(r) { return { customer_name: r.customer_name, visit_date: String(r.visit_date || '').substring(0, 10), sales_name: r.sales_name }; });
 
+    ensureCustomerExtraColumns();
     var customerId = genId('CUST');
     appendObjectToSheet(CONFIG.SHEETS.CUSTOMER, {
       customer_id: customerId,
@@ -1027,6 +1043,7 @@ function appendCustomerData(payload) {
       room_types: payload.room_types || '',
       budget: payload.budget || '',
       issues: payload.issues || '',
+      introduced_units: payload.introduced_units || '',
       revisit_plan: payload.revisit_plan || '',
       deal_status: '未成交',
       deal_unit: '',
@@ -1651,11 +1668,12 @@ function updateCustomerData(payload) {
       if (diffDays > 14) return fail('超過14天，無法修改');
     }
 
+    ensureCustomerExtraColumns();
     var editableFields = [
       'visit_date','visit_type','customer_name','phone','age_range','district',
       'occupation_industry','purchase_motive','source','room_types',
       'budget','issues','revisit_plan','status_note','note'
-    ];
+    ].concat(CUSTOMER_EXTRA_FIELDS);
     if (ctx.role !== CONFIG.ROLES.SALES) {
       editableFields = editableFields.concat(['sales_name','sales_line_user_id']);
     }
