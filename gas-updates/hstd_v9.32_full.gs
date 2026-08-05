@@ -1,5 +1,16 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.31
+//  龍登 CRM — 華雄天地專用版 v9.32
+//  v9.32 變更：客戶資料新增「已介紹產品」棟別／戶別／樓層欄位：
+//    1. 新增 CUSTOMER_EXTRA_FIELDS／ensureCustomerExtraColumns：
+//       Customer_Data 試算表原本沒有 introduced_units 欄位，
+//       appendObjectToSheet／updateRowById 只認得既有表頭，沒有這個
+//       欄位的話資料會被靜默丟掉，所以 appendCustomerData／
+//       updateCustomerData 執行前都先呼叫這個函式確保表頭存在，第一次
+//       執行時會自動在 Customer_Data 工作表最後補一欄 introduced_units
+//    2. appendCustomerData／updateCustomerData 都支援讀寫這個欄位
+//    3. 對應前端 hstd.html 新增的棟別／戶別／樓層下拉選單（A棟
+//       3F~17F 6戶、18F~24F 4戶、25F~29F 2戶；B棟 3F~23F 6戶、
+//       24F~29F 4戶），每個「棟別＋戶別＋樓層」組合存成獨立字串
 //  v9.31 變更：LINE 官方帳號問答功能兩項修正：
 //    1. 只在跟官方帳號一對一私訊時才會回應，群組/多人聊天室裡的訊息
 //       一律忽略——避免官方帳號被加進群組後，任何人在群組打指令，
