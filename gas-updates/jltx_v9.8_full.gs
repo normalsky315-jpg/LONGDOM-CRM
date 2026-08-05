@@ -1,5 +1,18 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.7
+//  龍登 CRM — 吉隆天曜專用版 v9.8
+//  v9.8 變更：客戶登記新增「回訪客人關聯」功能：
+//    1. Customer_Data 新增 linked_customer_id／linked_customer_name／
+//       linked_visit_date 三個欄位（透過 ensureCustomerExtraColumns
+//       自動補表頭），appendCustomerData／updateCustomerData 都支援
+//       讀寫
+//    2. 新增 searchMyCustomers：讓業務登記回籠客人時，可以用姓名或
+//       電話（都用模糊比對）搜尋自己權限範圍內的歷史客戶資料（跟
+//       getMyCustomers 用同一套角色權限規則：業務限自己、主管限
+//       案場、admin 不限），最多回傳 15 筆，依訪客日期新到舊排序，
+//       已接上 doGet 路由
+//    3. 對應前端：客戶登記表單選「回籠」時，訪客類別下方會跳出搜尋
+//       欄位，選到符合的客戶後把 linked_customer_id 等資料存進這筆
+//       新的回訪紀錄，客戶卡片上也會顯示「🔗 關聯：姓名（日期）」
 //  v9.7 變更：銷售日報未提交 LINE 推播提醒改成「只在真的漏交時才通知」：
 //    sendDailySalesReport（晚上9點觸發）原本不管當天有沒有交日報，
 //    每天都會固定推播一則訊息（有交顯示統計、沒交顯示提醒），改成
@@ -419,6 +432,8 @@ function doGet(e) {
         return jsonResponse(getCustomerList(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
       case 'getMyCustomers':
         return jsonResponse(getMyCustomers(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
+      case 'searchMyCustomers':
+        return jsonResponse(searchMyCustomers(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId, keyword: e.parameter.keyword }));
       case 'getRecentCustomers':
         return jsonResponse(getRecentCustomers(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
       case 'getCustomerChangeLogs':
@@ -849,7 +864,8 @@ function submitPublicLead(payload) {
 // 天曜，記得保留這整段跟 appendCustomerData/updateCustomerData 裡
 // 用到這些欄位的部分，不要被覆蓋掉。
 var CUSTOMER_EXTRA_FIELDS = ['gender','marital_status','visit_time_slot',
-  'sqft_requirement','room_requirement_note','introduced_units','referrer_name'];
+  'sqft_requirement','room_requirement_note','introduced_units','referrer_name',
+  'linked_customer_id','linked_customer_name','linked_visit_date'];
 
 function ensureCustomerExtraColumns() {
   var sh = getSheet(CONFIG.SHEETS.CUSTOMER);
@@ -923,7 +939,10 @@ function appendCustomerData(payload) {
       sqft_requirement: payload.sqft_requirement || '',
       room_requirement_note: payload.room_requirement_note || '',
       introduced_units: payload.introduced_units || '',
-      referrer_name: payload.referrer_name || ''
+      referrer_name: payload.referrer_name || '',
+      linked_customer_id: payload.linked_customer_id || '',
+      linked_customer_name: payload.linked_customer_name || '',
+      linked_visit_date: payload.linked_visit_date || ''
     });
     writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.CUSTOMER, customerId,
       ctx.displayName + ' 新增客戶: ' + payload.customer_name);
@@ -1355,6 +1374,46 @@ function getMyCustomers(payload) {
       return db.localeCompare(da);
     });
     return ok(rows);
+  } catch (err) { return fail(err.message); }
+}
+
+// ★ 回訪客人關聯：業務登記回籠客人時，可以用姓名／電話搜尋自己權限
+// 範圍內的歷史客戶資料，把這筆新的回訪紀錄跟原本初訪的那筆連結
+// 起來（存 linked_customer_id/name/visit_date 在新的那筆客戶資料
+// 上）。搜尋範圍跟 getMyCustomers 用同一套角色權限規則：業務只搜得到
+// 自己的客戶、主管限案場、admin 不限。姓名用模糊比對、電話也用模糊
+// 比對（方便只記得後幾碼的情況），最多回傳 15 筆、依訪客日期新到舊
+function searchMyCustomers(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    var keyword = String((payload && payload.keyword) || '').trim();
+    if (!keyword) return ok([]);
+
+    var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER).filter(function(r) {
+      if (ctx.role === CONFIG.ROLES.ADMIN) return true;
+      if (ctx.role === CONFIG.ROLES.MANAGER) return r.project_name === ctx.projectName;
+      return String(r.sales_line_user_id) === String(ctx.lineUserId) ||
+             String(r.created_by_line_user_id) === String(ctx.lineUserId);
+    }).filter(function(r) {
+      var name  = String(r.customer_name || '');
+      var phone = String(r.phone || '');
+      return name.indexOf(keyword) >= 0 || phone.indexOf(keyword) >= 0;
+    });
+
+    rows.sort(function(a,b){ return String(b.visit_date||'').localeCompare(String(a.visit_date||'')); });
+
+    var results = rows.slice(0, 15).map(function(r) {
+      return {
+        customer_id:   r.customer_id,
+        customer_name: r.customer_name,
+        phone:         r.phone,
+        visit_date:    String(r.visit_date || '').substring(0, 10),
+        visit_type:    r.visit_type,
+        project_name:  r.project_name
+      };
+    });
+    return ok(results);
   } catch (err) { return fail(err.message); }
 }
 
