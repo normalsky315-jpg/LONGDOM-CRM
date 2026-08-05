@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>吉隆天曜 CRM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://static.line-scdn.net">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700&family=Noto+Sans+TC:wght@300;400;500&display=swap" rel="stylesheet">
 <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
@@ -27,7 +30,7 @@
   .screen.active{display:block;}
 
   /* ── 品牌背景動畫（Ken Burns 緩慢位移縮放 + 光澤掃過）──
-     只套用在登入頁／首頁 hero，這兩個區塊用同一張 assets/login-bg.jpg 當背景 */
+     只套用在登入頁／首頁 hero，這兩個區塊用同一張 assets/login-bg.webp 當背景 */
   @keyframes bgKenBurns{
     0%  {background-size:130%;background-position:20% 30%;}
     100%{background-size:150%;background-position:70% 60%;}
@@ -47,14 +50,14 @@
   }
 
   /* Loading */
-  #loadingScreen{display:none;flex-direction:column;align-items:center;justify-content:center;background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;color:#4A3A24;}
+  #loadingScreen{display:none;flex-direction:column;align-items:center;justify-content:center;background:#F2EAD8 url('assets/login-bg.webp') center/cover no-repeat;color:#4A3A24;}
   #loadingScreen.active{display:flex;}
   .spinner{width:32px;height:32px;border:3px solid rgba(139,110,66,0.2);border-top-color:#8A6D3F;border-radius:50%;animation:spin 0.7s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
   .loading-text{margin-top:16px;font-size:10px;letter-spacing:4px;color:rgba(74,58,36,0.5);}
 
   /* Login */
-  #loginScreen{background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;display:none;flex-direction:column;padding:0 28px;padding-top:max(60px,env(safe-area-inset-top));padding-bottom:max(40px,env(safe-area-inset-bottom));min-height:100%;position:relative;}
+  #loginScreen{background:#F2EAD8 url('assets/login-bg.webp') center/cover no-repeat;display:none;flex-direction:column;padding:0 28px;padding-top:max(60px,env(safe-area-inset-top));padding-bottom:max(40px,env(safe-area-inset-bottom));min-height:100%;position:relative;}
   #loginScreen::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.55),rgba(255,255,255,0.15) 40%,rgba(255,255,255,0.55));pointer-events:none;}
   #loginScreen>*{position:relative;z-index:1;}
   #loginScreen.active{display:flex;}
@@ -84,7 +87,7 @@
   .login-error.show{opacity:1;}
 
   /* Pending */
-  #pendingScreen{background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;display:none;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px;text-align:center;min-height:100%;}
+  #pendingScreen{background:#F2EAD8 url('assets/login-bg.webp') center/cover no-repeat;display:none;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px;text-align:center;min-height:100%;}
   #pendingScreen.active{display:flex;}
   .pending-icon{font-size:56px;margin-bottom:20px;animation:pulse 2s ease-in-out infinite;}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
@@ -98,14 +101,14 @@
   .view.hidden{display:none;}
 
   /* Header */
-  .app-header{background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;position:relative;padding:0 16px;padding-top:max(16px,env(safe-area-inset-top));}
+  .app-header{background:#F2EAD8 url('assets/login-bg.webp') center/cover no-repeat;position:relative;padding:0 16px;padding-top:max(16px,env(safe-area-inset-top));}
   .app-header::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.6),rgba(255,255,255,0.25));pointer-events:none;}
   .header-row{position:relative;z-index:1;display:flex;align-items:center;height:52px;gap:8px;}
   .header-back{width:36px;height:36px;border:none;background:rgba(139,110,66,0.12);border-radius:8px;color:#8A6D3F;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
   .header-title{font-family:'Noto Serif TC',serif;font-size:16px;font-weight:600;color:#4A3A24;flex:1;text-align:center;}
 
   /* Home */
-  .home-hero{background:#F2EAD8 url('assets/login-bg.jpg') center/cover no-repeat;position:relative;padding:0 20px 26px;padding-top:max(16px,env(safe-area-inset-top));}
+  .home-hero{background:#F2EAD8 url('assets/login-bg.webp') center/cover no-repeat;position:relative;padding:0 20px 26px;padding-top:max(16px,env(safe-area-inset-top));}
   .home-hero::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.5),rgba(255,255,255,0.2) 60%,rgba(255,255,255,0.55));pointer-events:none;}
   .home-hero>*{position:relative;z-index:1;}
   .home-tag{font-size:9px;letter-spacing:3px;color:#A8875A;margin-bottom:8px;padding-top:16px;display:flex;align-items:center;gap:8px;}
@@ -290,7 +293,7 @@
 <!-- Login -->
 <div class="screen" id="loginScreen">
   <div class="login-logo">
-    <img src="assets/logo.png" alt="龍登國際廣告">
+    <img src="assets/logo.webp" alt="龍登國際廣告">
     <div class="login-logo-text">
       <div class="login-brand">龍登國際廣告</div>
       <div class="login-brand-en">Long Dorn Advertising</div>
@@ -328,7 +331,7 @@
   <!-- Home -->
   <div id="viewHome" class="view">
     <div class="home-hero">
-      <div class="home-tag"><img src="assets/logo.png" alt="龍登國際廣告">WELCOME BACK</div>
+      <div class="home-tag"><img src="assets/logo.webp" alt="龍登國際廣告">WELCOME BACK</div>
       <div class="home-greeting" id="homeGreeting">您好</div>
       <div class="home-context" id="homeContext"></div>
     </div>
