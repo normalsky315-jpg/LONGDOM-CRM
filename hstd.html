@@ -502,7 +502,7 @@
           <div class="field-label">已介紹產品</div>
           <div class="field-row">
             <div class="field"><div class="field-label" style="font-size:11px;">棟別</div><select class="sel" id="cust_unitBuilding"><option value="A">A棟</option><option value="B">B棟</option></select></div>
-            <div class="field"><div class="field-label" style="font-size:11px;">戶號</div><select class="sel" id="cust_unitType"></select></div>
+            <div class="field"><div class="field-label" style="font-size:11px;">戶別</div><select class="sel" id="cust_unitType"></select></div>
             <div class="field"><div class="field-label" style="font-size:11px;">樓層</div><select class="sel" id="cust_unitFloor"></select></div>
           </div>
           <button type="button" class="btn-mini" style="margin-top:6px;" onclick="addIntroducedUnit()">＋ 加入清單</button>
@@ -865,7 +865,7 @@
       <div class="field"><div class="field-label">預計再訪</div><input class="inp" type="text" id="edit_revisit"></div>
     </div>
     <div class="field"><div class="field-label">客戶癥結點</div><input class="inp" type="text" id="edit_issues"></div>
-    <div class="field"><div class="field-label">已介紹產品（棟別/戶號/樓層）</div><input class="inp" type="text" id="edit_introducedUnits"></div>
+    <div class="field"><div class="field-label">已介紹產品（棟別/戶別/樓層）</div><input class="inp" type="text" id="edit_introducedUnits"></div>
     <div class="field"><div class="field-label">接待狀況</div><textarea class="ta" id="edit_note" style="min-height:80px;"></textarea></div>
     <div class="field"><div class="field-label">備註</div><textarea class="ta" id="edit_extra" style="min-height:60px;"></textarea></div>
     <div style="display:flex;gap:10px;margin-top:18px;">
@@ -2207,13 +2207,13 @@ function onCustProjectChange() {
   // 接待人員固定為自己，不需要撈案場業務清單
 }
 
-/* ★ 華雄天地專屬：已介紹產品改成棟別／戶號／樓層下拉選單。
-   兩棟戶數都隨樓層往上遞減，同一個戶號在不同樓層可能對應完全
-   不同的房型，所以「棟別＋戶號＋樓層」三者合在一起才是唯一的
+/* ★ 華雄天地專屬：已介紹產品改成棟別／戶別／樓層下拉選單。
+   兩棟戶數都隨樓層往上遞減，同一個戶別在不同樓層可能對應完全
+   不同的房型，所以「棟別＋戶別＋樓層」三者合在一起才是唯一的
    房型識別，缺一不可：
-   A棟 3F~17F 6戶（1.2.3.5.6.7號）、18F~24F 4戶（1.2.3.5號）、
-        25F~29F 2戶（1.2號）
-   B棟 3F~23F 6戶（1.2.3.5.6.7號）、24F~29F 4戶（1.2.3.5號） */
+   A棟 3F~17F 6戶（戶別1.2.3.5.6.7）、18F~24F 4戶（戶別1.2.3.5）、
+        25F~29F 2戶（戶別1.2）
+   B棟 3F~23F 6戶（戶別1.2.3.5.6.7）、24F~29F 4戶（戶別1.2.3.5） */
 var HSTD_UNIT_BANDS = {
   A: [
     { minFloor: 3,  maxFloor: 17, numbers: ['1','2','3','5','6','7'] },
@@ -2233,7 +2233,7 @@ function populateUnitTypeSelect() {
     band.numbers.forEach(function(n){ numbersSet[n] = true; });
   });
   var numbers = Object.keys(numbersSet).sort(function(a,b){ return Number(a) - Number(b); });
-  typeSel.innerHTML = numbers.map(function(n){ return '<option value="' + n + '">' + n + '號</option>'; }).join('');
+  typeSel.innerHTML = numbers.map(function(n){ return '<option value="' + n + '">' + n + '</option>'; }).join('');
   typeSel.onchange = populateUnitFloorSelect;
   populateUnitFloorSelect();
 }
@@ -2252,7 +2252,7 @@ function addIntroducedUnit() {
   var b = document.getElementById('cust_unitBuilding').value;
   var n = document.getElementById('cust_unitType').value;
   var f = document.getElementById('cust_unitFloor').value;
-  var label = b + '棟' + n + '號' + f + '樓';
+  var label = '棟別' + b + ' 戶別' + n + ' 樓層' + f;
   var hidden = document.getElementById('cust_introducedUnits');
   var list = hidden.value ? hidden.value.split('、') : [];
   if (list.indexOf(label) >= 0) { showToast('已經加入過了','error'); return; }
