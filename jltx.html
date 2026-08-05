@@ -389,7 +389,8 @@
         <div class="section-tag" style="margin-top:14px;">待追蹤客戶</div>
         <div id="followupReminderList"></div>
       </div>
-      <div class="section-tag">本月接待共 <span id="statTotal">—</span> 組</div>
+      <div class="section-tag"><span id="statCumulativePrefix">累積接待共</span> <span id="statCumulative">—</span> 組</div>
+      <div class="section-tag" style="margin-top:6px;">本月接待共 <span id="statTotal">—</span> 組</div>
       <div class="stat-grid">
         <div class="stat-card"><div class="stat-num" id="statFirst">—</div><div class="stat-label">初訪</div></div>
         <div class="stat-card"><div class="stat-num" id="statRevisit">—</div><div class="stat-label">回籠</div></div>
@@ -1266,6 +1267,11 @@ function renderHome() {
 
   gasGet('getCustomerList', { lineUserId: u.lineUserId }, function(res) {
     if (!res.ok) return;
+    // 累積總數：業務只看得到自己接待過的客戶（後端 getCustomerList 已經
+    // 依角色篩選過），主管/admin 看到的是案場/全體累積客戶數
+    document.getElementById('statCumulative').textContent = res.data.length;
+    document.getElementById('statCumulativePrefix').textContent =
+      isSales() ? '我目前累積接待共' : '累積客戶總數共';
     var ym = new Date().toISOString().substring(0,7);
     var rows = res.data.filter(function(r){ return String(r.visit_date).indexOf(ym)===0; });
     document.getElementById('statTotal').textContent   = rows.length;
