@@ -2860,9 +2860,15 @@ function renderReportHistoryList() {
 
   var days = state.reportHistoryExpanded ? allDays : allDays.slice(0, 7);
 
+  // ★ 修正：每一天的彙總列改成可點擊——點下去會跳回上面「當日日報」
+  // 區塊、把日期切到那一天，符合3天內編輯條件的話該筆日報的「✏️ 修改」
+  // 按鈕就會出現在那裡。這個彙總列本身是把當天可能不只一筆的日報加總
+  // 顯示，沒辦法直接在這裡編輯，很多人以為「近1個月」這裡就是全部、
+  // 找不到修改入口，其實編輯功能一直都在，只是要先把上面的日期選到
+  // 那一天
   var html = days.length ? days.map(function(ds) {
     var tot = sumReportFields(byDate[ds] || []);
-    return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">' + ds + '</div></div><div class="list-item-meta"><span>接待 ' + tot.visitor + '</span><span>初訪 ' + tot.first + '</span><span>回籠 ' + tot.revisit + '</span><span>成交 ' + tot.deal + '</span></div></div>';
+    return '<div class="list-item" style="cursor:pointer;" onclick="jumpToReportDate(\'' + ds + '\')"><div class="list-item-row"><div class="list-item-title">' + ds + '</div></div><div class="list-item-meta"><span>接待 ' + tot.visitor + '</span><span>初訪 ' + tot.first + '</span><span>回籠 ' + tot.revisit + '</span><span>成交 ' + tot.deal + '</span></div></div>';
   }).join('') : '<div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-text">近1個月尚無日報紀錄</div></div>';
 
   if (!state.reportHistoryExpanded && allDays.length > 7) {
@@ -2876,6 +2882,20 @@ function toggleReportHistoryExpanded() {
   state.reportHistoryExpanded = true;
   renderReportHistoryList();
 }
+
+// 從「每日報表（近1個月）」點某一天，跳回上面「當日日報」區塊並
+// 切換到那一天，符合3天內編輯條件的話「✏️ 修改」按鈕就會出現
+function jumpToReportDate(dateStr) {
+  document.getElementById('reportViewDate').value = dateStr;
+  loadReportForDate();
+  document.getElementById('reportViewDate').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (isSales()) {
+    showToast('業務無法修改日報，如需修正請聯絡主管或 admin','error');
+  } else if (!reportEditableWithinDays(dateStr, 3)) {
+    showToast('這天已超過3天，無法修改','error');
+  }
+}
+
 function openReportModal() {
   document.getElementById('rep_date').value = todayStr();
   openModal('reportModal');
