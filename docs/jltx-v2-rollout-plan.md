@@ -76,6 +76,13 @@ Step 6  確認穩定後，Google Sheets 降級為報表/備份角色
 
 這兩份名單過一輪人工確認後才視為 Step 2 完成。
 
+### 2.4 customer_project_profiles 初始化
+
+每個 person 依其底下的 visits 建立對應 `customer_project_profiles`（`person_id` × `project_id`
+唯一一筆），`stage` 依 `docs/jltx-migration-mapping.md` §17 的推算規則從歷史 `visits`/`deals`
+狀態反推；`customer_identities` 同步寫入正規化後的 phone 記錄。這一步跟 2.1 身份解析用同一支
+腳本一次跑完，不需要另外排程。
+
 ---
 
 ## Step 3：GAS 雙寫
@@ -85,10 +92,10 @@ Step 6  確認穩定後，Google Sheets 降級為報表/備份角色
 
 | 既有函式 | 位置 | 雙寫目標 |
 |---|---|---|
-| `appendCustomerData` | jltx_v9.8_full.gs:879–951 | 寫入 Supabase `visits`（先確保對應 `person_id` 存在，不存在則先建立 `persons`） |
+| `appendCustomerData` | jltx_v9.8_full.gs:879–951 | 寫入 Supabase `visits`（先確保對應 `person_id` 存在，不存在則先建立 `persons` + `customer_identities`），並 upsert `customer_project_profiles`（更新 `stage`/`last_activity_at`） |
 | `updateCustomerData` | jltx_v9.8_full.gs:1436–1502 | 更新 Supabase `visits` 對應列 |
-| `appendContactLog` | jltx_v9.8_full.gs:1204–1236 | 寫入 Supabase `contacts` |
-| `saveDealDetail` | jltx_v9.8_full.gs:1035–1099 | 寫入 Supabase `deals` |
+| `appendContactLog` | jltx_v9.8_full.gs:1204–1236 | 寫入 Supabase `contacts`，並更新 `customer_project_profiles.last_activity_at` |
+| `saveDealDetail` | jltx_v9.8_full.gs:1035–1099 | 寫入 Supabase `deals`，並依簽約狀態更新 `customer_project_profiles.stage`（`RESERVED`/`PENDING_CONTRACT`/`SIGNED`） |
 
 示意程式碼片段（GAS 呼叫 Supabase REST API，實際實作時再補完整錯誤處理）：
 

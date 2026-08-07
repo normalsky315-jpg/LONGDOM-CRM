@@ -23,7 +23,10 @@
 13. [新增：units（戶別主檔，舊系統沒有對應表）](#13-新增units戶別主檔舊系統沒有對應表)
 14. [新增：person_unit_interests（客戶興趣戶別）](#14-新增person_unit_interests客戶興趣戶別)
 15. [新增：activities（統一時間軸，AI 專用）](#15-新增activities統一時間軸ai-專用)
-16. [跨表清理事項總表](#16-跨表清理事項總表)
+16. [新增：customer_identities（多重身份）](#16-新增customer_identities多重身份)
+17. [新增：customer_project_profiles（客戶 × 案場關係層 + Sales Pipeline Stage）](#17-新增customer_project_profiles客戶--案場關係層--sales-pipeline-stage)
+18. [新增：reservations（預約賞屋，hstd 既有功能，jltx 先預留）](#18-新增reservations預約賞屋hstd-既有功能jltx-先預留)
+19. [跨表清理事項總表](#19-跨表清理事項總表)
 
 ---
 
@@ -41,6 +44,12 @@
      `duplicate_phone` 偵測證明這是目前系統認為最可靠的判斷依據）
   2. 有填 `linked_customer_id` 鏈 → 沿鏈合併（輔助信號，因為是選填、可能漏填或串錯）
   3. `customer_name` 模糊比對（去空白、同音字）→ 僅作為人工覆核提示，不自動合併
+- 合併後的手機號碼同時寫入 `customer_identities`（`type='phone'`），作為之後 LINE ID／email
+  等身份的統一擴充點，`persons.phone` 保留一份方便查詢，但去重判斷以 `customer_identities`
+  的 unique 限制為準（見 §16）。
+- `visit_type`（初訪/回籠）在 visits 表仍保留，但「目前這個人在這個案場走到哪一步」改由
+  `customer_project_profiles.stage` 統一表示，取代原本零散的 `deal_status`/`deal_unit` 快照
+  邏輯（見 §17）。
 
 ### 1.2 欄位對照
 
@@ -56,12 +65,12 @@
 | `district` | `persons.district`（最新值）+ `visits.district_at_visit` | text | |
 | `occupation_industry` | `visits.occupation_industry` | text | |
 | `purchase_motive` | `visits.purchase_motive` | text | |
-| `source` | `visits.source` | text | 首次來訪的 source 最重要，建議 `persons.first_source` 額外存一份 |
+| `source` | `visits.source`（當次） + `customer_project_profiles.lead_source`（該人在該案場的來源，通常取首次值） | text | `persons.first_source` 額外存一份供快速查詢 |
 | `room_types` | `visits.room_types` | text[] | 舊資料是 `、` join 字串，需拆成陣列 |
 | `budget` | `visits.budget` | numeric，nullable | 舊欄位，jltx 表單已不收集，僅供歷史資料相容 |
 | `issues` | `visits.objections` | text[] | 同 room_types 拆陣列 |
 | `revisit_plan` | `followups.plan_note`（見 followups 表） | text | 移到 followups，而非留在 visit |
-| `deal_status` | `visits.deal_status_snapshot` | text | 僅作快照，真正狀態以 `deals` 表為準 |
+| `deal_status` | `visits.deal_status_snapshot`（僅存查） + `customer_project_profiles.stage` | text | 真正的「這個人在這個案場走到哪一步」以 `customer_project_profiles.stage` 為準，見 §17 |
 | `deal_unit` | 併入 `person_unit_interests` / `deals.unit_id` | — | 見 §13、§14 |
 | `status_note` | `visits.status_note` | text | 必填欄位，原樣搬 |
 | `note` | `visits.note` | text | |
@@ -216,9 +225,57 @@ Sheets 並存到 V2.2 之後再評估是否要保留這張表**。
 `summary_text`（供 AI 摘要寫入）、`created_at`。之後可用資料庫 trigger 或應用層在寫入
 `visits`/`contacts`/`deals` 時同步寫一筆到這裡，作為 AI 讀取的單一入口，不用同時查四五張表。
 
+## 16. 新增：customer_identities（多重身份）
+
+參考白皮書設計，把「這個人可以用什麼方式被識別」獨立出來，而不是把 `phone` 寫死在
+`persons` 表裡。欄位：`person_id`（FK）、`type`（`phone`/`line`/`email`）、`value`、
+`verified`。`(type, value)` 唯一索引即是去重的強制邊界——同一支手機號碼不可能綁到兩個
+`person_id`，這比目前 `appendCustomerData` 只是「提醒」不強制合併更嚴謹。搬遷時每個
+`persons.phone` 都對應寫一筆 `type='phone'` 的 identity 記錄；未來若要接 LINE 客戶身份
+（例如客戶自己加 LINE 好友、透過 LIFF 填單），直接加一筆 `type='line'` 記錄即可，不用改
+`persons` 表結構。
+
+## 17. 新增：customer_project_profiles（客戶 × 案場關係層 + Sales Pipeline Stage）
+
+這張表解決一個舊系統完全沒處理的問題：**同一人可能同時是 hstd 跟 jltx 兩個案場的客戶**，
+但「這個人在 hstd 走到哪一步」跟「這個人在 jltx 走到哪一步」是兩件獨立的事（不同負責業務、
+不同來源、不同進度）。`(person_id, project_id)` 唯一索引，一人在一個案場只有一筆關係記錄。
+
+`stage` 欄位取代舊系統零散的 `Customer_Data.deal_status`（僅 `未成交`/`已成交`/`退戶`
+三種簡化值），改用標準化的 Sales Pipeline：
+
+```
+NEW → CONTACTED → VISITED → INTERESTED → REVISIT → NEGOTIATION
+    → RESERVED → PENDING_CONTRACT → SIGNED → CLOSED
+Side exits: DORMANT / LOST / REFUND
+```
+
+好處：Manager Dashboard 可以直接看「卡在哪一關」的 Funnel（例如初訪很多但都卡在
+NEGOTIATION 沒進到 RESERVED），而不是只能看「有沒有成交」。`lead_score`/`temperature`
+欄位為 V2.3 AI Lead Score Rule Engine 預留（規則範例：回籠 +20、7 天內問價/付款 +10、
+指定戶別 +10、已預約 +15、30 天無互動 -20，總分 ≥80 為 HOT、60–79 為 WARM、<60 為 NURTURE）。
+
+搬遷時的初始 stage 依歷史資料推算規則：有 `deals.status='active'` 且已簽約 → `SIGNED`；
+有 `deals` 但未簽約 → `RESERVED`/`PENDING_CONTRACT`；`visit_type` 出現過 `回籠` → 至少
+`REVISIT`；只有一筆 `初訪` → `VISITED`；純 `Contact_Log` 無 `Customer_Data` 對應（理論上
+不會發生，但保留判斷）→ `CONTACTED`。
+
+## 18. 新增：reservations（預約賞屋，hstd 既有功能，jltx 先預留）
+
+jltx 目前的表單流程是「來訪後才登記」，沒有預約賞屋這個環節；hstd 則已經有獨立的
+`Reservation` Sheet（`reservation_id, scheduled_date, scheduled_time, status, customer_id`
+等欄位，詳見 `hstd_v9.35_full.gs:1500–1503`）。
+
+因為使用者目前同時維運 hstd 與 jltx，且兩案場最終要共用同一套 schema，這張表現在就建立，
+避免以後把 hstd 併進來時要臨時補表、影響已經上線的 jltx 資料。jltx 若之後要開放線上預約
+賞屋（例如接官網表單、Meta/Google 廣告 Lead），可以直接沿用不用重新設計。
+
+`converted_visit_id` 對應 hstd 既有的 `markReservationConverted` 邏輯——預約到訪後轉換成
+一筆正式 `visits`，兩者用這個欄位關聯，方便統計「預約到訪率」。
+
 ---
 
-## 16. 跨表清理事項總表
+## 19. 跨表清理事項總表
 
 | 問題 | 影響範圍 | 處理方式 |
 |---|---|---|
@@ -231,3 +288,6 @@ Sheets 並存到 V2.2 之後再評估是否要保留這張表**。
 | `Audit_Log.display_name` 實際存錯值 | Audit_Log | 不搬這個欄位值，join users 即時取得 |
 | jltx 專屬 6 欄位 vs hstd 沒有 | Customer_Data | 保留在 visits 表，hstd 資料這些欄位留空即可，未來相容 |
 | `Contact_Log`/`Deal_Detail` 目前對 `customer_id`（某次來訪）而非對人 | Contact_Log, Deal_Detail | 新表一律改成對 `person_id`，避免同人不同來訪的追蹤/成交紀錄被切散 |
+| 同一人可能同時是 hstd、jltx 兩案場客戶，但只有一套「進度」概念 | Customer_Data | 新增 customer_project_profiles，人與案場關係分層，各案場獨立 stage/owner/來源 |
+| 手機/身份去重只是「提醒」不是強制 | Customer_Data 的 duplicate_phone 提示 | 新增 customer_identities，`(type, value)` 唯一索引強制去重 |
+| hstd 有預約賞屋、jltx 沒有，未來要合併 schema 會補表 | Reservation（僅 hstd） | 現在就建 reservations 表，jltx 先不用但預留 |

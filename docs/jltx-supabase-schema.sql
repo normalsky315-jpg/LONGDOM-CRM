@@ -9,6 +9,13 @@
 --   3. 新增 units 主檔，取代自由文字戶別欄位
 --   4. 非客戶核心資料（tasks/daily_reports/maintenance/leave/calendar）
 --      先建表但視為低優先，可延後搬遷或繼續留在 Google Sheets
+--   5. customer_project_profiles：人（persons）與案場關係（stage/負責業務/來源/熱度）分層，
+--      因為 hstd、jltx 未來共用同一批人時，同一人在不同案場可能有不同的 stage/owner
+--   6. customer_identities：多重身份（電話/LINE/email）獨立於 persons，供去重與未來多管道識別
+--   7. reservations：hstd 既有「預約賞屋」功能，jltx 目前沒有，但先預留同一張表，
+--      避免未來 hstd 併入同一套 schema 時要臨時補表
+--   8. Sales Pipeline 標準化 stage（NEW→...→CLOSED，side exits DORMANT/LOST/REFUND）
+--      放在 customer_project_profiles，取代原本零散的 deal_status 快照
 -- =====================================================================
 
 create extension if not exists "pgcrypto"; -- for gen_random_uuid()
@@ -112,6 +119,44 @@ create index visits_project_id_idx on visits (project_id);
 create index visits_visited_at_idx on visits (visited_at);
 
 -- ---------------------------------------------------------------------
+-- 2.5 customer_identities / customer_project_profiles
+--     多重身份表 + 客戶對案場的關係層（人與案場關係分開，而非全部塞在 persons）
+-- ---------------------------------------------------------------------
+
+create table customer_identities (
+    id          uuid primary key default gen_random_uuid(),
+    person_id   uuid not null references persons(id),
+    type        text not null check (type in ('phone','line','email')),
+    value       text not null,                     -- phone 存正規化後的值
+    verified    boolean not null default false,
+    created_at  timestamptz not null default now(),
+    unique (type, value)                            -- 同一支手機/LINE ID 不會綁兩個人，去重靠這裡
+);
+
+create index customer_identities_person_id_idx on customer_identities (person_id);
+
+create table customer_project_profiles (
+    id                  uuid primary key default gen_random_uuid(),
+    person_id           uuid not null references persons(id),
+    project_id          uuid not null references projects(id),
+    stage               text not null default 'NEW' check (stage in (
+                             'NEW','CONTACTED','VISITED','INTERESTED','REVISIT',
+                             'NEGOTIATION','RESERVED','PENDING_CONTRACT','SIGNED',
+                             'CLOSED','DORMANT','LOST','REFUND'
+                         )),
+    assigned_sales_id   uuid references users(id),  -- 對應舊 Customer_Data.sales_line_user_id
+    lead_source         text,                        -- 對應舊 Customer_Data.source（案場關係層，非單次來訪）
+    lead_score          int,                         -- V2.3 Lead Score Rule Engine 寫入
+    temperature         text check (temperature in ('HOT','WARM','NURTURE')),
+    last_activity_at    timestamptz,
+    created_at          timestamptz not null default now(),
+    updated_at          timestamptz not null default now(),
+    unique (person_id, project_id)                  -- 一人在同一案場只有一筆關係記錄
+);
+
+create index customer_project_profiles_project_stage_idx on customer_project_profiles (project_id, stage);
+
+-- ---------------------------------------------------------------------
 -- 3. units / person_unit_interests  ← 新增，舊系統無結構化戶別主檔
 -- ---------------------------------------------------------------------
 
@@ -171,6 +216,30 @@ create table followups (
 create index followups_due_at_idx on followups (due_at) where status = 'pending';
 
 -- ---------------------------------------------------------------------
+-- 4.5 reservations  ← hstd 既有「預約賞屋」，jltx 目前沒有，先預留同一張表
+-- ---------------------------------------------------------------------
+
+create table reservations (
+    id                      uuid primary key default gen_random_uuid(),
+    legacy_reservation_id   text,
+    person_id               uuid not null references persons(id),
+    project_id              uuid not null references projects(id),
+    scheduled_date          date not null,
+    scheduled_time          text,
+    source                  text,
+    note                    text,
+    status                  text not null default '預約' check (status in ('預約','已到訪','取消','爽約')),
+    converted_visit_id      uuid references visits(id),  -- 對應 hstd markReservationConverted 邏輯
+    sales_user_id           uuid references users(id),
+    created_by_user_id      uuid references users(id),
+    created_at              timestamptz not null default now(),
+    updated_at              timestamptz not null default now()
+);
+
+create index reservations_person_id_idx on reservations (person_id);
+create index reservations_scheduled_date_idx on reservations (scheduled_date);
+
+-- ---------------------------------------------------------------------
 -- 5. deals  ← Deal_Detail
 -- ---------------------------------------------------------------------
 
@@ -207,7 +276,7 @@ create table activities (
     id              uuid primary key default gen_random_uuid(),
     person_id       uuid not null references persons(id),
     project_id      uuid not null references projects(id),
-    activity_type   text not null check (activity_type in ('visit','contact','deal','message')),
+    activity_type   text not null check (activity_type in ('visit','contact','deal','message','reservation')),
     ref_table       text not null,                 -- 'visits' / 'contacts' / 'deals' / ...
     ref_id          uuid not null,
     occurred_at     timestamptz not null,
@@ -324,3 +393,6 @@ insert into organizations (name) values ('龍登國際') returning id;
 -- insert into units (project_id, building, unit_type, floor)
 -- select '<jltx project_id>', 'B', t, f
 -- from unnest(array[1,2,3,5]) as t, generate_series(1,9) as f;
+
+-- customer_project_profiles 不需手動 seed，資料搬遷腳本在建立每個 person 時，
+-- 依其 visits.project_id 自動為每個「人 × 案場」組合建一筆，stage 依最新 visit/deal 狀態推算。
