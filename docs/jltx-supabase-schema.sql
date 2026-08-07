@@ -160,15 +160,23 @@ create index customer_project_profiles_project_stage_idx on customer_project_pro
 -- 3. units / person_unit_interests  ← 新增，舊系統無結構化戶別主檔
 -- ---------------------------------------------------------------------
 
+-- 實際戶數共 105 戶（非單純 building×type×floor 全組合），例外規則：
+--   A 棟 1 樓：只有 5、6 型（無 1/2/3 型）
+--   B 棟 1 樓：非住宅戶型，是店面「B1」，不屬於 1/2/3/5 型體系
 create table units (
-    id          uuid primary key default gen_random_uuid(),
-    project_id  uuid not null references projects(id),
-    building    text not null check (building in ('A','B')),
-    unit_type   int not null,                      -- A: 1,2,3,5,6 / B: 1,2,3,5（無6型）
-    floor       int not null,                      -- A: 1-15 / B: 1-9
-    status      text not null default 'available' check (status in ('available','reserved','sold')),
-    created_at  timestamptz not null default now(),
-    unique (project_id, building, unit_type, floor)
+    id              uuid primary key default gen_random_uuid(),
+    project_id      uuid not null references projects(id),
+    building        text not null check (building in ('A','B')),
+    floor           int not null,                      -- A: 1-15 / B: 1-9
+    unit_type       int,                               -- A: 1,2,3,5,6（1樓只有5,6）/ B: 1,2,3,5（無6型）；店面為 null
+    unit_category   text not null default 'residential' check (unit_category in ('residential','store')),
+    unit_label      text,                               -- 非標準戶型的顯示名稱，如店面「B1」
+    status          text not null default 'available' check (status in ('available','reserved','sold')),
+    created_at      timestamptz not null default now()
+);
+
+create unique index units_unique_idx on units (
+    project_id, building, floor, coalesce(unit_type, -1), coalesce(unit_label, '')
 );
 
 create table person_unit_interests (
@@ -381,18 +389,38 @@ create index audit_log_target_idx on audit_log (target_table, target_id);
 -- =====================================================================
 
 insert into organizations (name) values ('龍登國際') returning id;
--- insert into projects (organization_id, name, code) values ('<上面回傳的 id>', '吉隆天曜', 'JLTX');
 
--- units seed（需在 projects 建好 jltx 那筆後，用其 project_id 執行）：
--- A 棟：戶型 1,2,3,5,6 × 樓層 1-15
--- insert into units (project_id, building, unit_type, floor)
--- select '<jltx project_id>', 'A', t, f
--- from unnest(array[1,2,3,5,6]) as t, generate_series(1,15) as f;
---
--- B 棟：戶型 1,2,3,5（無 6 型）× 樓層 1-9
--- insert into units (project_id, building, unit_type, floor)
--- select '<jltx project_id>', 'B', t, f
--- from unnest(array[1,2,3,5]) as t, generate_series(1,9) as f;
+insert into projects (organization_id, name, code)
+select id, '吉隆天曜', 'JLTX' from organizations where name = '龍登國際'
+returning id;
+
+-- units seed，實際共 105 戶：
+-- A 棟 2-15 樓：戶型 1,2,3,5,6
+insert into units (project_id, building, floor, unit_type, unit_category)
+select p.id, 'A', f, t, 'residential'
+from projects p, unnest(array[1,2,3,5,6]) as t, generate_series(2,15) as f
+where p.name = '吉隆天曜';
+
+-- A 棟 1 樓例外：只有 5、6 型
+insert into units (project_id, building, floor, unit_type, unit_category)
+select p.id, 'A', 1, t, 'residential'
+from projects p, unnest(array[5,6]) as t
+where p.name = '吉隆天曜';
+
+-- B 棟 2-9 樓：戶型 1,2,3,5（無 6 型）
+insert into units (project_id, building, floor, unit_type, unit_category)
+select p.id, 'B', f, t, 'residential'
+from projects p, unnest(array[1,2,3,5]) as t, generate_series(2,9) as f
+where p.name = '吉隆天曜';
+
+-- B 棟 1 樓例外：非住宅戶型，是店面「B1」
+insert into units (project_id, building, floor, unit_type, unit_category, unit_label)
+select p.id, 'B', 1, null, 'store', 'B1'
+from projects p
+where p.name = '吉隆天曜';
+
+-- 驗證：應該剛好 105 戶
+-- select count(*) from units u join projects p on p.id = u.project_id where p.name = '吉隆天曜';
 
 -- customer_project_profiles 不需手動 seed，資料搬遷腳本在建立每個 person 時，
 -- 依其 visits.project_id 自動為每個「人 × 案場」組合建一筆，stage 依最新 visit/deal 狀態推算。

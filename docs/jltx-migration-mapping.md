@@ -203,10 +203,16 @@ Sheets 並存到 V2.2 之後再評估是否要保留這張表**。
 舊系統完全沒有結構化戶別主檔，只在 `Customer_Data.introduced_units`、`deal_unit`、
 `Deal_Detail.unit` 存自由文字，報表時靠 `countByUnitField` 正規表示式即時解析。
 
-新表依 jltx 前端 picker 的組合規則（jltx.html:2224–2235）預先 seed：
+新表依 jltx 前端 picker 的組合規則（jltx.html:2224–2235）預先 seed，並經使用者確認實際銷控後
+修正兩個例外，總數共 **105 戶**：
 
-- A 棟：戶型 ∈ {1, 2, 3, 5, 6}，樓層 1–15 → 5 × 15 = 75 戶
-- B 棟：戶型 ∈ {1, 2, 3, 5}（**無 6 型**），樓層 1–9 → 4 × 9 = 36 戶
+- A 棟 2–15 樓：戶型 ∈ {1, 2, 3, 5, 6} → 5 × 14 = 70 戶
+- A 棟 1 樓（例外）：只有 5、6 型，**沒有 1/2/3 型** → 2 戶
+- B 棟 2–9 樓：戶型 ∈ {1, 2, 3, 5}（**無 6 型**）→ 4 × 8 = 32 戶
+- B 棟 1 樓（例外）：不是住宅戶型，是店面「**B1**」，`unit_category='store'`、
+  `unit_type=null`、`unit_label='B1'` → 1 戶
+
+合計 70 + 2 + 32 + 1 = 105 戶，對應 `docs/jltx-supabase-schema.sql` 的 seed 語法。
 
 歷史資料回填：對舊 `Deal_Detail.unit`／`Customer_Data.introduced_units`／`deal_unit` 的自由文字，
 套用與 `countByUnitField` 相同的正規表示式（`/([AB])\s*棟?\s*(\d)/gi`）解析出棟別+戶型，
