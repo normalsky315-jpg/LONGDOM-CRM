@@ -1,7 +1,22 @@
 # 吉隆天曜（jltx）V2 落地步驟
 
-> 本文件只描述「接下來要怎麼做」，本階段**不執行**任何一步。對照文件：
-> `docs/jltx-migration-mapping.md`（欄位對照）、`docs/jltx-supabase-schema.sql`（DDL 草稿）。
+> 對照文件：`docs/jltx-migration-mapping.md`（欄位對照）、`docs/jltx-supabase-schema.sql`（DDL）。
+
+## 目前進度
+
+- ✅ **Step 1**：Supabase 專案已建立，schema 已執行，`organizations`/`projects`/`units`（105 戶）已 seed
+- ✅ **Step 2**：一次性歷史資料搬遷已完成（`gas-updates/jltx_migration_v1.gs`），
+  34 筆 Customer_Data → 33 位客戶、34 筆來訪，已寫入 Supabase
+- ✅ **Step 3**：GAS 雙寫已實作（`gas-updates/jltx_dualwrite_v1.gs`），接上
+  `appendCustomerData`/`updateCustomerData`/`appendContactLog`/`saveDealDetail` 四個寫入點
+- ✅ **Customer 360 頁面雛形**：`customer360.html`（獨立頁面，透過 GAS 新增的
+  `searchCustomer360`/`getCustomer360Detail` 兩個 action 查詢 Supabase）
+- ⏳ **待辦**：把 `jltx_dualwrite_v1.gs` 貼進 Apps Script 專案、更新
+  `jltx_v9.8_full.gs`、**重新部署**（這步跟搬遷腳本不同，因為改到 doGet/doPost
+  路由，需要「管理部署 → 編輯現有部署」才會生效），以及把 `customer360.html`
+  上傳到現有的靜態網站託管
+
+以下維持原本的規劃順序說明，供之後回顧脈絡使用。
 
 ## 整體順序
 

@@ -135,6 +135,13 @@ function dwFindUserId_(lineUserId, displayName) {
   return inserted[0].id;
 }
 
+// 唯讀版本，查詢時用（不會像 dwFindUserId_ 一樣在查無資料時建立新使用者）
+function dwLookupUserId_(lineUserId) {
+  if (!lineUserId) return null;
+  var rows = dwGet_('users', 'line_user_id=eq.' + encodeURIComponent(lineUserId) + '&select=id');
+  return rows.length ? rows[0].id : null;
+}
+
 // 只往「更進階」的方向更新 stage，避免舊資料的一筆小修改把已經到 SIGNED 的人打回去
 function dwUpsertProfile_(personId, projectId, opts) {
   var existing = dwGet_('customer_project_profiles',
@@ -357,5 +364,115 @@ function dwSyncDeal_(row) {
     });
   } catch (err) {
     Logger.log('[Supabase雙寫失敗] dwSyncDeal_ (deal_id=' + row.deal_id + '): ' + err);
+  }
+}
+
+// =====================================================================
+// Customer 360 查詢（讀取，供 customer360.html 使用）
+// 這兩個函式是唯讀查詢，跟上面的 dwSyncXxx_() 不同，失敗時要正常回傳
+// fail()，讓前端知道查詢失敗，不能靜默吞掉。
+// =====================================================================
+
+// 依姓名或電話搜尋客戶，回傳符合的候選清單（不含完整時間軸）
+function searchCustomer360(payload) {
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    var query = String(payload.query || '').trim();
+    if (!query) return fail('請輸入姓名或電話');
+
+    var projectId = dwGetProjectId_();
+    var personIds;
+
+    var normPhone = dwNormalizePhone_(query);
+    if (normPhone && normPhone.length >= 8) {
+      var idRows = dwGet_('customer_identities',
+        'type=eq.phone&value=eq.' + encodeURIComponent(normPhone) + '&select=person_id');
+      personIds = idRows.map(function (r) { return r.person_id; });
+    } else {
+      var personRows = dwGet_('persons', 'name=ilike.*' + encodeURIComponent(query) + '*&select=id');
+      personIds = personRows.map(function (r) { return r.id; });
+    }
+    if (!personIds.length) return ok({ results: [] });
+
+    var profiles = dwGet_('customer_project_profiles',
+      'project_id=eq.' + projectId + '&person_id=in.(' + personIds.join(',') + ')' +
+      '&select=person_id,stage,assigned_sales_id,last_activity_at');
+
+    if (ctx.role === CONFIG.ROLES.SALES) {
+      var myUserId = dwLookupUserId_(ctx.lineUserId);
+      profiles = profiles.filter(function (p) { return myUserId && p.assigned_sales_id === myUserId; });
+    }
+    if (!profiles.length) return ok({ results: [] });
+
+    var matchedIds = profiles.map(function (p) { return p.person_id; });
+    var persons = dwGet_('persons', 'id=in.(' + matchedIds.join(',') + ')&select=id,name,phone,district');
+    var byId = {};
+    persons.forEach(function (p) { byId[p.id] = p; });
+
+    var results = profiles.map(function (p) {
+      var person = byId[p.person_id] || {};
+      return {
+        person_id: p.person_id,
+        name: person.name || '',
+        phone: person.phone || '',
+        district: person.district || '',
+        stage: p.stage,
+        last_activity_at: p.last_activity_at
+      };
+    });
+    results.sort(function (a, b) { return new Date(b.last_activity_at || 0) - new Date(a.last_activity_at || 0); });
+
+    return ok({ results: results });
+  } catch (err) {
+    return fail('查詢失敗：' + err.message);
+  }
+}
+
+// 取得單一客戶完整 Customer 360：基本資料 + 案場關係 + 合併時間軸
+function getCustomer360Detail(payload) {
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (!payload.person_id) return fail('person_id 必填');
+
+    var projectId = dwGetProjectId_();
+    var profiles = dwGet_('customer_project_profiles',
+      'person_id=eq.' + payload.person_id + '&project_id=eq.' + projectId + '&select=*');
+    if (!profiles.length) return fail('找不到這位客戶的案場關係資料');
+    var profile = profiles[0];
+
+    if (ctx.role === CONFIG.ROLES.SALES) {
+      var myUserId = dwLookupUserId_(ctx.lineUserId);
+      if (!myUserId || profile.assigned_sales_id !== myUserId) return fail('無權限查看此客戶');
+    }
+
+    var persons = dwGet_('persons', 'id=eq.' + payload.person_id + '&select=*');
+    if (!persons.length) return fail('找不到客戶資料');
+    var person = persons[0];
+
+    var visits = dwGet_('visits', 'person_id=eq.' + payload.person_id + '&order=visited_at.asc&select=*');
+    var contacts = dwGet_('contacts', 'person_id=eq.' + payload.person_id + '&order=contacted_at.asc&select=*');
+    var deals = dwGet_('deals', 'person_id=eq.' + payload.person_id + '&order=created_at.asc&select=*');
+    var followups = dwGet_('followups',
+      'person_id=eq.' + payload.person_id + '&status=eq.pending&order=due_at.asc&select=*');
+    var interests = dwGet_('person_unit_interests', 'person_id=eq.' + payload.person_id + '&select=raw_text,unit_id');
+
+    var timeline = [];
+    visits.forEach(function (v) {
+      timeline.push({ type: v.visit_type === '回籠' ? '回籠' : '初訪', date: v.visited_at, detail: v.status_note || v.note || '' });
+    });
+    contacts.forEach(function (c) {
+      timeline.push({ type: '聯絡：' + c.method, date: c.contacted_at, detail: c.note || '' });
+    });
+    deals.forEach(function (d) {
+      var label = '成交：' + (d.contract_status || '') + (d.status === '退戶' ? '（已退戶）' : '');
+      timeline.push({ type: label, date: d.signed_date || d.expected_sign_date || d.created_at, detail: '總價 ' + (d.deal_price || '未定') });
+    });
+    timeline.sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
+
+    return ok({ person: person, profile: profile, timeline: timeline, followups: followups, interests: interests });
+  } catch (err) {
+    return fail('查詢失敗：' + err.message);
   }
 }

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Customer 360 | 吉隆天曜</title>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --text: #1f2430; --muted: #6b7280;
+    --border: #e5e7eb; --accent: #2563eb; --accent-bg: #eff6ff;
+    --hot: #dc2626; --warm: #d97706; --nurture: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: var(--bg); color: var(--text);
+  }
+  .topbar {
+    position: sticky; top: 0; z-index: 10; background: var(--card); border-bottom: 1px solid var(--border);
+    padding: 14px 16px; display: flex; align-items: center; gap: 10px;
+  }
+  .topbar h1 { font-size: 17px; margin: 0; flex: 1; }
+  .topbar .back { cursor: pointer; color: var(--accent); font-size: 14px; padding: 4px 8px; }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 16px; }
+  .search-box { display: flex; gap: 8px; margin-bottom: 16px; }
+  .search-box input {
+    flex: 1; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 15px;
+  }
+  .search-box button {
+    padding: 12px 18px; border: none; border-radius: 10px; background: var(--accent); color: #fff;
+    font-size: 15px; cursor: pointer;
+  }
+  .search-box button:disabled { opacity: .5; }
+  .hint { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
+    margin-bottom: 10px; cursor: pointer;
+  }
+  .card:active { background: var(--accent-bg); }
+  .card .row1 { display: flex; justify-content: space-between; align-items: center; }
+  .card .name { font-size: 16px; font-weight: 600; }
+  .card .phone { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .badge {
+    font-size: 12px; padding: 3px 10px; border-radius: 999px; color: #fff; white-space: nowrap;
+  }
+  .badge.stage-NEW, .badge.stage-CONTACTED { background: var(--nurture); }
+  .badge.stage-VISITED, .badge.stage-INTERESTED, .badge.stage-REVISIT { background: var(--warm); }
+  .badge.stage-NEGOTIATION, .badge.stage-RESERVED, .badge.stage-PENDING_CONTRACT { background: var(--accent); }
+  .badge.stage-SIGNED, .badge.stage-CLOSED { background: #16a34a; }
+  .badge.stage-DORMANT, .badge.stage-LOST, .badge.stage-REFUND { background: #9ca3af; }
+  .empty { text-align: center; color: var(--muted); padding: 40px 0; font-size: 14px; }
+  .detail-header { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+  .detail-header .name { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .detail-header .meta { color: var(--muted); font-size: 13px; line-height: 1.8; }
+  .section-title { font-size: 14px; font-weight: 700; color: var(--muted); margin: 20px 0 8px; letter-spacing: .5px; }
+  .timeline { position: relative; padding-left: 20px; }
+  .timeline::before { content: ''; position: absolute; left: 5px; top: 4px; bottom: 4px; width: 2px; background: var(--border); }
+  .tl-item { position: relative; margin-bottom: 16px; }
+  .tl-item::before { content: ''; position: absolute; left: -20px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+  .tl-item .tl-date { font-size: 12px; color: var(--muted); }
+  .tl-item .tl-type { font-size: 15px; font-weight: 600; margin: 2px 0; }
+  .tl-item .tl-detail { font-size: 14px; color: var(--text); }
+  .chip-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { background: var(--accent-bg); color: var(--accent); font-size: 13px; padding: 4px 10px; border-radius: 8px; }
+  .loading, .error { text-align: center; padding: 40px 0; color: var(--muted); font-size: 14px; }
+  .error { color: var(--hot); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="back" id="backBtn" style="display:none;">‹ 返回</span>
+  <h1 id="pageTitle">Customer 360</h1>
+</div>
+
+<div class="wrap">
+  <div id="loginScreen" class="loading">登入中...</div>
+
+  <div id="searchScreen" style="display:none;">
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="輸入客戶姓名或電話" autocomplete="off">
+      <button id="searchBtn" onclick="doSearch()">搜尋</button>
+    </div>
+    <div class="hint">輸入完整或部分姓名、或電話號碼即可查詢</div>
+    <div id="resultsList"></div>
+  </div>
+
+  <div id="detailScreen" style="display:none;"></div>
+</div>
+
+<script>
+/* ============================================================
+ * Customer 360（吉隆天曜）— 獨立頁面，讀取 Supabase 上已搬遷/雙寫的資料
+ * 沿用 jltx.html 同一套 GAS_URL / LIFF_ID / STORAGE_KEY，登入狀態共用，
+ * 不需要另外登入一次。後端查詢邏輯見 gas-updates/jltx_dualwrite_v1.gs
+ * 的 searchCustomer360 / getCustomer360Detail。
+ * ============================================================ */
+
+var GAS_URL     = 'https://script.google.com/macros/s/AKfycby3sq5K_dXgwgZNn_HbOmia9Ek20HwTM-0qkcl5g0aNsS7VS0GkdVqsRp-Lpw-SGM-I/exec';
+var LIFF_ID     = '2009971664-r6Xh3Gfi';
+var TTL_DAYS    = 365;
+var STORAGE_KEY = 'long_dorn_crm_jltx';
+
+var state = { lineUserId: '' };
+
+var STAGE_LABEL = {
+  NEW: '新名單', CONTACTED: '已聯絡', VISITED: '已來訪', INTERESTED: '有興趣',
+  REVISIT: '回籠中', NEGOTIATION: '議價中', RESERVED: '已下訂',
+  PENDING_CONTRACT: '待簽約', SIGNED: '已簽約', CLOSED: '已結案',
+  DORMANT: '沉睡', LOST: '流失', REFUND: '已退戶'
+};
+
+window.addEventListener('DOMContentLoaded', function () { initApp(); });
+
+async function initApp() {
+  try {
+    await Promise.race([
+      liff.init({ liffId: LIFF_ID }),
+      new Promise(function (_, reject) { setTimeout(function () { reject(new Error('timeout')); }, 6000); })
+    ]);
+    if (liff.isLoggedIn()) {
+      try { var profile = await liff.getProfile(); state.lineUserId = profile.userId; } catch (e) {}
+    } else {
+      liff.login();
+      return;
+    }
+  } catch (err) {
+    console.warn('LIFF init failed:', err.message);
+  }
+
+  if (!state.lineUserId) {
+    var saved = loadSession();
+    if (saved && saved.lineUserId) state.lineUserId = saved.lineUserId;
+  }
+
+  if (!state.lineUserId) {
+    showError('尚未登入，請先開啟 jltx 系統登入一次再回來這頁。');
+    return;
+  }
+
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('searchScreen').style.display = 'block';
+  document.getElementById('searchInput').focus();
+  document.getElementById('searchInput').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') doSearch();
+  });
+}
+
+function loadSession() {
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    var d = JSON.parse(raw);
+    if (Date.now() > d.expiresAt) return null;
+    return d;
+  } catch (e) { return null; }
+}
+
+function showError(msg) {
+  document.getElementById('loginScreen').innerHTML = '<div class="error">' + msg + '</div>';
+}
+
+function gasGet(action, params) {
+  return new Promise(function (resolve, reject) {
+    var url = GAS_URL + '?action=' + encodeURIComponent(action);
+    Object.keys(params || {}).forEach(function (k) {
+      if (params[k] != null) url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    });
+    fetch(url).then(function (r) { return r.json(); }).then(resolve).catch(reject);
+  });
+}
+
+function doSearch() {
+  var q = document.getElementById('searchInput').value.trim();
+  if (!q) return;
+  var btn = document.getElementById('searchBtn');
+  btn.disabled = true;
+  document.getElementById('resultsList').innerHTML = '<div class="loading">搜尋中...</div>';
+
+  gasGet('searchCustomer360', { lineUserId: state.lineUserId, query: q })
+    .then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { document.getElementById('resultsList').innerHTML = '<div class="error">' + (res.error || '查詢失敗') + '</div>'; return; }
+      renderResults(res.data.results || []);
+    })
+    .catch(function () {
+      btn.disabled = false;
+      document.getElementById('resultsList').innerHTML = '<div class="error">網路錯誤，請再試一次</div>';
+    });
+}
+
+function renderResults(results) {
+  var el = document.getElementById('resultsList');
+  if (!results.length) { el.innerHTML = '<div class="empty">找不到符合的客戶</div>'; return; }
+  el.innerHTML = results.map(function (r) {
+    return '<div class="card" onclick="openDetail(\'' + r.person_id + '\')">' +
+      '<div class="row1">' +
+        '<div class="name">' + escapeHtml(r.name || '（未填姓名）') + '</div>' +
+        '<span class="badge stage-' + r.stage + '">' + (STAGE_LABEL[r.stage] || r.stage) + '</span>' +
+      '</div>' +
+      '<div class="phone">' + escapeHtml(r.phone || '') + (r.district ? '　' + escapeHtml(r.district) : '') + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function openDetail(personId) {
+  document.getElementById('searchScreen').style.display = 'none';
+  document.getElementById('detailScreen').style.display = 'block';
+  document.getElementById('detailScreen').innerHTML = '<div class="loading">載入中...</div>';
+  document.getElementById('backBtn').style.display = 'inline';
+  document.getElementById('pageTitle').textContent = '客戶詳情';
+
+  gasGet('getCustomer360Detail', { lineUserId: state.lineUserId, person_id: personId })
+    .then(function (res) {
+      if (!res.ok) { document.getElementById('detailScreen').innerHTML = '<div class="error">' + (res.error || '查詢失敗') + '</div>'; return; }
+      renderDetail(res.data);
+    })
+    .catch(function () {
+      document.getElementById('detailScreen').innerHTML = '<div class="error">網路錯誤，請再試一次</div>';
+    });
+}
+
+function renderDetail(data) {
+  var p = data.person, profile = data.profile;
+  var html = '';
+
+  html += '<div class="detail-header">';
+  html += '<div class="name">' + escapeHtml(p.name || '（未填姓名）') +
+    ' <span class="badge stage-' + profile.stage + '">' + (STAGE_LABEL[profile.stage] || profile.stage) + '</span></div>';
+  html += '<div class="meta">';
+  html += '電話：' + escapeHtml(p.phone || '未填') + '<br>';
+  html += '居住區：' + escapeHtml(p.district || '未填') + '<br>';
+  html += '來源：' + escapeHtml(profile.lead_source || '未填') + '<br>';
+  html += '最後互動：' + formatDate(profile.last_activity_at);
+  html += '</div></div>';
+
+  if (data.interests && data.interests.length) {
+    html += '<div class="section-title">產品興趣</div>';
+    html += '<div class="chip-list">' + data.interests.map(function (i) {
+      return '<span class="chip">' + escapeHtml(i.raw_text || '') + '</span>';
+    }).join('') + '</div>';
+  }
+
+  if (data.followups && data.followups.length) {
+    html += '<div class="section-title">待追蹤</div>';
+    html += data.followups.map(function (f) {
+      return '<div class="card">' + formatDate(f.due_at) + '　' + escapeHtml(f.plan_note || '（無備註）') + '</div>';
+    }).join('');
+  }
+
+  html += '<div class="section-title">時間軸</div>';
+  if (!data.timeline.length) {
+    html += '<div class="empty">尚無紀錄</div>';
+  } else {
+    html += '<div class="timeline">' + data.timeline.map(function (t) {
+      return '<div class="tl-item">' +
+        '<div class="tl-date">' + formatDate(t.date) + '</div>' +
+        '<div class="tl-type">' + escapeHtml(t.type) + '</div>' +
+        (t.detail ? '<div class="tl-detail">' + escapeHtml(t.detail) + '</div>' : '') +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  document.getElementById('detailScreen').innerHTML = html;
+}
+
+document.getElementById('backBtn').addEventListener('click', function () {
+  document.getElementById('detailScreen').style.display = 'none';
+  document.getElementById('searchScreen').style.display = 'block';
+  document.getElementById('backBtn').style.display = 'none';
+  document.getElementById('pageTitle').textContent = 'Customer 360';
+});
+
+function formatDate(v) {
+  if (!v) return '';
+  var d = new Date(v);
+  if (isNaN(d.getTime())) return String(v);
+  return d.getFullYear() + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0');
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+</script>
+</body>
+</html>
