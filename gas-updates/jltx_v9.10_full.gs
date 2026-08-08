@@ -1,5 +1,19 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.9
+//  龍登 CRM — 吉隆天曜專用版 v9.10
+//  v9.10 變更：Customer 360 總覽列表加上客戶背景輪廓統計：
+//    新增 getMyCustomerStats（已接上 doGet 路由 case
+//    'getMyCustomerStats'），跟 getMyCustomerOverview 同一份客戶名單、
+//    同一套權限規則（業務限自己名下、主管/admin 看整個案場），統計：
+//      - by_district：居住行政區分布（取每人最近一筆來訪的 district_at_visit）
+//      - by_source：來源管道分布（取每人最近一筆來訪的 source）
+//      - by_age_range：年齡區間分布（取每人最近一筆來訪的 age_range）
+//      - by_unit_type：感興趣戶型分布（沿用既有 countByUnitField 模糊
+//        比對規則，只看棟別＋戶型，暫不要求樓層）
+//    用意是讓業務/主管打開總覽列表時，除了看到「誰要聯絡」，也能一眼
+//    看出這批客戶的輪廓（哪個區域/媒體/年齡層/戶型特別集中），作為
+//    後續開發方向的參考依據。抽出共用函式 dwGetVisibleProfiles_，
+//    getMyCustomerOverview／getMyCustomerStats 共用同一套 ACL 篩選邏輯。
+//    實際查詢邏輯都在 jltx_dualwrite_v1.gs
 //  v9.9 變更：Customer 360 新增總覽列表：
 //    新增 getMyCustomerOverview（已接上 doGet 路由 case
 //    'getMyCustomerOverview'）：列出使用者權限範圍內的所有客戶，
@@ -445,6 +459,8 @@ function doGet(e) {
         return jsonResponse(searchMyCustomers(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId, keyword: e.parameter.keyword }));
       case 'getMyCustomerOverview':
         return jsonResponse(getMyCustomerOverview(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
+      case 'getMyCustomerStats':
+        return jsonResponse(getMyCustomerStats(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
       case 'searchCustomer360':
         return jsonResponse(searchCustomer360(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId, query: e.parameter.query }));
       case 'getCustomer360Detail':
