@@ -126,20 +126,35 @@ function dwFindOrCreatePerson_(name, phone, district, source) {
   return personId;
 }
 
+// 同一次執行（同一個 request）內常會重複查同一個 line_user_id
+// （例如業務自己接待自己新增，sales_line_user_id === created_by_line_user_id），
+// 用這個快取避免對同一個人重複打 API，減少雙寫拖慢回應時間的風險。
+var DW_USER_ID_CACHE_ = {};
+
 function dwFindUserId_(lineUserId, displayName) {
   if (!lineUserId) return null;
+  if (DW_USER_ID_CACHE_[lineUserId]) return DW_USER_ID_CACHE_[lineUserId];
   var rows = dwGet_('users', 'line_user_id=eq.' + encodeURIComponent(lineUserId) + '&select=id');
-  if (rows.length) return rows[0].id;
-  var inserted = dwInsert_('users',
-    [{ line_user_id: lineUserId, display_name: displayName || '', role: 'sales', status: 'active' }], 'line_user_id');
-  return inserted[0].id;
+  var id;
+  if (rows.length) {
+    id = rows[0].id;
+  } else {
+    var inserted = dwInsert_('users',
+      [{ line_user_id: lineUserId, display_name: displayName || '', role: 'sales', status: 'active' }], 'line_user_id');
+    id = inserted[0].id;
+  }
+  DW_USER_ID_CACHE_[lineUserId] = id;
+  return id;
 }
 
 // 唯讀版本，查詢時用（不會像 dwFindUserId_ 一樣在查無資料時建立新使用者）
 function dwLookupUserId_(lineUserId) {
   if (!lineUserId) return null;
+  if (DW_USER_ID_CACHE_[lineUserId]) return DW_USER_ID_CACHE_[lineUserId];
   var rows = dwGet_('users', 'line_user_id=eq.' + encodeURIComponent(lineUserId) + '&select=id');
-  return rows.length ? rows[0].id : null;
+  var id = rows.length ? rows[0].id : null;
+  if (id) DW_USER_ID_CACHE_[lineUserId] = id;
+  return id;
 }
 
 // 只往「更進階」的方向更新 stage，避免舊資料的一筆小修改把已經到 SIGNED 的人打回去
@@ -203,10 +218,14 @@ function dwSyncVisitCreate_(row) {
     }]);
 
     if (row.introduced_units) {
-      String(row.introduced_units).split(/[、,\/]/).map(function (s) { return s.trim(); })
-        .filter(function (s) { return s; }).forEach(function (piece) {
-          dwInsert_('person_unit_interests', [{ person_id: personId, unit_id: null, raw_text: piece }]);
-        });
+      var pieces = String(row.introduced_units).split(/[、,\/]/).map(function (s) { return s.trim(); })
+        .filter(function (s) { return s; });
+      if (pieces.length) {
+        // 一次批次寫入，避免每個戶別文字各打一次 API 拖慢回應（曾造成前端逾時重試、產生重複客戶）
+        dwInsert_('person_unit_interests', pieces.map(function (piece) {
+          return { person_id: personId, unit_id: null, raw_text: piece };
+        }));
+      }
     }
 
     dwUpsertProfile_(personId, projectId, {
