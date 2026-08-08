@@ -400,7 +400,7 @@ function createPersonsAndVisits_(base, key, groups, projectId, userIdMap, review
 // 對應 countByUnitField 的解析邏輯（jltx_v9.8_full.gs:1839–1853），
 // 但舊資料通常只有「A3型」這種棟別+戶型，沒有樓層，所以 floor 常會是 null。
 function parseUnitText_(text) {
-  var m = /([AB])\s*棟?\s*(\d)/.exec(text);
+  var m = /([AaBb])\s*棟?\s*(\d)/.exec(text); // 大小寫都接受，對應手打資料常見的 a1/b1 寫法
   if (!m) return null;
   var building = m[1].toUpperCase();
   var unitType = parseInt(m[2], 10);
