@@ -67,7 +67,7 @@
 | `purchase_motive` | `visits.purchase_motive` | text | |
 | `source` | `visits.source`（當次） + `customer_project_profiles.lead_source`（該人在該案場的來源，通常取首次值） | text | `persons.first_source` 額外存一份供快速查詢 |
 | `room_types` | `visits.room_types` | text[] | 舊資料是 `、` join 字串，需拆成陣列 |
-| `budget` | `visits.budget` | numeric，nullable | 舊欄位，jltx 表單已不收集，僅供歷史資料相容 |
+| `budget` | `visits.budget` | text，nullable | 舊欄位，jltx 表單已不收集，僅供歷史資料相容；歷史值常是「800-1000萬」區間文字而非純數字，故用 text |
 | `issues` | `visits.objections` | text[] | 同 room_types 拆陣列 |
 | `revisit_plan` | `followups.plan_note`（見 followups 表） | text | 移到 followups，而非留在 visit |
 | `deal_status` | `visits.deal_status_snapshot`（僅存查） + `customer_project_profiles.stage` | text | 真正的「這個人在這個案場走到哪一步」以 `customer_project_profiles.stage` 為準，見 §17 |

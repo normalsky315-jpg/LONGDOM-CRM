@@ -99,7 +99,7 @@ create table visits (
     purchase_motive         text,
     source                  text,
     room_types              text[],
-    budget                  numeric,               -- 舊欄位相容，jltx 表單已不收集
+    budget                  text,                  -- 舊欄位相容，jltx 表單已不收集；歷史資料常是「800-1000萬」這種區間文字，故用 text 不用 numeric
     objections              text[],
     deal_status_snapshot    text,
     status_note             text,
