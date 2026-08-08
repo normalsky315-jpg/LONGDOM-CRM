@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Customer 360 | 吉隆天曜</title>
-<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
   :root {
     --bg: #f4f5f7; --card: #ffffff; --text: #1f2430; --muted: #6b7280;
@@ -92,13 +91,14 @@
 <script>
 /* ============================================================
  * Customer 360（吉隆天曜）— 獨立頁面，讀取 Supabase 上已搬遷/雙寫的資料
- * 沿用 jltx.html 同一套 GAS_URL / LIFF_ID / STORAGE_KEY，登入狀態共用，
- * 不需要另外登入一次。後端查詢邏輯見 gas-updates/jltx_dualwrite_v1.gs
+ * 沿用 jltx.html 同一套 GAS_URL / STORAGE_KEY，登入狀態共用（同網域
+ * localStorage 共用），不需要另外登入一次，也刻意不呼叫 LIFF 登入
+ * （LIFF 的登入導向固定綁在 jltx.html 那個網址，在別頁呼叫只會把人
+ * 導回 jltx.html）。後端查詢邏輯見 gas-updates/jltx_dualwrite_v1.gs
  * 的 searchCustomer360 / getCustomer360Detail。
  * ============================================================ */
 
 var GAS_URL     = 'https://script.google.com/macros/s/AKfycby3sq5K_dXgwgZNn_HbOmia9Ek20HwTM-0qkcl5g0aNsS7VS0GkdVqsRp-Lpw-SGM-I/exec';
-var LIFF_ID     = '2009971664-r6Xh3Gfi';
 var TTL_DAYS    = 365;
 var STORAGE_KEY = 'long_dorn_crm_jltx';
 
@@ -113,29 +113,17 @@ var STAGE_LABEL = {
 
 window.addEventListener('DOMContentLoaded', function () { initApp(); });
 
-async function initApp() {
-  try {
-    await Promise.race([
-      liff.init({ liffId: LIFF_ID }),
-      new Promise(function (_, reject) { setTimeout(function () { reject(new Error('timeout')); }, 6000); })
-    ]);
-    if (liff.isLoggedIn()) {
-      try { var profile = await liff.getProfile(); state.lineUserId = profile.userId; } catch (e) {}
-    } else {
-      liff.login();
-      return;
-    }
-  } catch (err) {
-    console.warn('LIFF init failed:', err.message);
-  }
+// 這頁刻意不呼叫 liff.init()/liff.login()。LIFF 的登入導向是綁定在
+// jltx.html 那個網址（LIFF 後台設定的 Endpoint URL），在別的網址呼叫
+// liff.login() 會把使用者導回 jltx.html，而不是留在這一頁。
+// 這頁的正確用法是：先在同一個瀏覽器開過 jltx.html 並登入過，
+// 這裡直接讀取瀏覽器裡已經存在的 session（同網域共用 localStorage）。
+function initApp() {
+  var saved = loadSession();
+  if (saved && saved.lineUserId) state.lineUserId = saved.lineUserId;
 
   if (!state.lineUserId) {
-    var saved = loadSession();
-    if (saved && saved.lineUserId) state.lineUserId = saved.lineUserId;
-  }
-
-  if (!state.lineUserId) {
-    showError('尚未登入，請先開啟 jltx 系統登入一次再回來這頁。');
+    showError('尚未登入。請先開啟 jltx.html 並完成登入，再回來開這一頁（同一個瀏覽器即可，不用重新登入）。');
     return;
   }
 
