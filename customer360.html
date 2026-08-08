@@ -118,12 +118,24 @@ window.addEventListener('DOMContentLoaded', function () { initApp(); });
 // liff.login() 會把使用者導回 jltx.html，而不是留在這一頁。
 // 這頁的正確用法是：先在同一個瀏覽器開過 jltx.html 並登入過，
 // 這裡直接讀取瀏覽器裡已經存在的 session（同網域共用 localStorage）。
+//
+// 測試用後門：正式環境（jltx.html 跟這頁同一個網域）不需要這個，直接
+// 共用登入即可；但在合併前的分支預覽網域上，因為 LIFF 登入一定會被導回
+// 正式網域，沒辦法在預覽網域上真的完成登入、共用 session，所以允許
+// 用網址帶入 ?lineUserId=你的LINE ID 直接測試（在 LINE 官方帳號傳
+// 「我的ID」可以查到自己的 LINE userId）。
 function initApp() {
-  var saved = loadSession();
-  if (saved && saved.lineUserId) state.lineUserId = saved.lineUserId;
+  var urlLineUserId = new URLSearchParams(location.search).get('lineUserId');
+  if (urlLineUserId) state.lineUserId = urlLineUserId;
 
   if (!state.lineUserId) {
-    showError('尚未登入。請先開啟 jltx.html 並完成登入，再回來開這一頁（同一個瀏覽器即可，不用重新登入）。');
+    var saved = loadSession();
+    if (saved && saved.lineUserId) state.lineUserId = saved.lineUserId;
+  }
+
+  if (!state.lineUserId) {
+    showError('尚未登入。請先開啟 jltx.html 並完成登入，再回來開這一頁（同一個瀏覽器即可，不用重新登入）。' +
+      '<br><br>或是在網址後面加上 <code>?lineUserId=你的LINE ID</code> 直接測試。');
     return;
   }
 
