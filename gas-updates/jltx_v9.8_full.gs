@@ -434,6 +434,8 @@ function doGet(e) {
         return jsonResponse(getMyCustomers(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
       case 'searchMyCustomers':
         return jsonResponse(searchMyCustomers(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId, keyword: e.parameter.keyword }));
+      case 'getMyCustomerOverview':
+        return jsonResponse(getMyCustomerOverview(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
       case 'searchCustomer360':
         return jsonResponse(searchCustomer360(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId, query: e.parameter.query }));
       case 'getCustomer360Detail':

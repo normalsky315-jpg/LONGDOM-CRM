@@ -64,6 +64,12 @@
   .chip { background: var(--accent-bg); color: var(--accent); font-size: 13px; padding: 4px 10px; border-radius: 8px; }
   .loading, .error { text-align: center; padding: 40px 0; color: var(--muted); font-size: 14px; }
   .error { color: var(--hot); }
+  .days-badge { font-size: 12px; font-weight: 600; }
+  .days-badge.days-high { color: var(--hot); }
+  .days-badge.days-mid { color: var(--warm); }
+  .days-badge.days-low { color: #16a34a; }
+  .list-title { font-size: 14px; font-weight: 700; color: var(--muted); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+  .list-title .clear-search { color: var(--accent); font-weight: 400; cursor: pointer; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -78,10 +84,10 @@
 
   <div id="searchScreen" style="display:none;">
     <div class="search-box">
-      <input type="text" id="searchInput" placeholder="輸入客戶姓名或電話" autocomplete="off">
+      <input type="text" id="searchInput" placeholder="輸入客戶姓名或電話（留空看全部）" autocomplete="off">
       <button id="searchBtn" onclick="doSearch()">搜尋</button>
     </div>
-    <div class="hint">輸入完整或部分姓名、或電話號碼即可查詢</div>
+    <div id="listTitle" class="list-title"></div>
     <div id="resultsList"></div>
   </div>
 
@@ -141,10 +147,10 @@ function initApp() {
 
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('searchScreen').style.display = 'block';
-  document.getElementById('searchInput').focus();
   document.getElementById('searchInput').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') doSearch();
   });
+  loadOverview();
 }
 
 function loadSession() {
@@ -171,18 +177,34 @@ function gasGet(action, params) {
   });
 }
 
+function loadOverview() {
+  document.getElementById('listTitle').innerHTML = '<span>全部客戶（依最久未聯絡排序）</span>';
+  document.getElementById('resultsList').innerHTML = '<div class="loading">載入中...</div>';
+
+  gasGet('getMyCustomerOverview', { lineUserId: state.lineUserId })
+    .then(function (res) {
+      if (!res.ok) { document.getElementById('resultsList').innerHTML = '<div class="error">' + (res.error || '查詢失敗') + '</div>'; return; }
+      renderResults(res.data.results || [], true);
+    })
+    .catch(function () {
+      document.getElementById('resultsList').innerHTML = '<div class="error">網路錯誤，請再試一次</div>';
+    });
+}
+
 function doSearch() {
   var q = document.getElementById('searchInput').value.trim();
-  if (!q) return;
+  if (!q) { loadOverview(); return; }
+
   var btn = document.getElementById('searchBtn');
   btn.disabled = true;
+  document.getElementById('listTitle').innerHTML = '<span>搜尋結果</span><span class="clear-search" onclick="clearSearch()">清除搜尋，看全部</span>';
   document.getElementById('resultsList').innerHTML = '<div class="loading">搜尋中...</div>';
 
   gasGet('searchCustomer360', { lineUserId: state.lineUserId, query: q })
     .then(function (res) {
       btn.disabled = false;
       if (!res.ok) { document.getElementById('resultsList').innerHTML = '<div class="error">' + (res.error || '查詢失敗') + '</div>'; return; }
-      renderResults(res.data.results || []);
+      renderResults(res.data.results || [], false);
     })
     .catch(function () {
       btn.disabled = false;
@@ -190,9 +212,21 @@ function doSearch() {
     });
 }
 
-function renderResults(results) {
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  loadOverview();
+}
+
+function daysBadge(days) {
+  if (days == null) return '<span class="days-badge days-high">尚無互動紀錄</span>';
+  if (days === 0) return '<span class="days-badge days-low">今天有互動</span>';
+  var cls = days >= 7 ? 'days-high' : (days >= 3 ? 'days-mid' : 'days-low');
+  return '<span class="days-badge ' + cls + '">' + days + ' 天未聯絡</span>';
+}
+
+function renderResults(results, showDays) {
   var el = document.getElementById('resultsList');
-  if (!results.length) { el.innerHTML = '<div class="empty">找不到符合的客戶</div>'; return; }
+  if (!results.length) { el.innerHTML = '<div class="empty">' + (showDays ? '目前沒有客戶資料' : '找不到符合的客戶') + '</div>'; return; }
   el.innerHTML = results.map(function (r) {
     return '<div class="card" onclick="openDetail(\'' + r.person_id + '\')">' +
       '<div class="row1">' +
@@ -200,6 +234,7 @@ function renderResults(results) {
         '<span class="badge stage-' + r.stage + '">' + (STAGE_LABEL[r.stage] || r.stage) + '</span>' +
       '</div>' +
       '<div class="phone">' + escapeHtml(r.phone || '') + (r.district ? '　' + escapeHtml(r.district) : '') + '</div>' +
+      (showDays ? '<div style="margin-top:4px;">' + daysBadge(r.days_since_activity) + '</div>' : '') +
     '</div>';
   }).join('');
 }
