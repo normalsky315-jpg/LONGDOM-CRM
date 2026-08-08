@@ -109,7 +109,11 @@ function sbFetch_(method, base, key, path, payload, extraHeaders) {
   var headers = {
     apikey: key,
     Authorization: 'Bearer ' + key,
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    // Supabase 新版 secret key 會擋掉「看起來像瀏覽器」的請求（偵測 User-Agent 是否含
+    // Mozilla/Chrome 等字樣），GAS UrlFetchApp 預設 User-Agent 會觸發這個保護機制，
+    // 這裡明確指定一個非瀏覽器字串繞過誤判（這是伺服器對伺服器的合法呼叫）。
+    'User-Agent': 'LONGDOM-CRM-Migration-Script/1.0 (Google Apps Script)'
   };
   if (extraHeaders) {
     for (var k in extraHeaders) headers[k] = extraHeaders[k];
