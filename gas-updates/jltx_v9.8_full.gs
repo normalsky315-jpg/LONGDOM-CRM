@@ -434,6 +434,10 @@ function doGet(e) {
         return jsonResponse(getMyCustomers(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
       case 'searchMyCustomers':
         return jsonResponse(searchMyCustomers(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId, keyword: e.parameter.keyword }));
+      case 'searchCustomer360':
+        return jsonResponse(searchCustomer360(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId, query: e.parameter.query }));
+      case 'getCustomer360Detail':
+        return jsonResponse(getCustomer360Detail(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId, person_id: e.parameter.person_id }));
       case 'getRecentCustomers':
         return jsonResponse(getRecentCustomers(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
       case 'getCustomerChangeLogs':
@@ -907,7 +911,7 @@ function appendCustomerData(payload) {
 
     ensureCustomerExtraColumns();
     var customerId = genId('CUST');
-    appendObjectToSheet(CONFIG.SHEETS.CUSTOMER, {
+    var customerRow = {
       customer_id: customerId,
       created_at: nowTW(),
       updated_at: nowTW(),
@@ -943,9 +947,11 @@ function appendCustomerData(payload) {
       linked_customer_id: payload.linked_customer_id || '',
       linked_customer_name: payload.linked_customer_name || '',
       linked_visit_date: payload.linked_visit_date || ''
-    });
+    };
+    appendObjectToSheet(CONFIG.SHEETS.CUSTOMER, customerRow);
     writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.CUSTOMER, customerId,
       ctx.displayName + ' 新增客戶: ' + payload.customer_name);
+    dwSyncVisitCreate_(customerRow); // Supabase 雙寫（失敗不影響上面的 Sheets 寫入結果）
     return ok({ customer_id: customerId, duplicate_phone: dupRecords.length > 0, duplicate_records: dupRecords });
   } catch (err) { Logger.log('appendCustomerData error: ' + err); return fail(err.message); }
 }
@@ -1094,6 +1100,7 @@ function saveDealDetail(payload) {
 
     writeAuditLog(ctx.lineUserId, existing ? 'UPDATE' : 'CREATE', CONFIG.SHEETS.DEAL_DETAIL, row.deal_id,
       ctx.displayName + ' 記錄成交明細：' + row.unit + ' / ' + row.customer_name);
+    dwSyncDeal_(row); // Supabase 雙寫（失敗不影響上面的 Sheets 寫入結果）
     return ok(row);
   } catch (err) { return fail(err.message); }
 }
@@ -1237,6 +1244,7 @@ function appendContactLog(payload) {
     appendObjectToSheet(CONFIG.SHEETS.CONTACT_LOG, row);
     writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.CONTACT_LOG, row.contact_id,
       ctx.displayName + ' 新增客戶追蹤記錄：' + row.customer_name + ' / ' + row.contact_method);
+    dwSyncContact_(row); // Supabase 雙寫（失敗不影響上面的 Sheets 寫入結果）
     return ok(row);
   } catch (err) { return fail(err.message); }
 }
@@ -1482,6 +1490,7 @@ function updateCustomerData(payload) {
     if (!changes.length) return ok({ customer_id: payload.customer_id, message: '無變更' });
 
     updateRowById(CONFIG.SHEETS.CUSTOMER, 'customer_id', payload.customer_id, updates);
+    dwSyncVisitUpdate_(payload.customer_id, updates); // Supabase 雙寫（失敗不影響上面的 Sheets 寫入結果）
 
     var logId = genId('CLOG');
     appendObjectToSheet(CONFIG.SHEETS.CHANGE_LOG, {
