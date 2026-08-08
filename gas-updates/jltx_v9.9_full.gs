@@ -1,5 +1,14 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.8
+//  龍登 CRM — 吉隆天曜專用版 v9.9
+//  v9.9 變更：Customer 360 新增總覽列表：
+//    新增 getMyCustomerOverview（已接上 doGet 路由 case
+//    'getMyCustomerOverview'）：列出使用者權限範圍內的所有客戶，
+//    依「最後互動距今天數」由久到近排序，最需要注意的排最前面，
+//    沒有互動紀錄的視為最需要注意、排最前。業務只看自己名下、
+//    主管/admin 看整個案場（跟其他 getMyCustomers 系列同一套規則）。
+//    對應前端：customer360.html 打開頁面直接顯示總覽列表，不用先
+//    搜尋姓名才有內容；搜尋框留空＝看總覽，輸入關鍵字才切換成搜尋
+//    結果。實際查詢邏輯在 jltx_dualwrite_v1.gs 的 getMyCustomerOverview
 //  v9.8 變更：客戶登記新增「回訪客人關聯」功能：
 //    1. Customer_Data 新增 linked_customer_id／linked_customer_name／
 //       linked_visit_date 三個欄位（透過 ensureCustomerExtraColumns
@@ -434,6 +443,8 @@ function doGet(e) {
         return jsonResponse(getMyCustomers(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
       case 'searchMyCustomers':
         return jsonResponse(searchMyCustomers(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId, keyword: e.parameter.keyword }));
+      case 'getMyCustomerOverview':
+        return jsonResponse(getMyCustomerOverview(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
       case 'searchCustomer360':
         return jsonResponse(searchCustomer360(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId, query: e.parameter.query }));
       case 'getCustomer360Detail':

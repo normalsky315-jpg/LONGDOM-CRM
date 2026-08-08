@@ -388,9 +388,62 @@ function dwSyncDeal_(row) {
 
 // =====================================================================
 // Customer 360 查詢（讀取，供 customer360.html 使用）
-// 這兩個函式是唯讀查詢，跟上面的 dwSyncXxx_() 不同，失敗時要正常回傳
+// 這幾個函式是唯讀查詢，跟上面的 dwSyncXxx_() 不同，失敗時要正常回傳
 // fail()，讓前端知道查詢失敗，不能靜默吞掉。
 // =====================================================================
+
+// 總覽：列出這個使用者權限範圍內的所有客戶，依「最後互動距今天數」
+// 由久到近排序，最需要注意的排最前面。業務只看自己名下的，
+// 主管/admin 看整個案場。這是給打開頁面直接看的預設畫面，不用先搜尋。
+function getMyCustomerOverview(payload) {
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx) return fail('未授權');
+
+    var projectId = dwGetProjectId_();
+    var profiles = dwGet_('customer_project_profiles',
+      'project_id=eq.' + projectId + '&select=person_id,stage,assigned_sales_id,last_activity_at');
+
+    if (ctx.role === CONFIG.ROLES.SALES) {
+      var myUserId = dwLookupUserId_(ctx.lineUserId);
+      profiles = profiles.filter(function (p) { return myUserId && p.assigned_sales_id === myUserId; });
+    }
+    if (!profiles.length) return ok({ results: [] });
+
+    var personIds = profiles.map(function (p) { return p.person_id; });
+    var persons = dwGet_('persons', 'id=in.(' + personIds.join(',') + ')&select=id,name,phone,district');
+    var byId = {};
+    persons.forEach(function (p) { byId[p.id] = p; });
+
+    var now = Date.now();
+    var results = profiles.map(function (p) {
+      var person = byId[p.person_id] || {};
+      var daysSince = p.last_activity_at
+        ? Math.floor((now - new Date(p.last_activity_at).getTime()) / 86400000) : null;
+      return {
+        person_id: p.person_id,
+        name: person.name || '',
+        phone: person.phone || '',
+        district: person.district || '',
+        stage: p.stage,
+        last_activity_at: p.last_activity_at,
+        days_since_activity: daysSince
+      };
+    });
+
+    // 沒有互動紀錄的排最前面（-1 代表「無資料」，視為最需要注意），
+    // 其餘依天數由大到小排（越久沒聯絡的越前面）
+    results.sort(function (a, b) {
+      var da = a.days_since_activity == null ? Number.MAX_SAFE_INTEGER : a.days_since_activity;
+      var db = b.days_since_activity == null ? Number.MAX_SAFE_INTEGER : b.days_since_activity;
+      return db - da;
+    });
+
+    return ok({ results: results });
+  } catch (err) {
+    return fail('查詢失敗：' + err.message);
+  }
+}
 
 // 依姓名或電話搜尋客戶，回傳符合的候選清單（不含完整時間軸）
 function searchCustomer360(payload) {
