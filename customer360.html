@@ -70,6 +70,15 @@
   .days-badge.days-low { color: #16a34a; }
   .list-title { font-size: 14px; font-weight: 700; color: var(--muted); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
   .list-title .clear-search { color: var(--accent); font-weight: 400; cursor: pointer; font-size: 13px; }
+  .stats-panel { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+  .stats-panel .stats-title { font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 10px; }
+  .stats-group { margin-bottom: 10px; }
+  .stats-group:last-child { margin-bottom: 0; }
+  .stats-group .stats-label { font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  .stats-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .stats-tag { background: var(--accent-bg); color: var(--accent); font-size: 12px; padding: 3px 9px; border-radius: 999px; }
+  .stats-tag .n { font-weight: 700; margin-left: 3px; }
+  .stats-toggle { color: var(--accent); font-size: 13px; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -87,6 +96,7 @@
       <input type="text" id="searchInput" placeholder="輸入客戶姓名或電話（留空看全部）" autocomplete="off">
       <button id="searchBtn" onclick="doSearch()">搜尋</button>
     </div>
+    <div id="statsPanel" class="stats-panel" style="display:none;"></div>
     <div id="listTitle" class="list-title"></div>
     <div id="resultsList"></div>
   </div>
@@ -180,6 +190,7 @@ function gasGet(action, params) {
 function loadOverview() {
   document.getElementById('listTitle').innerHTML = '<span>全部客戶（依最久未聯絡排序）</span>';
   document.getElementById('resultsList').innerHTML = '<div class="loading">載入中...</div>';
+  loadStats();
 
   gasGet('getMyCustomerOverview', { lineUserId: state.lineUserId })
     .then(function (res) {
@@ -191,12 +202,48 @@ function loadOverview() {
     });
 }
 
+// 客戶背景輪廓統計（居住區／來源管道／年齡區間／感興趣戶型），只在
+// 看全部客戶（總覽）時顯示，因為統計的意義是「這批客戶的輪廓」，
+// 換成搜尋結果（通常只有 1、2 筆）就沒有參考價值，所以搜尋時直接隱藏
+function loadStats() {
+  var panel = document.getElementById('statsPanel');
+  panel.style.display = 'none';
+
+  gasGet('getMyCustomerStats', { lineUserId: state.lineUserId })
+    .then(function (res) {
+      if (!res.ok || !res.data || !res.data.total) return;
+      panel.innerHTML = renderStatsPanel(res.data);
+      panel.style.display = 'block';
+    })
+    .catch(function () { /* 統計載入失敗不影響主要的客戶列表，靜默略過 */ });
+}
+
+function renderStatsPanel(data) {
+  var groups = [
+    { key: 'by_district', label: '居住區' },
+    { key: 'by_source', label: '來源管道' },
+    { key: 'by_age_range', label: '年齡區間' },
+    { key: 'by_unit_type', label: '感興趣戶型' }
+  ];
+  var html = '<div class="stats-title">客戶輪廓參考（共 ' + data.total + ' 位）</div>';
+  groups.forEach(function (g) {
+    var items = data[g.key] || [];
+    if (!items.length) return;
+    html += '<div class="stats-group"><div class="stats-label">' + g.label + '</div><div class="stats-tags">' +
+      items.slice(0, 8).map(function (i) {
+        return '<span class="stats-tag">' + escapeHtml(i.label) + '<span class="n">' + i.count + '</span></span>';
+      }).join('') + '</div></div>';
+  });
+  return html;
+}
+
 function doSearch() {
   var q = document.getElementById('searchInput').value.trim();
   if (!q) { loadOverview(); return; }
 
   var btn = document.getElementById('searchBtn');
   btn.disabled = true;
+  document.getElementById('statsPanel').style.display = 'none';
   document.getElementById('listTitle').innerHTML = '<span>搜尋結果</span><span class="clear-search" onclick="clearSearch()">清除搜尋，看全部</span>';
   document.getElementById('resultsList').innerHTML = '<div class="loading">搜尋中...</div>';
 

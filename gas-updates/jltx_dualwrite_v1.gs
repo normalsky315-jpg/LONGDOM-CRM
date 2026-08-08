@@ -392,6 +392,21 @@ function dwSyncDeal_(row) {
 // fail()，讓前端知道查詢失敗，不能靜默吞掉。
 // =====================================================================
 
+// 依權限規則（業務限自己名下、主管/admin 看整個案場）取出使用者看得到
+// 的 customer_project_profiles，getMyCustomerOverview／getMyCustomerStats
+// 共用同一套規則，避免兩邊各寫一次日後改規則漏改其中一處。
+function dwGetVisibleProfiles_(ctx, selectFields) {
+  var projectId = dwGetProjectId_();
+  var profiles = dwGet_('customer_project_profiles',
+    'project_id=eq.' + projectId + '&select=' + selectFields);
+
+  if (ctx.role === CONFIG.ROLES.SALES) {
+    var myUserId = dwLookupUserId_(ctx.lineUserId);
+    profiles = profiles.filter(function (p) { return myUserId && p.assigned_sales_id === myUserId; });
+  }
+  return profiles;
+}
+
 // 總覽：列出這個使用者權限範圍內的所有客戶，依「最後互動距今天數」
 // 由久到近排序，最需要注意的排最前面。業務只看自己名下的，
 // 主管/admin 看整個案場。這是給打開頁面直接看的預設畫面，不用先搜尋。
@@ -400,14 +415,7 @@ function getMyCustomerOverview(payload) {
     var ctx = getUserContext(payload.lineUserId);
     if (!ctx) return fail('未授權');
 
-    var projectId = dwGetProjectId_();
-    var profiles = dwGet_('customer_project_profiles',
-      'project_id=eq.' + projectId + '&select=person_id,stage,assigned_sales_id,last_activity_at');
-
-    if (ctx.role === CONFIG.ROLES.SALES) {
-      var myUserId = dwLookupUserId_(ctx.lineUserId);
-      profiles = profiles.filter(function (p) { return myUserId && p.assigned_sales_id === myUserId; });
-    }
+    var profiles = dwGetVisibleProfiles_(ctx, 'person_id,stage,assigned_sales_id,last_activity_at');
     if (!profiles.length) return ok({ results: [] });
 
     var personIds = profiles.map(function (p) { return p.person_id; });
@@ -440,6 +448,66 @@ function getMyCustomerOverview(payload) {
     });
 
     return ok({ results: results });
+  } catch (err) {
+    return fail('查詢失敗：' + err.message);
+  }
+}
+
+// 統計：使用者權限範圍內的客戶背景輪廓分布（居住區／來源管道／年齡
+// 區間），跟 getMyCustomerOverview 同一份客戶名單、同一套權限規則，
+// 放在總覽列表上方給業務／主管當開發參考（例如某區域或某媒體來的
+// 客戶特別多，可以針對性加強）。每個人只算最近一筆來訪的背景資料
+// （同一人多次來訪，居住區/年齡可能會變動或補填得更完整，用最新的
+// 才準確），不是把每次來訪都算一筆，避免回籠次數多的客戶把統計灌水。
+function getMyCustomerStats(payload) {
+  try {
+    var ctx = getUserContext(payload.lineUserId);
+    if (!ctx) return fail('未授權');
+
+    var profiles = dwGetVisibleProfiles_(ctx, 'person_id');
+    if (!profiles.length) return ok({ total: 0, by_district: [], by_source: [], by_age_range: [] });
+
+    var personIds = profiles.map(function (p) { return p.person_id; });
+    var visits = dwGet_('visits',
+      'person_id=in.(' + personIds.join(',') + ')&select=person_id,age_range,district_at_visit,source,visit_date' +
+      '&order=visit_date.desc');
+    var interests = dwGet_('person_unit_interests',
+      'person_id=in.(' + personIds.join(',') + ')&select=raw_text');
+
+    // visits 已依 visit_date 由新到舊排序，每個 person_id 第一次出現
+    // 的那筆就是最新一筆，之後同一人再出現的直接跳過
+    var latestByPerson = {};
+    visits.forEach(function (v) {
+      if (!latestByPerson[v.person_id]) latestByPerson[v.person_id] = v;
+    });
+    var latestVisits = personIds
+      .map(function (id) { return latestByPerson[id]; })
+      .filter(function (v) { return v; });
+
+    function countBy(field) {
+      var counts = {};
+      latestVisits.forEach(function (v) {
+        var val = String(v[field] || '').trim();
+        if (!val) return;
+        counts[val] = (counts[val] || 0) + 1;
+      });
+      return Object.keys(counts).map(function (k) { return { label: k, count: counts[k] }; })
+        .sort(function (a, b) { return b.count - a.count; });
+    }
+
+    // 產品興趣戶型分布：沿用 jltx_v9.9_full.gs 的 countByUnitField（同一個
+    // Apps Script 專案共用全域作用域，兩份 .gs 檔可以互相呼叫），只看
+    // 棟別＋戶型，不管樓層、分隔符號、舊資料各種手動輸入格式，跟日報／
+    // 月報頁面「已介紹產品」統計同一套模糊比對規則
+    var by_unit_type = countByUnitField(interests.map(function (i) { return { introduced_units: i.raw_text }; }));
+
+    return ok({
+      total: personIds.length,
+      by_district: countBy('district_at_visit'),
+      by_source: countBy('source'),
+      by_age_range: countBy('age_range'),
+      by_unit_type: by_unit_type
+    });
   } catch (err) {
     return fail('查詢失敗：' + err.message);
   }
