@@ -170,9 +170,10 @@
   .hotpick-card-sales{font-size:11px;color:#8A6D3F;}
   .hotpick-card-note{font-size:12px;color:var(--ink-light);margin-top:4px;line-height:1.5;}
   .recept-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow-x:auto;box-shadow:0 1px 4px rgba(26,26,46,0.04);}
-  .recept-table{border-collapse:collapse;width:100%;min-width:760px;font-size:12px;}
+  .recept-table{border-collapse:collapse;width:100%;min-width:760px;font-size:13px;}
   .recept-table th{position:sticky;top:0;background:var(--ink);color:#fff;font-weight:500;padding:9px 10px;text-align:left;white-space:nowrap;letter-spacing:0.5px;}
   .recept-table td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--ink-light);white-space:nowrap;}
+  .recept-table td.wrap-cell{white-space:normal;max-width:240px;min-width:160px;}
   .recept-table tr:last-child td{border-bottom:none;}
   .recept-table tr:nth-child(even) td{background:var(--cream);}
   .recept-table tr.hot td{background:var(--gold-soft);}
@@ -2863,7 +2864,7 @@ function receptionTableRowsHTML(list, dateFmt) {
       '<td>' + escapeHtml(r.age_range || '') + '</td>' +
       '<td>' + escapeHtml(r.introduced_units || '') + '</td>' +
       '<td>' + escapeHtml(revisitCellText(r)) + '</td>' +
-      '<td>' + escapeHtml(r.status_note || '') + '</td>' +
+      '<td class="wrap-cell">' + escapeHtml(r.status_note || '') + '</td>' +
       '<td>' + escapeHtml(r.sales_name || '') + '</td>' +
     '</tr>';
   }).join('');
@@ -2882,8 +2883,9 @@ function printWeeklyReception() {
   var html = '<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><title>' + escapeHtml(title) + '</title><style>' +
     'body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;padding:20px;color:#000;}' +
     'h1{font-size:18px;text-align:center;margin-bottom:14px;}' +
-    'table{border-collapse:collapse;width:100%;font-size:12px;}' +
+    'table{border-collapse:collapse;width:100%;font-size:14px;}' +
     'th,td{border:1px solid #333;padding:6px 8px;text-align:left;white-space:nowrap;}' +
+    'td.wrap-cell{white-space:normal;max-width:220px;word-break:break-all;}' +
     'th{background:#eee;}' +
     '@media print{@page{size:A4 landscape;margin:12mm;}}' +
     '</style></head><body>' +
