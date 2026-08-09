@@ -154,6 +154,30 @@
   .cust-card-note{font-size:12px;color:var(--ink-light);margin-top:6px;padding-top:6px;border-top:1px solid var(--border);line-height:1.5;}
   .cust-card-deal{display:inline-block;margin-top:8px;padding:3px 10px;border-radius:8px;font-size:11px;font-weight:500;}
   .cust-card-deal.done{background:var(--teal-soft);color:#0f6e56;}
+  .pick-item{background:var(--surface);border-radius:10px;border:1.5px solid var(--border);padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s,background 0.15s;}
+  .pick-item.selected{border-color:var(--rust);background:var(--rust-soft);}
+  .pick-item-head{display:flex;align-items:center;gap:10px;}
+  .pick-item-checkbox{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--border-strong);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;transition:all 0.15s;}
+  .pick-item.selected .pick-item-checkbox{background:var(--rust);border-color:var(--rust);}
+  .pick-item-name{font-family:'Noto Serif TC',serif;font-size:15px;font-weight:600;flex:1;}
+  .pick-item-date{font-size:11px;color:var(--ink-faint);}
+  .pick-item-meta{font-size:12px;color:var(--ink-light);margin-top:4px;padding-left:30px;}
+  .pick-item-note{width:100%;margin-top:8px;padding:9px 12px;border:1.5px solid var(--rust);border-radius:8px;font-family:'Noto Sans TC',sans-serif;font-size:13px;color:var(--ink);background:#fff;resize:vertical;min-height:44px;}
+  .pick-submitted-hint{background:var(--teal-soft);border:1px solid var(--teal);border-radius:10px;padding:10px 14px;font-size:12px;color:#0f6e56;line-height:1.7;margin-bottom:12px;}
+  .hotpick-card{background:var(--gold-soft);border:1px solid var(--gold);border-radius:10px;padding:12px 14px;margin-bottom:8px;}
+  .hotpick-card-head{display:flex;justify-content:space-between;align-items:baseline;}
+  .hotpick-card-name{font-family:'Noto Serif TC',serif;font-size:14px;font-weight:600;color:var(--ink);}
+  .hotpick-card-sales{font-size:11px;color:#8A6D3F;}
+  .hotpick-card-note{font-size:12px;color:var(--ink-light);margin-top:4px;line-height:1.5;}
+  .recept-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow-x:auto;box-shadow:0 1px 4px rgba(26,26,46,0.04);}
+  .recept-table{border-collapse:collapse;width:100%;min-width:760px;font-size:12px;}
+  .recept-table th{position:sticky;top:0;background:var(--ink);color:#fff;font-weight:500;padding:9px 10px;text-align:left;white-space:nowrap;letter-spacing:0.5px;}
+  .recept-table td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--ink-light);white-space:nowrap;}
+  .recept-table tr:last-child td{border-bottom:none;}
+  .recept-table tr:nth-child(even) td{background:var(--cream);}
+  .recept-table tr.hot td{background:var(--gold-soft);}
+  .recept-table .recept-name{font-weight:600;color:var(--ink);}
+  .recept-table .recept-star{color:var(--gold);margin-left:3px;}
   .cust-card-deal.pending{background:var(--gold-soft);color:#634e0c;}
   .cust-card-deal.refund{background:var(--rust-soft);color:var(--rust);}
   .deal-btn{margin-top:8px;padding:7px 14px;font-size:12px;background:var(--ink);color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:inherit;}
@@ -353,6 +377,11 @@
           <div class="feature-card-title">任務系統</div>
           <div class="feature-card-desc" id="taskCountDesc">查看待辦</div>
           <span class="feature-badge hidden" id="taskBadge">0</span>
+        </div>
+        <div class="feature-card" onclick="route('#/weeklypick')" style="border-top:2px solid var(--rust);">
+          <div class="feature-card-icon">⭐</div>
+          <div class="feature-card-title">本週有望客</div>
+          <div class="feature-card-desc">勾選並送出給主管</div>
         </div>
         <div class="feature-card hidden" id="reportFeature" onclick="route('#/report')">
           <span class="feature-badge gold">主管</span>
@@ -630,6 +659,12 @@
         <div style="font-size:12px;color:var(--ink-faint);margin-top:10px;">已介紹房型（戶別反應）</div>
         <div id="weekUnitBreakdown"></div>
       </div>
+
+      <div class="section-tag" style="margin-top:18px;">本週有望客</div>
+      <div id="weekHotPicksCard"></div>
+
+      <div class="section-tag" style="margin-top:18px;">客戶接待明細</div>
+      <div id="weekReceptionTable"></div>
     </div>
   </div>
 
@@ -680,6 +715,23 @@
       </div>
       <div class="recent-filter-bar hidden" id="myCustomerFilterBar"></div>
       <div id="myCustomerList"></div>
+    </div>
+  </div>
+
+  <!-- Weekly Hot Picks ★ 吉隆天曜專屬：業務勾選本週有望客送出給主管 -->
+  <div id="viewWeeklyPick" class="view hidden">
+    <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">本週有望客</div><div style="width:36px;"></div></div></div>
+    <div class="list-wrap">
+      <div class="field" style="margin-bottom:14px;">
+        <div class="field-label">查詢週次</div>
+        <input class="inp" type="week" id="pickWeek" onchange="loadWeeklyPickList()">
+      </div>
+      <div style="font-size:12px;color:var(--ink-faint);line-height:1.7;margin-bottom:14px;">
+        從本週接待過的客戶裡挑 1~2 位最有望成交的，送出後主管就會在週報表看到，不用再手寫一份。重複送出會直接取代這週原本選的。
+      </div>
+      <div id="pickSubmittedHint"></div>
+      <div id="pickList"></div>
+      <button class="btn-primary" style="margin-top:16px;" id="pickSubmitBtn" onclick="submitWeeklyPick()">送 出 本 週 有 望 客</button>
     </div>
   </div>
 
@@ -1237,6 +1289,7 @@ function route(hash) {
       if (isSales()) { route('#/home'); return; }
       document.getElementById('viewMonthlyReport').classList.remove('hidden'); renderMonthlyReport(); break;
     case '#/maint':    document.getElementById('viewMaint').classList.remove('hidden');    renderMaintList(); break;
+    case '#/weeklypick': document.getElementById('viewWeeklyPick').classList.remove('hidden'); renderWeeklyPick(); break;
     case '#/users':
       if (isSales()) { route('#/home'); return; }
       document.getElementById('viewUsers').classList.remove('hidden'); renderUserList(); break;
@@ -2697,6 +2750,145 @@ function loadWeeklyReport() {
     document.getElementById('weekSourceBreakdown').innerHTML = '';
     document.getElementById('weekUnitBreakdown').innerHTML = '';
   });
+
+  loadWeeklyHotPicksCard(range);
+  loadWeeklyReceptionTable(range);
+}
+
+// 本週有望客卡片：業務挑選送出的清單，跨業務彙整
+function loadWeeklyHotPicksCard(range) {
+  var el = document.getElementById('weekHotPicksCard');
+  el.innerHTML = '<div class="empty-state" style="padding:16px 0;"><div class="empty-state-text">載入中…</div></div>';
+  gasGet('getWeeklyHotPicks', { lineUserId: state.user.lineUserId, startDate: range[0], endDate: range[1] }, function(res) {
+    if (!res.ok) { el.innerHTML = '<div style="font-size:12px;color:var(--rust);">載入失敗，請確認 GAS 已部署最新版本</div>'; return; }
+    var list = res.data.results || [];
+    if (!list.length) { el.innerHTML = '<div class="empty-state" style="padding:16px 0;"><div class="empty-state-text">本週尚無業務送出有望客</div></div>'; return; }
+    el.innerHTML = list.map(function(p) {
+      return '<div class="hotpick-card">' +
+        '<div class="hotpick-card-head"><span class="hotpick-card-name">⭐ ' + escapeHtml(p.customer_name) + '</span>' +
+        '<span class="hotpick-card-sales">' + escapeHtml(p.sales_name) + '</span></div>' +
+        (p.note ? '<div class="hotpick-card-note">' + escapeHtml(p.note) + '</div>' : '') +
+      '</div>';
+    }).join('');
+  }, function() { el.innerHTML = '<div style="font-size:12px;color:var(--rust);">網路錯誤</div>'; });
+}
+
+// 客戶接待明細表：跟經理習慣看的紙本表格同一套欄位（日期／姓名／電話／
+// 區域／媒體／職業／年齡／棟別／回籠／介紹反應／業務），一眼看完整週
+// 接待狀況；被業務標記「有望」的那幾列用金色底標出來，不用再對照另一份清單
+function loadWeeklyReceptionTable(range) {
+  var el = document.getElementById('weekReceptionTable');
+  el.innerHTML = '<div class="empty-state" style="padding:16px 0;"><div class="empty-state-text">載入中…</div></div>';
+  gasGet('getWeeklyReceptionList', { lineUserId: state.user.lineUserId, startDate: range[0], endDate: range[1] }, function(res) {
+    if (!res.ok) { el.innerHTML = '<div style="font-size:12px;color:var(--rust);">載入失敗，請確認 GAS 已部署最新版本</div>'; return; }
+    var list = res.data.results || [];
+    if (!list.length) { el.innerHTML = '<div class="empty-state" style="padding:16px 0;"><div class="empty-state-text">本週尚無客戶資料</div></div>'; return; }
+    var head = '<tr><th>#</th><th>日期</th><th>姓名</th><th>電話</th><th>區域</th><th>媒體</th><th>職業</th><th>年齡</th><th>棟別</th><th>回籠</th><th>業務</th><th>介紹反應</th></tr>';
+    var body = list.map(function(r) {
+      return '<tr class="' + (r.is_hot_pick ? 'hot' : '') + '">' +
+        '<td>' + r.seq + '</td>' +
+        '<td>' + escapeHtml(r.visit_date || '') + '</td>' +
+        '<td class="recept-name">' + escapeHtml(r.customer_name || '') + (r.is_hot_pick ? '<span class="recept-star">⭐</span>' : '') + '</td>' +
+        '<td>' + escapeHtml(r.phone || '') + '</td>' +
+        '<td>' + escapeHtml(r.district || '') + '</td>' +
+        '<td>' + escapeHtml(r.source || '') + '</td>' +
+        '<td>' + escapeHtml(r.occupation_industry || '') + '</td>' +
+        '<td>' + escapeHtml(r.age_range || '') + '</td>' +
+        '<td>' + escapeHtml(r.introduced_units || '') + '</td>' +
+        '<td>' + escapeHtml(r.revisit_plan || '') + '</td>' +
+        '<td>' + escapeHtml(r.sales_name || '') + '</td>' +
+        '<td>' + escapeHtml(r.status_note || '') + '</td>' +
+      '</tr>';
+    }).join('');
+    el.innerHTML = '<div class="recept-wrap"><table class="recept-table">' + head + body + '</table></div>';
+  }, function() { el.innerHTML = '<div style="font-size:12px;color:var(--rust);">網路錯誤</div>'; });
+}
+
+/* ══ Weekly Hot Picks（業務端勾選送出）★ 吉隆天曜專屬 ══ */
+var weeklyPickState = { list: [], selected: {}, notes: {} };
+
+function renderWeeklyPick() {
+  var input = document.getElementById('pickWeek');
+  if (!input.value) input.value = isoWeekStringFromDate(todayStr());
+  loadWeeklyPickList();
+}
+
+function loadWeeklyPickList() {
+  weeklyPickState = { list: [], selected: {}, notes: {} };
+  var weekStr = document.getElementById('pickWeek').value || isoWeekStringFromDate(todayStr());
+  var range = isoWeekRangeFromString(weekStr);
+  var listEl = document.getElementById('pickList');
+  var hintEl = document.getElementById('pickSubmittedHint');
+  hintEl.innerHTML = '';
+  listEl.innerHTML = '<div class="empty-state" style="padding:16px 0;"><div class="empty-state-text">載入中…</div></div>';
+
+  gasGet('getMyWeekCustomersForPick', { lineUserId: state.user.lineUserId, startDate: range[0], endDate: range[1] }, function(res) {
+    if (!res.ok) { listEl.innerHTML = '<div style="font-size:12px;color:var(--rust);">載入失敗：' + escapeHtml(res.error||'') + '</div>'; return; }
+    var list = res.data.results || [];
+    if (!list.length) { listEl.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">這週還沒有接待紀錄</div></div>'; return; }
+
+    var alreadyPicked = list.filter(function(c) { return c.picked; });
+    if (alreadyPicked.length) {
+      hintEl.innerHTML = '<div class="pick-submitted-hint">✓ 這週已經送出過：' +
+        alreadyPicked.map(function(c) { return escapeHtml(c.customer_name); }).join('、') +
+        '（重新勾選送出會取代掉這份）</div>';
+    }
+
+    weeklyPickState.list = list;
+    list.forEach(function(c) {
+      if (c.picked) { weeklyPickState.selected[c.customer_id] = true; weeklyPickState.notes[c.customer_id] = c.note || ''; }
+    });
+
+    renderPickList();
+  }, function() { listEl.innerHTML = '<div style="font-size:12px;color:var(--rust);">網路錯誤，請再試一次</div>'; });
+}
+
+function renderPickList() {
+  document.getElementById('pickList').innerHTML = weeklyPickState.list.map(function(c) { return pickItemHTML(c); }).join('');
+}
+
+function pickItemHTML(c) {
+  var selected = !!weeklyPickState.selected[c.customer_id];
+  var note = weeklyPickState.notes[c.customer_id] || '';
+  return '<div class="pick-item' + (selected ? ' selected' : '') + '" onclick="togglePickItem(\'' + c.customer_id + '\')">' +
+    '<div class="pick-item-head">' +
+      '<div class="pick-item-checkbox">' + (selected ? '✓' : '') + '</div>' +
+      '<div class="pick-item-name">' + escapeHtml(c.customer_name || '（未填姓名）') + '</div>' +
+      '<div class="pick-item-date">' + escapeHtml(c.visit_date || '') + '</div>' +
+    '</div>' +
+    '<div class="pick-item-meta">' + escapeHtml(c.phone || '') + (c.status_note ? '　' + escapeHtml(c.status_note) : '') + '</div>' +
+    (selected ? '<textarea class="pick-item-note" placeholder="備註（選填，例如：預算已到位，這週會回訪）" onclick="event.stopPropagation()" oninput="weeklyPickState.notes[\'' + c.customer_id + '\']=this.value">' + escapeHtml(note) + '</textarea>' : '') +
+  '</div>';
+}
+
+function togglePickItem(customerId) {
+  var selectedCount = Object.keys(weeklyPickState.selected).filter(function(id) { return weeklyPickState.selected[id]; }).length;
+  if (!weeklyPickState.selected[customerId] && selectedCount >= 2) {
+    showToast('最多只能選 2 位，請先取消一位再選新的','error'); return;
+  }
+  weeklyPickState.selected[customerId] = !weeklyPickState.selected[customerId];
+  if (!weeklyPickState.selected[customerId]) delete weeklyPickState.notes[customerId];
+  renderPickList();
+}
+
+function submitWeeklyPick() {
+  var ids = Object.keys(weeklyPickState.selected).filter(function(id) { return weeklyPickState.selected[id]; });
+  if (!ids.length) { showToast('請至少勾選 1 位客戶','error'); return; }
+  if (ids.length > 2) { showToast('最多只能選 2 位','error'); return; }
+
+  var weekStr = document.getElementById('pickWeek').value || isoWeekStringFromDate(todayStr());
+  var range = isoWeekRangeFromString(weekStr);
+  var btn = document.getElementById('pickSubmitBtn');
+  btn.disabled = true; btn.textContent = '送 出 中…';
+
+  gasPost('submitWeeklyHotPicks', {
+    lineUserId: state.user.lineUserId, startDate: range[0], endDate: range[1],
+    customer_ids: ids, notes: weeklyPickState.notes
+  }, function(res) {
+    btn.disabled = false; btn.textContent = '送 出 本 週 有 望 客';
+    if (res.ok) { showToast('已送出本週有望客','success'); loadWeeklyPickList(); }
+    else { showToast(res.error || '送出失敗','error'); }
+  }, function() { btn.disabled = false; btn.textContent = '送 出 本 週 有 望 客'; showToast('連線失敗','error'); });
 }
 
 /* ══ Monthly Report ★ 吉隆天曜專屬 ══ */

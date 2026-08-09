@@ -1,5 +1,26 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.11
+//  龍登 CRM — 吉隆天曜專用版 v9.12
+//  v9.12 變更：週報表新增「客戶接待明細表」＋業務端「本週有望客」勾選送出：
+//    背景：經理習慣用紙本表格（編號／日期／姓名／電話／區域／媒體／
+//    職業／年齡／棟別／回籠／介紹反應／業務）看業務的接待狀況，原本
+//    系統的週報表只有統計數字跟分布圖表，經理還是得另外翻業務的客戶
+//    卡片才看得到明細；另外業務每週要手動挑 1~2 個有望客戶、手寫一份
+//    給經理，這次一併處理掉：
+//    1. 新增 Weekly_Hot_Picks 分頁（ensureWeeklyHotPicksSheet 自動建立，
+//       不用手動加）記錄業務每週選的有望客戶
+//    2. getWeeklyReceptionList（主管/admin）：把 Customer_Data 依週次
+//       整理成跟紙本表格同樣的欄位，並標出哪幾筆這週被標記「有望」，
+//       前端週報表頁面新增「客戶接待明細」表格（一頁看完整週，不用
+//       再點進每個客戶卡片）
+//    3. getMyWeekCustomersForPick／submitWeeklyHotPicks（業務）：業務
+//       可以勾選這週接待過的客戶（最多 2 位）、填備註後送出，同一週
+//       重複送出會取代掉原本選的，不會愈存愈多筆；前端新增「本週有望
+//       客」頁面（Home 首頁新卡片，路由 #/weeklypick）
+//    4. getWeeklyHotPicks（主管/admin）：跨業務彙整本週有望客清單，
+//       週報表頁面新增「本週有望客」卡片，跟客戶接待明細表放同一頁
+//    5. DATE_ONLY_FIELDS 補上 week_start／week_end，DATETIME_FIELDS
+//       補上 submitted_at，避免 Sheets 自動把這兩個欄位轉成 Date 型別
+//       導致 readSheetAsObjects 讀回來的格式跟查詢用的字串對不上
 //  v9.11 變更：修正客戶登記重複建檔的 bug（appendCustomerData）：
 //    根因：這支 API 要讀整張 Customer_Data 表查重複電話 + 寫 Sheets +
 //    同步 Supabase（dwSyncVisitCreate_ 內有好幾支序列執行的 Supabase
@@ -244,7 +265,8 @@ const CONFIG = {
     LEAVE_SCHEDULE: 'Leave_Schedule',
     CALENDAR_NOTES: 'Calendar_Notes',
     DEAL_DETAIL:    'Deal_Detail',
-    CONTACT_LOG:    'Contact_Log'
+    CONTACT_LOG:    'Contact_Log',
+    WEEKLY_HOT_PICKS: 'Weekly_Hot_Picks'
   },
 
   ROLES:  { SALES: 'sales', MANAGER: 'manager', ADMIN: 'admin' },
@@ -274,8 +296,8 @@ const CONFIG = {
 // 統一在這裡維護，讀取與寫入共用，避免各處各自維護一份漏掉欄位
 var DATE_ONLY_FIELDS  = ['visit_date','leave_date','report_date','due_date','note_date',
                           'expected_sign_date','signed_date','refund_date',
-                          'contact_date','next_followup_date'];
-var DATETIME_FIELDS   = ['created_at','updated_at','last_login_at','completed_at','changed_at','timestamp'];
+                          'contact_date','next_followup_date','week_start','week_end'];
+var DATETIME_FIELDS   = ['created_at','updated_at','last_login_at','completed_at','changed_at','timestamp','submitted_at'];
 var TEXT_FORCE_FIELDS = ['phone'];
 
 function getCrmSS()     { return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID); }
@@ -504,6 +526,20 @@ function doGet(e) {
         return jsonResponse(getWeeklyVisitorBreakdown(payload.lineUserId ? payload : {
           lineUserId: e.parameter.lineUserId, startDate: e.parameter.startDate, endDate: e.parameter.endDate
         }));
+      case 'getWeeklyReceptionList':
+        return jsonResponse(getWeeklyReceptionList(payload.lineUserId ? payload : {
+          lineUserId: e.parameter.lineUserId, startDate: e.parameter.startDate, endDate: e.parameter.endDate
+        }));
+      case 'getMyWeekCustomersForPick':
+        return jsonResponse(getMyWeekCustomersForPick(payload.lineUserId ? payload : {
+          lineUserId: e.parameter.lineUserId, startDate: e.parameter.startDate, endDate: e.parameter.endDate
+        }));
+      case 'submitWeeklyHotPicks':
+        return jsonResponse(submitWeeklyHotPicks(payload));
+      case 'getWeeklyHotPicks':
+        return jsonResponse(getWeeklyHotPicks(payload.lineUserId ? payload : {
+          lineUserId: e.parameter.lineUserId, startDate: e.parameter.startDate, endDate: e.parameter.endDate
+        }));
       case 'getMonthlyVisitorBreakdown':
         return jsonResponse(getMonthlyVisitorBreakdown(payload.lineUserId ? payload : {
           lineUserId: e.parameter.lineUserId, month: e.parameter.month
@@ -628,6 +664,7 @@ function doPost(e) {
       case 'verifyAccess':            return jsonResponse(verifyAccess(payload));
       case 'appendCustomerData':      return jsonResponse(appendCustomerData(payload));
       case 'submitPublicLead':        return jsonResponse(submitPublicLead(payload));
+      case 'submitWeeklyHotPicks':    return jsonResponse(submitWeeklyHotPicks(payload));
       case 'updateCustomerData':      return jsonResponse(updateCustomerData(payload));
       case 'deleteCustomerData':      return jsonResponse(deleteCustomerData(payload));
       case 'updateCustomerDeal':      return jsonResponse(updateCustomerDeal(payload));
@@ -2016,6 +2053,218 @@ function getWeeklyVisitorBreakdown(payload) {
       by_source: countByField(rows, 'source'),
       by_unit: countByUnitField(rows)
     });
+  } catch (err) { return fail(err.message); }
+}
+
+// ==================== 週報表：客戶接待明細表／本週有望客 ====================
+// ★ 吉隆天曜專屬：經理習慣用紙本表格看業務的客戶接待狀況（編號／日期／
+// 姓名／電話／區域／媒體／職業／年齡／棟別／回籠／介紹反應／業務），
+// 這裡把 Customer_Data 依週次整理成同樣的欄位，讓經理在系統上一眼看到
+// 整週接待狀況，不用再翻業務個別的客戶卡片。另外業務每週要挑 1~2 個
+// 有望客戶回報，原本靠手寫，這裡改成勾選＋送出，存到 Weekly_Hot_Picks，
+// 經理端直接在同一頁看得到誰被標記、備註寫什麼，不用等業務手寫彙整。
+
+var WEEKLY_HOT_PICKS_HEADERS = ['pick_id','week_start','week_end','customer_id','customer_name',
+  'phone','project_name','sales_line_user_id','sales_name','note','submitted_at'];
+
+// 會自動補齊缺少的欄位，不會動到既有資料列，跟 ensureDealDetailSheet／
+// ensureContactLogSheet 同一套模式
+function ensureWeeklyHotPicksSheet() {
+  var ss = getCrmSS();
+  var name = CONFIG.SHEETS.WEEKLY_HOT_PICKS;
+  var sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    sh.getRange(1,1,1,WEEKLY_HOT_PICKS_HEADERS.length).setValues([WEEKLY_HOT_PICKS_HEADERS]);
+    sh.getRange(1,1,1,WEEKLY_HOT_PICKS_HEADERS.length).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
+    sh.setFrozenRows(1);
+    Logger.log('✓ Weekly_Hot_Picks 分頁已建立');
+    return sh;
+  }
+  var existing = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+  var missing = WEEKLY_HOT_PICKS_HEADERS.filter(function(h){ return existing.indexOf(h) < 0; });
+  if (missing.length) {
+    sh.getRange(1, existing.length + 1, 1, missing.length).setValues([missing]);
+    sh.getRange(1, existing.length + 1, 1, missing.length).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
+  }
+  return sh;
+}
+
+// 經理視角：整理成跟紙本表格一樣的欄位，依日期排序，並標出這筆客戶
+// 這週有沒有被業務標記為「有望」。權限規則同 getWeeklyVisitorBreakdown
+// （業務不能看，只有主管/admin 看得到整個案場的接待明細）
+function getWeeklyReceptionList(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限');
+
+    var startDate = String((payload && payload.startDate) || todayTW()).substring(0, 10);
+    var endDate   = String((payload && payload.endDate)   || todayTW()).substring(0, 10);
+    var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER).filter(function(r) {
+      var vd = String(r.visit_date).substring(0, 10);
+      if (vd < startDate || vd > endDate) return false;
+      return ctx.role === CONFIG.ROLES.ADMIN || r.project_name === ctx.projectName;
+    });
+    rows.sort(function(a, b) {
+      var da = String(a.visit_date).substring(0, 10), db = String(b.visit_date).substring(0, 10);
+      return da < db ? -1 : (da > db ? 1 : 0);
+    });
+
+    ensureWeeklyHotPicksSheet();
+    var picks = readSheetAsObjects(CONFIG.SHEETS.WEEKLY_HOT_PICKS).filter(function(p) {
+      return p.week_start === startDate && p.week_end === endDate;
+    });
+    var pickByCustomerId = {};
+    picks.forEach(function(p) { pickByCustomerId[p.customer_id] = p; });
+
+    var results = rows.map(function(r, i) {
+      var pick = pickByCustomerId[r.customer_id];
+      return {
+        seq: i + 1,
+        customer_id: r.customer_id,
+        visit_date: String(r.visit_date).substring(0, 10),
+        customer_name: r.customer_name,
+        phone: r.phone,
+        district: r.district,
+        source: r.source,
+        occupation_industry: r.occupation_industry,
+        age_range: r.age_range,
+        introduced_units: r.introduced_units,
+        revisit_plan: r.revisit_plan,
+        status_note: r.status_note,
+        sales_name: r.sales_name,
+        is_hot_pick: !!pick,
+        hot_pick_note: pick ? pick.note : ''
+      };
+    });
+
+    return ok({ start_date: startDate, end_date: endDate, results: results });
+  } catch (err) { return fail(err.message); }
+}
+
+// 業務視角：列出自己這週接待過的客戶，供勾選「本週有望客」用，附上
+// 目前已經選過的狀態（重新打開頁面時預選回原本勾的那幾筆，方便修改）
+function getMyWeekCustomersForPick(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+
+    var startDate = String((payload && payload.startDate) || todayTW()).substring(0, 10);
+    var endDate   = String((payload && payload.endDate)   || todayTW()).substring(0, 10);
+    var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER).filter(function(r) {
+      var vd = String(r.visit_date).substring(0, 10);
+      if (vd < startDate || vd > endDate) return false;
+      return String(r.sales_line_user_id) === String(ctx.lineUserId);
+    });
+    rows.sort(function(a, b) {
+      var da = String(a.visit_date).substring(0, 10), db = String(b.visit_date).substring(0, 10);
+      return da < db ? -1 : (da > db ? 1 : 0);
+    });
+
+    ensureWeeklyHotPicksSheet();
+    var picks = readSheetAsObjects(CONFIG.SHEETS.WEEKLY_HOT_PICKS).filter(function(p) {
+      return p.week_start === startDate && p.week_end === endDate &&
+        String(p.sales_line_user_id) === String(ctx.lineUserId);
+    });
+    var pickByCustomerId = {};
+    picks.forEach(function(p) { pickByCustomerId[p.customer_id] = p; });
+
+    var results = rows.map(function(r) {
+      var pick = pickByCustomerId[r.customer_id];
+      return {
+        customer_id: r.customer_id,
+        visit_date: String(r.visit_date).substring(0, 10),
+        customer_name: r.customer_name,
+        phone: r.phone,
+        status_note: r.status_note,
+        picked: !!pick,
+        note: pick ? pick.note : ''
+      };
+    });
+
+    return ok({ start_date: startDate, end_date: endDate, results: results });
+  } catch (err) { return fail(err.message); }
+}
+
+// 業務送出本週有望客（1~2 位）。同一週重複送出視為「修改這週的選擇」，
+// 先清掉這個業務這週原本選的，再存新的一批，不會愈存愈多筆垃圾資料
+function submitWeeklyHotPicks(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+
+    var startDate = String((payload && payload.startDate) || '').substring(0, 10);
+    var endDate   = String((payload && payload.endDate)   || '').substring(0, 10);
+    if (!startDate || !endDate) return fail('週次區間必填');
+
+    var customerIds = Array.isArray(payload.customer_ids) ? payload.customer_ids : [];
+    customerIds = customerIds.filter(function(id) { return id; });
+    if (!customerIds.length) return fail('至少要選 1 位客戶');
+    if (customerIds.length > 2) return fail('本週有望客最多選 2 位');
+
+    // 只能選自己這週接待過的客戶，避免有人竄改 payload 選到別人的客戶
+    var myRows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER).filter(function(r) {
+      var vd = String(r.visit_date).substring(0, 10);
+      return vd >= startDate && vd <= endDate && String(r.sales_line_user_id) === String(ctx.lineUserId);
+    });
+    var myRowById = {};
+    myRows.forEach(function(r) { myRowById[r.customer_id] = r; });
+    var invalid = customerIds.filter(function(id) { return !myRowById[id]; });
+    if (invalid.length) return fail('選到不是這週自己接待的客戶，請重新整理頁面再選一次');
+
+    ensureWeeklyHotPicksSheet();
+    var notes = (payload && payload.notes) || {};
+
+    // 清掉這個業務這週原本選過的舊紀錄
+    var existing = readSheetAsObjects(CONFIG.SHEETS.WEEKLY_HOT_PICKS).filter(function(p) {
+      return p.week_start === startDate && p.week_end === endDate &&
+        String(p.sales_line_user_id) === String(ctx.lineUserId);
+    });
+    existing.forEach(function(p) { deleteRowById(CONFIG.SHEETS.WEEKLY_HOT_PICKS, 'pick_id', p.pick_id); });
+
+    customerIds.forEach(function(id) {
+      var row = myRowById[id];
+      appendObjectToSheet(CONFIG.SHEETS.WEEKLY_HOT_PICKS, {
+        pick_id: genId('WHP'),
+        week_start: startDate,
+        week_end: endDate,
+        customer_id: id,
+        customer_name: row.customer_name,
+        phone: row.phone,
+        project_name: row.project_name,
+        sales_line_user_id: ctx.lineUserId,
+        sales_name: ctx.displayName,
+        note: notes[id] || '',
+        submitted_at: nowTW()
+      });
+    });
+
+    writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.WEEKLY_HOT_PICKS, startDate + '~' + endDate,
+      ctx.displayName + ' 送出本週有望客 ' + customerIds.length + ' 位');
+
+    return ok({ submitted: customerIds.length });
+  } catch (err) { return fail(err.message); }
+}
+
+// 經理視角：本週有望客清單（跨業務彙整），權限規則同 getWeeklyReceptionList
+function getWeeklyHotPicks(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限');
+
+    var startDate = String((payload && payload.startDate) || todayTW()).substring(0, 10);
+    var endDate   = String((payload && payload.endDate)   || todayTW()).substring(0, 10);
+
+    ensureWeeklyHotPicksSheet();
+    var picks = readSheetAsObjects(CONFIG.SHEETS.WEEKLY_HOT_PICKS).filter(function(p) {
+      if (p.week_start !== startDate || p.week_end !== endDate) return false;
+      return ctx.role === CONFIG.ROLES.ADMIN || p.project_name === ctx.projectName;
+    });
+    picks.sort(function(a, b) { return String(a.sales_name).localeCompare(String(b.sales_name), 'zh-Hant'); });
+
+    return ok({ start_date: startDate, end_date: endDate, results: picks });
   } catch (err) { return fail(err.message); }
 }
 
