@@ -1,5 +1,10 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.13
+//  龍登 CRM — 吉隆天曜專用版 v9.14
+//  v9.14 變更：新增任務指派 LINE 推播：appendTask 建立任務時，如果有
+//    指派給別人（assigned_to_line_user_id 有值且不是自己），就推播
+//    標題／期限／說明／指派人給被指派的那個人本人，跟維修通報推播給
+//    全體管理員不同，這裡是一對一推給被指派者。沒有設定 LINE_TOKEN
+//    或指派給自己就不推，不會擋住任務照常建立。
 //  v9.13 變更：客戶登記表單選項改成可自行編排（新增 Config_Options 表）：
 //    背景：居住行政區、來源管道、年齡區間原本寫死在 jltx.html 的
 //    HTML/JS 裡，職業／購屋動機寫死在這份程式碼的 CONFIG.INDUSTRIES／
@@ -1822,6 +1827,18 @@ function appendTask(payload) {
       created_at:              nowTW(),
       updated_at:              nowTW()
     });
+
+    // 指派給別人才推播，指派給自己不用通知自己；沒有 assigned_to_line_user_id
+    // （例如指派給的人還沒串上 LINE 帳號）就沒辦法推，靜默略過不擋主流程
+    var assigneeId = payload.assigned_to_line_user_id;
+    if (assigneeId && assigneeId !== ctx.lineUserId && getProp(CONFIG.PROP_KEYS.LINE_TOKEN)) {
+      sendLinePush(assigneeId,
+        '案場：' + CONFIG.PROJECT_NAME + '\n📋 新任務指派\n標題：' + payload.title +
+        (payload.due_date ? '\n期限：' + payload.due_date : '') +
+        (payload.description ? '\n說明：' + payload.description : '') +
+        '\n指派人：' + ctx.displayName);
+    }
+
     writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.TASK, taskId, ctx.displayName + ' 建立任務: ' + payload.title);
     return ok({ task_id: taskId });
   } catch (err) { return fail(err.message); }
