@@ -2862,7 +2862,7 @@ function receptionTableRowsHTML(list, dateFmt) {
       '<td>' + escapeHtml(r.source || '') + '</td>' +
       '<td>' + escapeHtml(r.occupation_industry || '') + '</td>' +
       '<td>' + escapeHtml(r.age_range || '') + '</td>' +
-      '<td>' + escapeHtml(r.introduced_units || '') + '</td>' +
+      '<td class="wrap-cell">' + escapeHtml(r.introduced_units || '') + '</td>' +
       '<td>' + escapeHtml(revisitCellText(r)) + '</td>' +
       '<td class="wrap-cell">' + escapeHtml(r.status_note || '') + '</td>' +
       '<td>' + escapeHtml(r.sales_name || '') + '</td>' +
@@ -2880,17 +2880,43 @@ function printWeeklyReception() {
   var range = weeklyReceptionState.range;
   var title = '吉隆天曜 ' + mdSlash(range[0]) + '~' + mdSlash(range[1]) + '號訪客資料表';
 
+  // 整份要塞進「一張」A4 橫式，行數/內容長度每週都不一樣沒辦法固定用
+  // 一個字級剛好塞得下，所以改成：先照正常字級把表格畫出來，量實際
+  // 渲染出來的寬高，跟 A4 橫式扣掉邊界後可用的寬高比較，算出一個
+  // <=1 的縮放比例整份等比縮小，確保無論這週有幾筆資料都只印一頁，
+  // 不會被印表機自動分頁切成兩張。fitAndPrint() 這段 script 會在
+  // document.write 完、表格已經在 DOM 裡之後才執行（同步解析），
+  // 縮放完直接觸發列印，不用再讓外層額外等待計算時機
   var html = '<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><title>' + escapeHtml(title) + '</title><style>' +
-    'body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;padding:20px;color:#000;}' +
-    'h1{font-size:18px;text-align:center;margin-bottom:14px;}' +
+    'body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;margin:0;color:#000;}' +
+    '#printPage{overflow:hidden;}' +
+    '#printContent{display:inline-block;padding:16px 20px;box-sizing:border-box;}' +
+    'h1{font-size:18px;text-align:center;margin:0 0 14px;}' +
     'table{border-collapse:collapse;width:100%;font-size:14px;}' +
     'th,td{border:1px solid #333;padding:6px 8px;text-align:left;white-space:nowrap;}' +
     'td.wrap-cell{white-space:normal;max-width:220px;word-break:break-all;}' +
     'th{background:#eee;}' +
-    '@media print{@page{size:A4 landscape;margin:12mm;}}' +
+    '@media print{@page{size:A4 landscape;margin:0;}}' +
     '</style></head><body>' +
+    '<div id="printPage"><div id="printContent">' +
     '<h1>' + escapeHtml(title) + '</h1>' +
     '<table>' + receptionTableRowsHTML(list, mdDash) + '</table>' +
+    '</div></div>' +
+    '<script>function fitAndPrint(){' +
+      'var content=document.getElementById("printContent");' +
+      'var page=document.getElementById("printPage");' +
+      // A4 橫式 297x210mm，@96dpi 換算成 px 大約 1123x794，抓保守一點
+      // 的可印範圍（扣掉印表機通常會保留的邊界），避免縮放後還是切頁
+      'var pageWidthPx=1080, pageHeightPx=760;' +
+      'var rect=content.getBoundingClientRect();' +
+      'var scale=Math.min(pageWidthPx/rect.width, pageHeightPx/rect.height, 1);' +
+      'content.style.transformOrigin="top left";' +
+      'content.style.transform="scale("+scale+")";' +
+      'page.style.width=(rect.width*scale)+"px";' +
+      'page.style.height=(rect.height*scale)+"px";' +
+      'window.print();' +
+    '}' +
+    'fitAndPrint();<\/script>' +
     '</body></html>';
 
   var win = window.open('', '_blank');
@@ -2899,9 +2925,6 @@ function printWeeklyReception() {
   win.document.write(html);
   win.document.close();
   win.focus();
-  // document.write 之後 onload 觸發時機在各瀏覽器不一致，用短延遲代替
-  // 比較保險，300ms 足夠讓內容排版完成再跳出列印對話框
-  setTimeout(function(){ try { win.print(); } catch(e){} }, 300);
 }
 
 /* ══ Weekly Hot Picks（業務端勾選送出）★ 吉隆天曜專屬 ══ */
