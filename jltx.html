@@ -2837,8 +2837,9 @@ function loadWeeklyReceptionTable(range) {
     var list = res.data.results || [];
     weeklyReceptionState = { list: list, range: range };
     if (!list.length) { el.innerHTML = '<div class="empty-state" style="padding:16px 0;"><div class="empty-state-text">本週尚無客戶資料</div></div>'; return; }
-    el.innerHTML = '<div style="display:flex;justify-content:flex-end;margin-bottom:8px;">' +
-      '<button class="btn-mini" onclick="printWeeklyReception()">🖨 列印 / 匯出</button></div>' +
+    el.innerHTML = '<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px;">' +
+      '<button class="btn-mini" onclick="exportWeeklyReceptionExcel()">📊 匯出 Excel</button>' +
+      '<button class="btn-mini" onclick="printWeeklyReception()">🖨 列印</button></div>' +
       '<div class="recept-wrap"><table class="recept-table">' + receptionTableRowsHTML(list, mdDash) + '</table></div>';
   }, function() { el.innerHTML = '<div style="font-size:12px;color:var(--rust);">網路錯誤</div>'; });
 }
@@ -2871,7 +2872,40 @@ function receptionTableRowsHTML(list, dateFmt) {
   return head + body;
 }
 
-// 一鍵列印/匯出：開一個新分頁，用列印專用的黑白表格版面（跟螢幕上彩色
+// 匯出 Excel：這個專案是純 HTML、沒有建置工具，沒辦法引入 SheetJS 這類
+// 套件產生「真的」.xlsx 二進位檔。改用一個 Excel/Google試算表/Numbers
+// 都認得的老技巧：把資料包成一段 HTML 表格，用 application/vnd.ms-excel
+// 這個 MIME type + .xls 副檔名輸出，Excel 打開會直接當作表格匯入
+// （不是純文字），欄位、標題列都會保留，比存成 .csv 更不會有中文亂碼
+// 或數字被自動轉型（例如電話開頭 0 被吃掉）的問題
+function exportWeeklyReceptionExcel() {
+  var list = weeklyReceptionState.list;
+  if (!list.length) { showToast('目前沒有資料可以匯出','error'); return; }
+  var range = weeklyReceptionState.range;
+  var title = '吉隆天曜 ' + mdSlash(range[0]) + '~' + mdSlash(range[1]) + '號訪客資料表';
+  var firstCount = list.filter(function(r){ return r.visit_type === '初訪'; }).length;
+  var revisitCount = list.filter(function(r){ return r.visit_type === '回籠'; }).length;
+  var summaryText = '共接待 ' + list.length + ' 組（初訪 ' + firstCount + ' 組、回籠 ' + revisitCount + ' 組）';
+
+  var html = '<html><head><meta charset="UTF-8"></head><body>' +
+    '<table border="1">' +
+    '<tr><td colspan="12" style="font-weight:bold;font-size:14pt;">' + escapeHtml(title) + '</td></tr>' +
+    receptionTableRowsHTML(list, mdDash) +
+    '<tr><td colspan="12" style="font-weight:bold;">' + escapeHtml(summaryText) + '</td></tr>' +
+    '</table></body></html>';
+
+  var blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = '吉隆天曜訪客資料表_' + mdDash(range[0]) + '~' + mdDash(range[1]) + '.xls';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+
+// 一鍵列印：開一個新分頁，用列印專用的黑白表格版面（跟螢幕上彩色
 // UI 分開，比較適合印表機印出來），標題註明案場跟週次區間，開好直接
 // 跳出瀏覽器的列印對話框，使用者可以選印表機、也可以選「另存為 PDF」
 function printWeeklyReception() {
@@ -2892,21 +2926,24 @@ function printWeeklyReception() {
   // 縮放完直接觸發列印，不用再讓外層額外等待計算時機
   var html = '<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><title>' + escapeHtml(title) + '</title><style>' +
     'body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;margin:0;color:#000;}' +
-    '#printPage{overflow:hidden;}' +
-    '#printContent{display:inline-block;padding:16px 20px;box-sizing:border-box;}' +
-    'h1{font-size:18px;text-align:center;margin:0 0 14px;}' +
-    'table{border-collapse:collapse;width:100%;font-size:14px;}' +
-    'th,td{border:1px solid #333;padding:6px 8px;text-align:left;white-space:nowrap;}' +
+    // 用 display:table + margin:0 auto 讓內容依自己的實際寬度水平置中，
+    // 這是很老牌但最不會被各瀏覽器列印引擎搞怪的置中寫法，不像 flex
+    // 置中那樣需要準確量出頁面高度（vh 在列印模式下常常量不準，
+    // 之前用 flex+vh 置中失敗就是這個原因）
+    '#printContent{display:table;margin:0 auto;padding:16px 20px;box-sizing:border-box;}' +
+    'h1{font-size:20px;text-align:center;margin:0 0 14px;}' +
+    'table{border-collapse:collapse;width:100%;font-size:16px;}' +
+    'th,td{border:1px solid #333;padding:7px 9px;text-align:left;white-space:nowrap;}' +
     'td.wrap-cell{white-space:normal;max-width:220px;word-break:break-all;}' +
     'th{background:#eee;}' +
-    '.print-summary{margin-top:16px;font-size:15px;font-weight:600;text-align:right;}' +
+    '.print-summary{margin-top:16px;font-size:17px;font-weight:600;text-align:right;}' +
     '@media print{@page{size:A4 landscape;margin:0;}}' +
     '</style></head><body>' +
-    '<div id="printPage"><div id="printContent">' +
+    '<div id="printContent">' +
     '<h1>' + escapeHtml(title) + '</h1>' +
     '<table>' + receptionTableRowsHTML(list, mdDash) + '</table>' +
     '<div class="print-summary">' + escapeHtml(summaryText) + '</div>' +
-    '</div></div>' +
+    '</div>' +
     '<script>function fitAndPrint(){' +
       'var content=document.getElementById("printContent");' +
       // ★ 用 transform:scale 縮小只是「畫面上看起來變小」，瀏覽器算
