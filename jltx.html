@@ -2879,6 +2879,9 @@ function printWeeklyReception() {
   if (!list.length) { showToast('目前沒有資料可以列印','error'); return; }
   var range = weeklyReceptionState.range;
   var title = '吉隆天曜 ' + mdSlash(range[0]) + '~' + mdSlash(range[1]) + '號訪客資料表';
+  var firstCount = list.filter(function(r){ return r.visit_type === '初訪'; }).length;
+  var revisitCount = list.filter(function(r){ return r.visit_type === '回籠'; }).length;
+  var summaryText = '共接待 ' + list.length + ' 組（初訪 ' + firstCount + ' 組、回籠 ' + revisitCount + ' 組）';
 
   // 整份要塞進「一張」A4 橫式，行數/內容長度每週都不一樣沒辦法固定用
   // 一個字級剛好塞得下，所以改成：先照正常字級把表格畫出來，量實際
@@ -2896,11 +2899,13 @@ function printWeeklyReception() {
     'th,td{border:1px solid #333;padding:6px 8px;text-align:left;white-space:nowrap;}' +
     'td.wrap-cell{white-space:normal;max-width:220px;word-break:break-all;}' +
     'th{background:#eee;}' +
+    '.print-summary{margin-top:16px;font-size:15px;font-weight:600;text-align:right;}' +
     '@media print{@page{size:A4 landscape;margin:0;}}' +
     '</style></head><body>' +
     '<div id="printPage"><div id="printContent">' +
     '<h1>' + escapeHtml(title) + '</h1>' +
     '<table>' + receptionTableRowsHTML(list, mdDash) + '</table>' +
+    '<div class="print-summary">' + escapeHtml(summaryText) + '</div>' +
     '</div></div>' +
     '<script>function fitAndPrint(){' +
       'var content=document.getElementById("printContent");' +
