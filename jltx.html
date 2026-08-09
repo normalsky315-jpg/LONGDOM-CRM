@@ -2734,6 +2734,17 @@ function breakdownChipsHTML(items, total, emptyText) {
 function fmtUTCDate(d) {
   return d.getUTCFullYear() + '-' + String(d.getUTCMonth()+1).padStart(2,'0') + '-' + String(d.getUTCDate()).padStart(2,'0');
 }
+// 'YYYY-MM-DD' → 'MM-DD'，經理不需要看年份，拿掉比較好讀
+function mdDash(dateStr) {
+  var s = String(dateStr || '');
+  return s.length >= 10 ? s.substring(5, 10) : s;
+}
+// 'YYYY-MM-DD' → 'M/D'（不補零），列印表頭用
+function mdSlash(dateStr) {
+  var s = String(dateStr || '');
+  if (s.length < 10) return s;
+  return Number(s.substring(5, 7)) + '/' + Number(s.substring(8, 10));
+}
 function isoWeekRangeFromString(weekStr) {
   var parts = weekStr.split('-W');
   var year = +parts[0], week = +parts[1];
@@ -2762,7 +2773,7 @@ function renderWeeklyReport() {
 function loadWeeklyReport() {
   var weekStr = document.getElementById('weekReportDate').value || isoWeekStringFromDate(todayStr());
   var range = isoWeekRangeFromString(weekStr);
-  document.getElementById('weekReportRange').textContent = range[0] + ' ~ ' + range[1];
+  document.getElementById('weekReportRange').textContent = mdDash(range[0]) + ' ~ ' + mdDash(range[1]);
   var errHTML = '<div style="font-size:12px;color:var(--rust);padding:6px 0;">載入失敗，請確認 GAS 已部署最新版本</div>';
   gasGet('getWeeklyVisitorBreakdown', { lineUserId: state.user.lineUserId, startDate: range[0], endDate: range[1] }, function(res) {
     if (!res.ok) {
@@ -2808,34 +2819,87 @@ function loadWeeklyHotPicksCard(range) {
 }
 
 // 客戶接待明細表：跟經理習慣看的紙本表格同一套欄位（日期／姓名／電話／
-// 區域／媒體／職業／年齡／棟別／回籠／介紹反應／業務），一眼看完整週
-// 接待狀況；被業務標記「有望」的那幾列用金色底標出來，不用再對照另一份清單
+// 區域／媒體／職業／年齡／棟別／回籠／介紹反應／業務，業務放最後一欄，
+// 跟紙本表格順序一致），一眼看完整週接待狀況；被業務標記「有望」的
+// 那幾列用金色底標出來，不用再對照另一份清單。「回籠」欄不是顯示未來
+// 的再訪計畫，是標示這一筆本身是不是回籠、以及回籠自哪一筆（用客戶
+// 登記表單裡「回訪客人關聯」功能存的 linked_visit_date），例如同一位
+// 客人先有一筆初訪、後面一筆回籠，回籠那列會顯示「回籠（關聯 08/03）」，
+// 一看就知道是同一個人的第二次來訪
+var weeklyReceptionState = { list: [], range: ['', ''] };
+
 function loadWeeklyReceptionTable(range) {
   var el = document.getElementById('weekReceptionTable');
   el.innerHTML = '<div class="empty-state" style="padding:16px 0;"><div class="empty-state-text">載入中…</div></div>';
   gasGet('getWeeklyReceptionList', { lineUserId: state.user.lineUserId, startDate: range[0], endDate: range[1] }, function(res) {
     if (!res.ok) { el.innerHTML = '<div style="font-size:12px;color:var(--rust);">載入失敗，請確認 GAS 已部署最新版本</div>'; return; }
     var list = res.data.results || [];
+    weeklyReceptionState = { list: list, range: range };
     if (!list.length) { el.innerHTML = '<div class="empty-state" style="padding:16px 0;"><div class="empty-state-text">本週尚無客戶資料</div></div>'; return; }
-    var head = '<tr><th>#</th><th>日期</th><th>姓名</th><th>電話</th><th>區域</th><th>媒體</th><th>職業</th><th>年齡</th><th>棟別</th><th>回籠</th><th>業務</th><th>介紹反應</th></tr>';
-    var body = list.map(function(r) {
-      return '<tr class="' + (r.is_hot_pick ? 'hot' : '') + '">' +
-        '<td>' + r.seq + '</td>' +
-        '<td>' + escapeHtml(r.visit_date || '') + '</td>' +
-        '<td class="recept-name">' + escapeHtml(r.customer_name || '') + (r.is_hot_pick ? '<span class="recept-star">⭐</span>' : '') + '</td>' +
-        '<td>' + escapeHtml(r.phone || '') + '</td>' +
-        '<td>' + escapeHtml(r.district || '') + '</td>' +
-        '<td>' + escapeHtml(r.source || '') + '</td>' +
-        '<td>' + escapeHtml(r.occupation_industry || '') + '</td>' +
-        '<td>' + escapeHtml(r.age_range || '') + '</td>' +
-        '<td>' + escapeHtml(r.introduced_units || '') + '</td>' +
-        '<td>' + escapeHtml(r.revisit_plan || '') + '</td>' +
-        '<td>' + escapeHtml(r.sales_name || '') + '</td>' +
-        '<td>' + escapeHtml(r.status_note || '') + '</td>' +
-      '</tr>';
-    }).join('');
-    el.innerHTML = '<div class="recept-wrap"><table class="recept-table">' + head + body + '</table></div>';
+    el.innerHTML = '<div style="display:flex;justify-content:flex-end;margin-bottom:8px;">' +
+      '<button class="btn-mini" onclick="printWeeklyReception()">🖨 列印 / 匯出</button></div>' +
+      '<div class="recept-wrap"><table class="recept-table">' + receptionTableRowsHTML(list, mdDash) + '</table></div>';
   }, function() { el.innerHTML = '<div style="font-size:12px;color:var(--rust);">網路錯誤</div>'; });
+}
+
+function revisitCellText(r) {
+  if (r.visit_type !== '回籠') return '初訪';
+  return r.linked_visit_date ? '回籠（關聯 ' + mdDash(r.linked_visit_date) + '）' : '回籠';
+}
+
+// dateFmt 讓螢幕上跟列印版可以用不同的日期格式（螢幕用 08-03，列印
+// 表頭已經有週次區間了，列與列之間用同一種格式即可）
+function receptionTableRowsHTML(list, dateFmt) {
+  var head = '<tr><th>#</th><th>日期</th><th>姓名</th><th>電話</th><th>區域</th><th>媒體</th><th>職業</th><th>年齡</th><th>棟別</th><th>回籠</th><th>介紹反應</th><th>業務</th></tr>';
+  var body = list.map(function(r) {
+    return '<tr class="' + (r.is_hot_pick ? 'hot' : '') + '">' +
+      '<td>' + r.seq + '</td>' +
+      '<td>' + escapeHtml(dateFmt(r.visit_date) || '') + '</td>' +
+      '<td class="recept-name">' + escapeHtml(r.customer_name || '') + (r.is_hot_pick ? '<span class="recept-star">⭐</span>' : '') + '</td>' +
+      '<td>' + escapeHtml(r.phone || '') + '</td>' +
+      '<td>' + escapeHtml(r.district || '') + '</td>' +
+      '<td>' + escapeHtml(r.source || '') + '</td>' +
+      '<td>' + escapeHtml(r.occupation_industry || '') + '</td>' +
+      '<td>' + escapeHtml(r.age_range || '') + '</td>' +
+      '<td>' + escapeHtml(r.introduced_units || '') + '</td>' +
+      '<td>' + escapeHtml(revisitCellText(r)) + '</td>' +
+      '<td>' + escapeHtml(r.status_note || '') + '</td>' +
+      '<td>' + escapeHtml(r.sales_name || '') + '</td>' +
+    '</tr>';
+  }).join('');
+  return head + body;
+}
+
+// 一鍵列印/匯出：開一個新分頁，用列印專用的黑白表格版面（跟螢幕上彩色
+// UI 分開，比較適合印表機印出來），標題註明案場跟週次區間，開好直接
+// 跳出瀏覽器的列印對話框，使用者可以選印表機、也可以選「另存為 PDF」
+function printWeeklyReception() {
+  var list = weeklyReceptionState.list;
+  if (!list.length) { showToast('目前沒有資料可以列印','error'); return; }
+  var range = weeklyReceptionState.range;
+  var title = '吉隆天曜 ' + mdSlash(range[0]) + '~' + mdSlash(range[1]) + '號訪客資料表';
+
+  var html = '<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><title>' + escapeHtml(title) + '</title><style>' +
+    'body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;padding:20px;color:#000;}' +
+    'h1{font-size:18px;text-align:center;margin-bottom:14px;}' +
+    'table{border-collapse:collapse;width:100%;font-size:12px;}' +
+    'th,td{border:1px solid #333;padding:6px 8px;text-align:left;white-space:nowrap;}' +
+    'th{background:#eee;}' +
+    '@media print{@page{size:landscape;margin:12mm;}}' +
+    '</style></head><body>' +
+    '<h1>' + escapeHtml(title) + '</h1>' +
+    '<table>' + receptionTableRowsHTML(list, mdDash) + '</table>' +
+    '</body></html>';
+
+  var win = window.open('', '_blank');
+  if (!win) { showToast('瀏覽器擋住了新視窗，請允許彈出視窗後再試一次','error'); return; }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  // document.write 之後 onload 觸發時機在各瀏覽器不一致，用短延遲代替
+  // 比較保險，300ms 足夠讓內容排版完成再跳出列印對話框
+  setTimeout(function(){ try { win.print(); } catch(e){} }, 300);
 }
 
 /* ══ Weekly Hot Picks（業務端勾選送出）★ 吉隆天曜專屬 ══ */

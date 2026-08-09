@@ -1,5 +1,16 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.14
+//  龍登 CRM — 吉隆天曜專用版 v9.15
+//  v9.15 變更：週報表「客戶接待明細」表格微調＋一鍵列印：
+//    1. getWeeklyReceptionList 回傳欄位改成 visit_type／linked_customer_name／
+//       linked_visit_date（原本是 revisit_plan，改掉是因為經理要看的是
+//       「這筆是不是回籠、回籠自哪一筆」，不是未來的再訪計畫）
+//    2. jltx.html：日期欄位拿掉年份（08-03 而不是 2026-08-03）；業務
+//       欄位移到最後一欄（跟紙本表格順序一致：…棟別/回籠/介紹反應/業務）；
+//       回籠欄改顯示「回籠（關聯 08/03）」，用客戶登記表單「回訪客人
+//       關聯」功能存的 linked_visit_date 直接標出這筆是哪一筆的回籠
+//    3. 新增「🖨 列印/匯出」按鈕：開新分頁用黑白表格版面（比較適合印
+//       表機），標題「吉隆天曜 8/3~8/9號訪客資料表」，自動跳出瀏覽器
+//       列印對話框，選「另存為 PDF」就能存檔
 //  v9.14 變更：新增任務指派 LINE 推播：appendTask 建立任務時，如果有
 //    指派給別人（assigned_to_line_user_id 有值且不是自己），就推播
 //    標題／期限／說明／指派人給被指派的那個人本人，跟維修通報推播給
@@ -2274,7 +2285,9 @@ function getWeeklyReceptionList(payload) {
         occupation_industry: r.occupation_industry,
         age_range: r.age_range,
         introduced_units: r.introduced_units,
-        revisit_plan: r.revisit_plan,
+        visit_type: r.visit_type,
+        linked_customer_name: r.linked_customer_name || '',
+        linked_visit_date: r.linked_visit_date ? String(r.linked_visit_date).substring(0, 10) : '',
         status_note: r.status_note,
         sales_name: r.sales_name,
         is_hot_pick: !!pick,
