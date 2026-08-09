@@ -1,5 +1,24 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.10
+//  龍登 CRM — 吉隆天曜專用版 v9.11
+//  v9.11 變更：修正客戶登記重複建檔的 bug（appendCustomerData）：
+//    根因：這支 API 要讀整張 Customer_Data 表查重複電話 + 寫 Sheets +
+//    同步 Supabase（dwSyncVisitCreate_ 內有好幾支序列執行的 Supabase
+//    REST 呼叫），耗時常常超過 jltx.html 的 gasFetch 10 秒逾時。逾時後
+//    前端會自動重試一次，但 GAS 執行不會因為前端放棄等待就中止，於是
+//    同一次送出真的被建立兩筆客戶資料（Sheets 兩列、Supabase 也可能
+//    因此多一筆 visit）。
+//    修法：client_request_id 當 idempotency key，配合 CacheService 做
+//    「認領＋輪詢」：
+//      1. 前端（jltx.html submitCustomer）每次送出產生一個
+//         client_request_id，同一次送出如果因逾時自動重試，沿用同一個
+//         id（gasFetch 重試用同一個 URL/payload）
+//      2. 後端收到請求先檢查這個 key：已經有最終結果就直接回傳、不重
+//         新建檔；還沒開始處理就存 PROCESSING 佔位再開始建檔（避免重試
+//         送達時第一次執行還沒跑完，兩邊都查到空快取照樣建立兩筆）；
+//         如果看到 PROCESSING，輪詢等第一次執行寫入最終結果（最多等
+//         15 秒），不會自己重新建檔
+//      3. 建檔失敗也要把失敗結果存進快取，釋放 PROCESSING 佔位，避免
+//         真正重試時被誤判成「還在處理中」
 //  v9.10 變更：Customer 360 總覽列表加上客戶背景輪廓統計：
 //    新增 getMyCustomerStats（已接上 doGet 路由 case
 //    'getMyCustomerStats'），跟 getMyCustomerOverview 同一份客戶名單、
@@ -915,6 +934,29 @@ function appendCustomerData(payload) {
     if (!payload.phone)         return fail('電話必填');
     if (!payload.status_note)   return fail('接待狀況必填');
 
+    // 防止重複建檔：這支 API 要讀整張表查重複電話 + 寫 Sheets + 同步
+    // Supabase，耗時常常超過前端 gasFetch 的 10 秒逾時，逾時後前端會
+    // 自動重試一次（同一個 client_request_id）。但 GAS 執行不會因為
+    // 前端放棄等待就中止，如果重試送達時第一次執行還沒跑完，光靠
+    // 「查快取有沒有結果」會兩邊都查到空的、照樣建立兩筆。所以在真正
+    // 開始建檔前先「認領」這個 key（存 PROCESSING），重試那邊如果看到
+    // PROCESSING，就輪詢等第一次執行寫入最終結果，而不是自己重新跑一次
+    var idemKey = payload.client_request_id ? 'appendcust_' + payload.client_request_id : null;
+    var idemCache = idemKey ? CacheService.getScriptCache() : null;
+    if (idemKey) {
+      var existing = idemCache.get(idemKey);
+      if (existing && existing !== 'PROCESSING') return JSON.parse(existing);
+      if (existing === 'PROCESSING') {
+        for (var waitMs = 0; waitMs < 15000; waitMs += 500) {
+          Utilities.sleep(500);
+          var polled = idemCache.get(idemKey);
+          if (polled && polled !== 'PROCESSING') return JSON.parse(polled);
+        }
+        return fail('前一筆送出仍處理中，請稍後查看客戶名單確認是否已建立，避免重複建檔');
+      }
+      idemCache.put(idemKey, 'PROCESSING', 120);
+    }
+
     var projectName = ctx.role === CONFIG.ROLES.ADMIN
       ? (payload.project_name || ctx.projectName || '') : ctx.projectName;
     if (!projectName) return fail('案場未指定');
@@ -979,8 +1021,21 @@ function appendCustomerData(payload) {
     writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.CUSTOMER, customerId,
       ctx.displayName + ' 新增客戶: ' + payload.customer_name);
     dwSyncVisitCreate_(customerRow); // Supabase 雙寫（失敗不影響上面的 Sheets 寫入結果）
-    return ok({ customer_id: customerId, duplicate_phone: dupRecords.length > 0, duplicate_records: dupRecords });
-  } catch (err) { Logger.log('appendCustomerData error: ' + err); return fail(err.message); }
+    var result = ok({ customer_id: customerId, duplicate_phone: dupRecords.length > 0, duplicate_records: dupRecords });
+    if (idemKey) {
+      // 存 2 分鐘：遠超過前端「10 秒逾時 + 700ms 後重試一次」的時間窗，
+      // 重試那次一定拿得到快取；2 分鐘後自動過期，不會佔用快取空間
+      try { CacheService.getScriptCache().put(idemKey, JSON.stringify(result), 120); } catch (e) {}
+    }
+    return result;
+  } catch (err) {
+    Logger.log('appendCustomerData error: ' + err);
+    var failResult = fail(err.message);
+    // 建檔失敗要釋放 PROCESSING 認領，不然真的重試時會被誤判成
+    // 「前一次還在處理中」，白白卡 15 秒又拿到假的處理中訊息
+    if (idemKey) { try { CacheService.getScriptCache().put(idemKey, JSON.stringify(failResult), 120); } catch (e2) {} }
+    return failResult;
+  }
 }
 
 // 主管標記成交
