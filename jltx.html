@@ -2892,8 +2892,11 @@ function printWeeklyReception() {
   // 縮放完直接觸發列印，不用再讓外層額外等待計算時機
   var html = '<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><title>' + escapeHtml(title) + '</title><style>' +
     'body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;margin:0;color:#000;}' +
-    '#printPage{overflow:hidden;display:flex;justify-content:center;align-items:center;width:100%;min-height:100vh;}' +
-    '#printContent{display:inline-block;padding:16px 20px;box-sizing:border-box;}' +
+    // 用 display:table + margin:0 auto 讓內容依自己的實際寬度水平置中，
+    // 這是很老牌但最不會被各瀏覽器列印引擎搞怪的置中寫法，不像 flex
+    // 置中那樣需要準確量出頁面高度（vh 在列印模式下常常量不準，
+    // 之前用 flex+vh 置中失敗就是這個原因）
+    '#printContent{display:table;margin:0 auto;padding:16px 20px;box-sizing:border-box;}' +
     'h1{font-size:20px;text-align:center;margin:0 0 14px;}' +
     'table{border-collapse:collapse;width:100%;font-size:16px;}' +
     'th,td{border:1px solid #333;padding:7px 9px;text-align:left;white-space:nowrap;}' +
@@ -2902,11 +2905,11 @@ function printWeeklyReception() {
     '.print-summary{margin-top:16px;font-size:17px;font-weight:600;text-align:right;}' +
     '@media print{@page{size:A4 landscape;margin:0;}}' +
     '</style></head><body>' +
-    '<div id="printPage"><div id="printContent">' +
+    '<div id="printContent">' +
     '<h1>' + escapeHtml(title) + '</h1>' +
     '<table>' + receptionTableRowsHTML(list, mdDash) + '</table>' +
     '<div class="print-summary">' + escapeHtml(summaryText) + '</div>' +
-    '</div></div>' +
+    '</div>' +
     '<script>function fitAndPrint(){' +
       'var content=document.getElementById("printContent");' +
       // ★ 用 transform:scale 縮小只是「畫面上看起來變小」，瀏覽器算
