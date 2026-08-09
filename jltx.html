@@ -2892,7 +2892,7 @@ function printWeeklyReception() {
   // 縮放完直接觸發列印，不用再讓外層額外等待計算時機
   var html = '<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><title>' + escapeHtml(title) + '</title><style>' +
     'body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;margin:0;color:#000;}' +
-    '#printPage{overflow:hidden;}' +
+    '#printPage{overflow:hidden;display:flex;justify-content:center;align-items:center;width:100%;min-height:100vh;}' +
     '#printContent{display:inline-block;padding:16px 20px;box-sizing:border-box;}' +
     'h1{font-size:18px;text-align:center;margin:0 0 14px;}' +
     'table{border-collapse:collapse;width:100%;font-size:14px;}' +
