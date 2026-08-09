@@ -2909,16 +2909,25 @@ function printWeeklyReception() {
     '</div></div>' +
     '<script>function fitAndPrint(){' +
       'var content=document.getElementById("printContent");' +
-      'var page=document.getElementById("printPage");' +
-      // A4 橫式 297x210mm，@96dpi 換算成 px 大約 1123x794，抓保守一點
-      // 的可印範圍（扣掉印表機通常會保留的邊界），避免縮放後還是切頁
+      // ★ 用 transform:scale 縮小只是「畫面上看起來變小」，瀏覽器算
+      // 分頁的時候還是照縮放前的完整高度算，內容太高一樣會被切到第
+      // 二頁（實測會出現這個問題）。改用 zoom（Chrome/Edge/Safari 都
+      // 支援，會真的讓瀏覽器照縮小後的尺寸重新排版，分頁才會照縮小
+      // 後的高度計算，才能真正保證印在一張紙上
       'var pageWidthPx=1080, pageHeightPx=760;' +
       'var rect=content.getBoundingClientRect();' +
       'var scale=Math.min(pageWidthPx/rect.width, pageHeightPx/rect.height, 1);' +
-      'content.style.transformOrigin="top left";' +
-      'content.style.transform="scale("+scale+")";' +
-      'page.style.width=(rect.width*scale)+"px";' +
-      'page.style.height=(rect.height*scale)+"px";' +
+      'if(scale<1){' +
+        'content.style.zoom=scale;' +
+        // zoom 縮小後如果還是量到超出範圍（極端情況，例如單一儲存格
+        // 文字超級長），再多縮一次，最多重試 3 次避免無窮迴圈
+        'for(var i=0;i<3;i++){' +
+          'var r2=content.getBoundingClientRect();' +
+          'if(r2.width<=pageWidthPx+2 && r2.height<=pageHeightPx+2) break;' +
+          'var extra=Math.min(pageWidthPx/r2.width, pageHeightPx/r2.height, 1);' +
+          'content.style.zoom=scale=scale*extra;' +
+        '}' +
+      '}' +
       'window.print();' +
     '}' +
     'fitAndPrint();<\/script>' +
