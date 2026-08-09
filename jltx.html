@@ -2406,8 +2406,15 @@ function submitCustomer() {
   }
 
   btn.disabled=true; btn.textContent='送 出 中…';
+  // client_request_id：這支 API 常常跑超過 gasFetch 的 10 秒逾時，逾時
+  // 後前端會自動重試一次，若不帶這個 id 後端沒辦法分辨「這是使用者按
+  // 了兩次」還是「同一次送出因為逾時重試」，會把兩者都當新客戶建檔。
+  // 同一次 submitCustomer() 呼叫只產生一次，gasFetch 內部重試時沿用
+  // 同一個 payload/URL，這個 id 自然會跟著重試請求一起送出去
+  var clientRequestId = 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2);
   gasPost('appendCustomerData', {
     lineUserId: state.user.lineUserId, project_name: project,
+    client_request_id: clientRequestId,
     visit_date: document.getElementById('cust_visitDate').value||todayStr(),
     sales_line_user_id: salesLineUserId,
     sales_name: salesName,
