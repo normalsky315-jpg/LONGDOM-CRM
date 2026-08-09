@@ -1,5 +1,27 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.12
+//  龍登 CRM — 吉隆天曜專用版 v9.13
+//  v9.13 變更：客戶登記表單選項改成可自行編排（新增 Config_Options 表）：
+//    背景：居住行政區、來源管道、年齡區間原本寫死在 jltx.html 的
+//    HTML/JS 裡，職業／購屋動機寫死在這份程式碼的 CONFIG.INDUSTRIES／
+//    CONFIG.PURCHASE_MOTIVES 裡，要調整任何一個都得改程式碼、重新部署。
+//    1. 新增 Config_Options 分頁（ensureConfigOptionsSheet 自動建立，
+//       欄位：option_type／value／sort_order／active），第一次建表時
+//       會拿目前的預設值當種子資料寫進去，之後管理者要增刪/排序選項
+//       直接在 Google 試算表編輯這張表就好，改完最多等 60 秒快取過期
+//       （不想等的話手動執行 invalidateConfigOptionsCache 立即生效）
+//    2. 新增 getConfigOptions：客戶登記表單一次抓齊五種選項（district／
+//       source／age_range／industry／purchase_motive），已接上 doGet
+//       路由。getIndustryList／getPurchaseMotiveList 保留原本的 action
+//       名稱跟回傳格式（純陣列），內部改成讀 Config_Options，其他呼叫
+//       端不用改
+//    3. jltx.html：居住行政區／年齡區間／來源管道從寫死的 HTML 改成
+//       跟職業/購屋動機一樣，改成用 API 回來的清單動態產生 chip；API
+//       失敗時退回內建的預設值頂著，表單還是能用
+//    4. 注意：來源管道的「其他」「親友介紹」、居住行政區的「外縣市」
+//       這三個選項的特殊行為（跳出額外欄位）是用文字內容判斷，改了
+//       這幾個選項的文字或刪除，對應欄位就不會再跳出來
+//    5. 已存在的客戶資料不受影響——Customer_Data 存的是選項當時的文字，
+//       不是連到選項清單的關聯，之後改選項清單不會動到歷史資料
 //  v9.12 變更：週報表新增「客戶接待明細表」＋業務端「本週有望客」勾選送出：
 //    背景：經理習慣用紙本表格（編號／日期／姓名／電話／區域／媒體／
 //    職業／年齡／棟別／回籠／介紹反應／業務）看業務的接待狀況，原本
@@ -266,7 +288,8 @@ const CONFIG = {
     CALENDAR_NOTES: 'Calendar_Notes',
     DEAL_DETAIL:    'Deal_Detail',
     CONTACT_LOG:    'Contact_Log',
-    WEEKLY_HOT_PICKS: 'Weekly_Hot_Picks'
+    WEEKLY_HOT_PICKS: 'Weekly_Hot_Picks',
+    CONFIG_OPTIONS: 'Config_Options'
   },
 
   ROLES:  { SALES: 'sales', MANAGER: 'manager', ADMIN: 'admin' },
@@ -488,6 +511,8 @@ function doGet(e) {
         return jsonResponse(getIndustryList());
       case 'getPurchaseMotiveList':
         return jsonResponse(getPurchaseMotiveList());
+      case 'getConfigOptions':
+        return jsonResponse(getConfigOptions());
       case 'getTasks':
         return jsonResponse(getTasks(payload.lineUserId ? payload : {
           lineUserId: e.parameter.lineUserId, status: e.parameter.status
@@ -900,8 +925,109 @@ function getSalesByProject(projectName, lineUserId) {
   } catch (err) { return fail(err.message); }
 }
 
-function getIndustryList()       { return ok(CONFIG.INDUSTRIES); }
-function getPurchaseMotiveList() { return ok(CONFIG.PURCHASE_MOTIVES); }
+// ==================== Config_Options（可自行編排的選項清單）====================
+// ★ 吉隆天曜專屬：居住行政區／來源管道／年齡區間／職業／購屋動機這五種
+// 客戶登記表單選項，原本分別寫死在 jltx.html 的 HTML/JS 裡跟這份程式碼
+// 的 CONFIG.INDUSTRIES／CONFIG.PURCHASE_MOTIVES 裡，改選項要工程師改
+// 程式碼重新部署。現在改成存在 Config_Options 這張表，之後要增刪/排序
+// 選項，直接在 Google 試算表編輯這張表就好，跟編輯 Project_List／
+// User_Role_Table 一樣的操作方式，不用再改程式碼、不用重新部署，最多
+// 60 秒快取過期後就會反映在系統上。
+//
+// 注意：來源管道的「其他」「親友介紹」、居住行政區的「外縣市」這三個
+// 選項的「值」有特殊行為（跳出額外的自由輸入欄位），前端是用文字內容
+// 判斷，如果把這幾個選項的文字改掉或刪除，對應的欄位就不會再跳出來，
+// 這是預期中的行為，不是 bug。
+var CONFIG_OPTIONS_HEADERS = ['option_type','value','sort_order','active'];
+
+// 第一次建表時拿目前的預設值當種子資料，之後管理者要調整就直接在表上改，
+// 不會再被這裡的預設值覆蓋（只有全新建表那一次才會寫入這些種子資料）
+var CONFIG_OPTIONS_SEED = {
+  district: ['大寮區','鳳山區','林園區','小港區','鳥松區','大樹區','前鎮區','三民區',
+             '苓雅區','新興區','前金區','鹽埕區','仁武區','楠梓區','左營區','鼓山區','橋頭區','外縣市'],
+  source: ['Facebook','網路媒體','591','戶外看板','親友介紹','路過','其他'],
+  age_range: ['30歲以下','30-39歲','40-49歲','50-59歲','60歲以上'],
+  industry: CONFIG.INDUSTRIES,
+  purchase_motive: CONFIG.PURCHASE_MOTIVES
+};
+
+function ensureConfigOptionsSheet() {
+  var ss = getCrmSS();
+  var name = CONFIG.SHEETS.CONFIG_OPTIONS;
+  var sh = ss.getSheetByName(name);
+  if (sh) {
+    var existing = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+    var missing = CONFIG_OPTIONS_HEADERS.filter(function(h){ return existing.indexOf(h) < 0; });
+    if (missing.length) {
+      sh.getRange(1, existing.length + 1, 1, missing.length).setValues([missing]);
+      sh.getRange(1, existing.length + 1, 1, missing.length).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
+    }
+    return sh;
+  }
+  sh = ss.insertSheet(name);
+  sh.getRange(1,1,1,CONFIG_OPTIONS_HEADERS.length).setValues([CONFIG_OPTIONS_HEADERS]);
+  sh.getRange(1,1,1,CONFIG_OPTIONS_HEADERS.length).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
+  sh.setFrozenRows(1);
+  Object.keys(CONFIG_OPTIONS_SEED).forEach(function(type) {
+    CONFIG_OPTIONS_SEED[type].forEach(function(value, i) {
+      sh.appendRow([type, value, i + 1, true]);
+    });
+  });
+  Logger.log('✓ Config_Options 分頁已建立並帶入預設選項');
+  return sh;
+}
+
+// 依 option_type 分組、依 sort_order 排序、只留 active（空白視為啟用，
+// 只有明確填 FALSE／false 才算停用，避免管理者漏填 active 欄位時選項
+// 整批消失），快取 60 秒（客戶登記表單每次打開都會呼叫，跟
+// getUserContext 同一套快取邏輯，避免每次都整張表重讀）
+function getAllConfigOptions_() {
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get('configOptions');
+  if (cached) return JSON.parse(cached);
+
+  ensureConfigOptionsSheet();
+  var rows = readSheetAsObjects(CONFIG.SHEETS.CONFIG_OPTIONS).filter(function(r) {
+    return r.value && String(r.active).toLowerCase() !== 'false';
+  });
+  rows.sort(function(a, b) { return (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0); });
+
+  var grouped = {};
+  rows.forEach(function(r) {
+    if (!grouped[r.option_type]) grouped[r.option_type] = [];
+    grouped[r.option_type].push(r.value);
+  });
+  cache.put('configOptions', JSON.stringify(grouped), 60);
+  return grouped;
+}
+
+// 改完 Config_Options 表最多等 60 秒快取自然過期就會生效；不想等的話
+// 直接在 Apps Script 編輯器選這支函式執行一次，馬上清快取立即生效
+function invalidateConfigOptionsCache() {
+  try { CacheService.getScriptCache().remove('configOptions'); } catch (e) {}
+  Logger.log('✓ 選項清單快取已清除，下一次讀取會直接抓最新的 Config_Options');
+}
+
+// 客戶登記表單一次抓齊五種選項，取代原本前端寫死的 DISTRICTS 陣列跟
+// 來源管道／年齡區間的固定 HTML
+function getConfigOptions() {
+  try {
+    var grouped = getAllConfigOptions_();
+    return ok({
+      district: grouped.district || [],
+      source: grouped.source || [],
+      age_range: grouped.age_range || [],
+      industry: grouped.industry || [],
+      purchase_motive: grouped.purchase_motive || []
+    });
+  } catch (err) { return fail(err.message); }
+}
+
+// 保留原本的 action 名稱／回傳格式（純陣列，不是 {district:...} 包一層），
+// 避免動到既有呼叫端；內部資料來源改成 Config_Options，行為上就是「可
+// 以自行編排」了
+function getIndustryList()       { try { return ok(getAllConfigOptions_().industry || []); } catch (err) { return fail(err.message); } }
+function getPurchaseMotiveList() { try { return ok(getAllConfigOptions_().purchase_motive || []); } catch (err) { return fail(err.message); } }
 
 // ==================== Customer Module ====================
 function submitPublicLead(payload) {

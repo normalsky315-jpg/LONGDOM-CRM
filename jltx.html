@@ -500,7 +500,7 @@
           <div class="field"><div class="field-label">電話（手機） <span class="req">*</span></div><input class="inp" type="tel" id="cust_phone" placeholder="0912345678"></div>
           <div class="field"><div class="field-label">婚姻狀況</div><div class="chips"><label class="chip"><input type="radio" name="cust_marital" value="已婚"><span class="chip-label">已婚</span></label><label class="chip"><input type="radio" name="cust_marital" value="未婚"><span class="chip-label">未婚</span></label></div></div>
         </div>
-        <div class="field"><div class="field-label">年齡區間</div><div class="chips"><label class="chip"><input type="radio" name="cust_age" value="30歲以下"><span class="chip-label">30以下</span></label><label class="chip"><input type="radio" name="cust_age" value="30-39歲"><span class="chip-label">30-39</span></label><label class="chip"><input type="radio" name="cust_age" value="40-49歲"><span class="chip-label">40-49</span></label><label class="chip"><input type="radio" name="cust_age" value="50-59歲"><span class="chip-label">50-59</span></label><label class="chip"><input type="radio" name="cust_age" value="60歲以上"><span class="chip-label">60以上</span></label></div></div>
+        <div class="field"><div class="field-label">年齡區間</div><div class="chips" id="cust_ageChips"></div></div>
         <div class="field"><div class="field-label">居住行政區</div><div class="chips" id="cust_distChips"></div><div class="extra-inp hidden" id="cust_distOtherWrap"><input class="inp" type="text" id="cust_distOther" placeholder="請輸入縣市/地區"></div></div>
         <div class="field-row">
           <div class="field">
@@ -516,15 +516,7 @@
         </div>
         <div class="field">
           <div class="field-label">來源管道</div>
-          <div class="chips">
-            <label class="chip"><input type="radio" name="cust_source" value="Facebook" onchange="toggleOther('cust_sourceOtherWrap',false);toggleOther('cust_referrerWrap',false)"><span class="chip-label">FB</span></label>
-            <label class="chip"><input type="radio" name="cust_source" value="網路媒體" onchange="toggleOther('cust_sourceOtherWrap',false);toggleOther('cust_referrerWrap',false)"><span class="chip-label">網路媒體</span></label>
-            <label class="chip"><input type="radio" name="cust_source" value="591" onchange="toggleOther('cust_sourceOtherWrap',false);toggleOther('cust_referrerWrap',false)"><span class="chip-label">591</span></label>
-            <label class="chip"><input type="radio" name="cust_source" value="戶外看板" onchange="toggleOther('cust_sourceOtherWrap',false);toggleOther('cust_referrerWrap',false)"><span class="chip-label">看板</span></label>
-            <label class="chip"><input type="radio" name="cust_source" value="親友介紹" onchange="toggleOther('cust_sourceOtherWrap',false);toggleOther('cust_referrerWrap',true)"><span class="chip-label">介紹</span></label>
-            <label class="chip"><input type="radio" name="cust_source" value="路過" onchange="toggleOther('cust_sourceOtherWrap',false);toggleOther('cust_referrerWrap',false)"><span class="chip-label">路過</span></label>
-            <label class="chip"><input type="radio" name="cust_source" value="其他" onchange="toggleOther('cust_sourceOtherWrap',true);toggleOther('cust_referrerWrap',false)"><span class="chip-label">其他</span></label>
-          </div>
+          <div class="chips" id="cust_sourceChips"></div>
           <div class="extra-inp hidden" id="cust_sourceOtherWrap"><input class="inp" type="text" id="cust_sourceOther" placeholder="請輸入來源管道"></div>
           <div class="extra-inp hidden" id="cust_referrerWrap"><input class="inp" type="text" id="cust_referrerName" placeholder="請輸入介紹人姓名"></div>
         </div>
@@ -999,6 +991,7 @@ var state = {
   projects: [],
   industries: [],
   motives: [],
+  configOptions: {},
   salesByProject: {},
   taskTab: 'pending',
   maintTab: 'pending',
@@ -1014,7 +1007,12 @@ var state = {
 
 // ★ 吉隆天曜專屬：居住行政區選項對照案場自己的紙本「訪客服務表」，
 // 跟華雄天地的區域不一樣，重新同步時不要被天地的版本覆蓋掉
+// 這三個陣列只是 API 失敗時的備用值（例如舊版 GAS 還沒部署 getConfigOptions），
+// 正常情況下實際選項來自後端 Config_Options 表（見 loadGlobalData），
+// 管理者要調整選項直接改 Google 試算表就好，不用改這裡
 var DISTRICTS = ['大寮區','鳳山區','林園區','小港區','鳥松區','大樹區','前鎮區','三民區','苓雅區','新興區','前金區','鹽埕區','仁武區','楠梓區','左營區','鼓山區','橋頭區','外縣市'];
+var AGE_RANGES = ['30歲以下','30-39歲','40-49歲','50-59歲','60歲以上'];
+var SOURCE_CHANNELS = ['Facebook','網路媒體','591','戶外看板','親友介紹','路過','其他'];
 
 /* ══ 權限判斷共用函式（避免各處散落字串比對） ══ */
 function isSales() { return !!state.user && state.user.role === 'sales'; }
@@ -1254,11 +1252,19 @@ function logout() {
 
 /* ══ Global Data ══ */
 function loadGlobalData(done) {
-  var pending = 3;
+  var pending = 4;
   function check(){ if(--pending===0 && done) done(); }
   gasGet('getProjectList',        null, function(r){ state.projects   = r.ok ? r.data : []; check(); }, check);
   gasGet('getIndustryList',       null, function(r){ state.industries = r.ok ? r.data : []; check(); }, check);
   gasGet('getPurchaseMotiveList', null, function(r){ state.motives    = r.ok ? r.data : []; check(); }, check);
+  // 居住行政區／來源管道／年齡區間：原本寫死在這個檔案裡，改成從
+  // Config_Options 表抓，讓經理可以直接在 Google 試算表自己增刪/排序
+  // 選項，不用改程式碼重新部署。API 失敗（例如舊版 GAS 還沒部署）就
+  // 用內建的預設值頂著，表單至少還能用
+  gasGet('getConfigOptions', null, function(r){
+    state.configOptions = (r.ok && r.data) ? r.data : {};
+    check();
+  }, function(){ state.configOptions = {}; check(); });
 }
 
 /* ══ Router ══ */
@@ -2248,11 +2254,39 @@ function renderCustomerForm() {
 
   var dc = document.getElementById('cust_distChips');
   if (!dc.children.length) {
-    DISTRICTS.forEach(function(d) {
+    var districts = (state.configOptions.district && state.configOptions.district.length) ? state.configOptions.district : DISTRICTS;
+    districts.forEach(function(d) {
       var label = document.createElement('label'); label.className = 'chip';
       label.innerHTML = '<input type="radio" name="cust_dist" value="' + d + '"><span class="chip-label">' + (d==='外縣市'?'外縣市':d.replace('區','')) + '</span>';
       dc.appendChild(label);
       label.querySelector('input').addEventListener('change', function(){ document.getElementById('cust_distOtherWrap').classList.toggle('hidden', this.value!=='外縣市'); });
+    });
+  }
+
+  var ac = document.getElementById('cust_ageChips');
+  if (!ac.children.length) {
+    var ageRanges = (state.configOptions.age_range && state.configOptions.age_range.length) ? state.configOptions.age_range : AGE_RANGES;
+    ageRanges.forEach(function(a) {
+      var label = document.createElement('label'); label.className = 'chip';
+      label.innerHTML = '<input type="radio" name="cust_age" value="' + a + '"><span class="chip-label">' + a.replace('歲','') + '</span>';
+      ac.appendChild(label);
+    });
+  }
+
+  var sc = document.getElementById('cust_sourceChips');
+  if (!sc.children.length) {
+    var sources = (state.configOptions.source && state.configOptions.source.length) ? state.configOptions.source : SOURCE_CHANNELS;
+    sources.forEach(function(s) {
+      var label = document.createElement('label'); label.className = 'chip';
+      label.innerHTML = '<input type="radio" name="cust_source" value="' + s + '"><span class="chip-label">' + s + '</span>';
+      sc.appendChild(label);
+      // 「其他」「親友介紹」這兩個值有特殊行為（跳出額外欄位），管理者
+      // 如果在 Config_Options 表把這兩個選項的文字改掉，對應的欄位就
+      // 不會再跳出來——這是預期行為，前端只能用文字內容判斷
+      label.querySelector('input').addEventListener('change', function(){
+        toggleOther('cust_sourceOtherWrap', this.value === '其他');
+        toggleOther('cust_referrerWrap', this.value === '親友介紹');
+      });
     });
   }
 
