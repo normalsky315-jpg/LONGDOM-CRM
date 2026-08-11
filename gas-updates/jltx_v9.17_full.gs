@@ -1,5 +1,34 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.16
+//  龍登 CRM — 吉隆天曜專用版 v9.17
+//  v9.17 變更：來人熱點地圖升級成精確定位版（疊在行政區泡泡上）：
+//    ★ 部署後要做的事：
+//      1. 在 Apps Script 編輯器手動執行一次 geocodeMissingAddresses()，
+//         把目前已經填了詳細地址、但還沒有座標的舊資料補上（新資料
+//         之後靠下面第 4 點的每小時觸發器自動處理，不用再手動跑）
+//      2. 重新執行一次 setupTriggers()，讓新增的每小時地址轉座標
+//         觸發器生效（setupTriggers 會先刪掉同名舊觸發器再重建，
+//         重複執行不會疊加出好幾個）
+//    1. CUSTOMER_EXTRA_FIELDS 補上 geo_lat／geo_lng，
+//       ensureCustomerExtraColumns 自動幫 Customer_Data 補欄位
+//    2. 新增 geocodeAddress_：呼叫 Nominatim（OpenStreetMap 的免費
+//       地址查詢服務，不用申請金鑰）把地址轉成經緯度
+//    3. 新增 geocodeMissingAddresses(maxCount)：批次幫「有填詳細地址、
+//       還沒有座標」的客戶資料轉座標並寫回。刻意不放進
+//       appendCustomerData／updateCustomerData 即時轉換——Nominatim
+//       免費用量限制「每秒最多 1 次查詢」，塞進去會拖慢建檔速度，
+//       甚至可能重新踩到 v9.11 修過的「逾時重試造成重複建檔」那個坑
+//    4. setupTriggers 新增每小時觸發器 geocodeMissingAddressesHourly，
+//       業務登記/編輯客戶資料填了詳細地址後，最多一小時內自動補上座標
+//    5. 新增 getGeoPoints：週報表用，撈出日期區間內已經有精確座標的
+//       客戶清單，已接上 doGet 路由，權限同 getWeeklyReceptionList
+//    6. jltx.html：
+//       - 熱點地圖疊一層藍色小點，是已經轉出精確座標的個別客戶（藍點
+//         的人也已經算在紅色行政區泡泡的數字裡，不是額外多算的）
+//       - 紅色泡泡的標籤改成永遠顯示（不用滑鼠移過去才看得到），
+//         列印或截圖出來才看得懂每個圈圈是哪個區、幾組
+//       - 新增「🖨 列印地圖」按鈕，只印地圖那張卡片（其他畫面元素
+//         列印時會被隱藏），地圖是真的 DOM/img 畫出來的，瀏覽器列印
+//         會照畫面上看到的圖磚跟圓圈直接印出來，不用另外截圖處理
 //  v9.16 變更：客戶登記/編輯新增「詳細地址」欄位（選填）：
 //    1. CUSTOMER_EXTRA_FIELDS 補上 detailed_address，ensureCustomerExtraColumns
 //       會自動幫 Customer_Data 補這個欄位，不用手動改表頭
@@ -591,6 +620,10 @@ function doGet(e) {
         return jsonResponse(getWeeklyHotPicks(payload.lineUserId ? payload : {
           lineUserId: e.parameter.lineUserId, startDate: e.parameter.startDate, endDate: e.parameter.endDate
         }));
+      case 'getGeoPoints':
+        return jsonResponse(getGeoPoints(payload.lineUserId ? payload : {
+          lineUserId: e.parameter.lineUserId, startDate: e.parameter.startDate, endDate: e.parameter.endDate
+        }));
       case 'getMonthlyVisitorBreakdown':
         return jsonResponse(getMonthlyVisitorBreakdown(payload.lineUserId ? payload : {
           lineUserId: e.parameter.lineUserId, month: e.parameter.month
@@ -1104,7 +1137,8 @@ function submitPublicLead(payload) {
 // 用到這些欄位的部分，不要被覆蓋掉。
 var CUSTOMER_EXTRA_FIELDS = ['gender','marital_status','visit_time_slot',
   'sqft_requirement','room_requirement_note','introduced_units','referrer_name',
-  'linked_customer_id','linked_customer_name','linked_visit_date','detailed_address'];
+  'linked_customer_id','linked_customer_name','linked_visit_date','detailed_address',
+  'geo_lat','geo_lng'];
 
 function ensureCustomerExtraColumns() {
   var sh = getSheet(CONFIG.SHEETS.CUSTOMER);
@@ -2435,6 +2469,103 @@ function getWeeklyHotPicks(payload) {
   } catch (err) { return fail(err.message); }
 }
 
+// ==================== 精確定位熱點地圖：地址轉座標 ====================
+// ★ 吉隆天曜專屬：業務把客戶的「詳細地址」填得夠完整後，這裡把地址
+// 轉成經緯度座標存回 Customer_Data（geo_lat／geo_lng 兩欄，屬於
+// CUSTOMER_EXTRA_FIELDS，ensureCustomerExtraColumns 會自動補欄位）。
+//
+// 用 Nominatim（OpenStreetMap 的免費地址查詢服務）做地址轉座標，不用
+// 申請 API 金鑰、不用綁信用卡，跟熱點地圖的地圖底圖（Leaflet+OSM）
+// 同一個生態系。但 Nominatim 的免費用量政策規定「每秒最多 1 次查詢」，
+// 所以刻意不放在 appendCustomerData／updateCustomerData 裡即時轉換
+// （那樣會拖慢建檔速度，甚至可能重新踩到 v9.11 修過的「逾時重試造成
+// 重複建檔」那個坑）。改成用批次函式 geocodeMissingAddresses，搭配
+// 排程觸發器（見 setupTriggers）固定時間自動跑，新填的地址最多等到
+// 下次觸發器執行就會補上座標，不影響客戶登記/編輯的即時操作。
+
+// 呼叫 Nominatim 把地址轉成 { lat, lng }，查不到回傳 null。加上
+// 「高雄市」當作查詢上下文，提高命中率（大部分地址只寫到路名門牌，
+// 沒特別註明縣市）
+function geocodeAddress_(address) {
+  if (!address) return null;
+  try {
+    var query = encodeURIComponent('高雄市 ' + address);
+    var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=tw&q=' + query;
+    var resp = UrlFetchApp.fetch(url, {
+      method: 'get',
+      headers: { 'User-Agent': 'LongdomCRM-jltx/1.0 (internal use)' },
+      muteHttpExceptions: true
+    });
+    if (resp.getResponseCode() !== 200) return null;
+    var data = JSON.parse(resp.getContentText());
+    if (!data || !data.length) return null;
+    return { lat: Number(data[0].lat), lng: Number(data[0].lon) };
+  } catch (err) {
+    Logger.log('geocodeAddress_ 失敗（' + address + '）：' + err);
+    return null;
+  }
+}
+
+// 批次幫「有填詳細地址、但還沒有座標」的客戶資料轉座標，寫回
+// geo_lat／geo_lng。手動在 Apps Script 編輯器執行，或掛在
+// setupTriggers 的排程觸發器上自動跑。每筆之間 sleep 1.1 秒遵守
+// Nominatim「每秒最多 1 次查詢」的免費用量政策，一次執行最多處理
+// maxCount 筆（預設 200），避免單次執行時間超過 GAS 6 分鐘上限
+function geocodeMissingAddresses(maxCount) {
+  maxCount = maxCount || 200;
+  ensureCustomerExtraColumns();
+  var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER).filter(function(r) {
+    return r.detailed_address && (!r.geo_lat || !r.geo_lng);
+  });
+  Logger.log('待轉座標：' + rows.length + ' 筆，這次最多處理 ' + maxCount + ' 筆');
+
+  var done = 0, failed = 0;
+  for (var i = 0; i < rows.length && done + failed < maxCount; i++) {
+    var r = rows[i];
+    var geo = geocodeAddress_(r.district ? (r.district + r.detailed_address) : r.detailed_address);
+    if (geo) {
+      updateRowById(CONFIG.SHEETS.CUSTOMER, 'customer_id', r.customer_id, {
+        geo_lat: geo.lat, geo_lng: geo.lng
+      });
+      done++;
+    } else {
+      failed++;
+    }
+    Utilities.sleep(1100);
+  }
+  Logger.log('✓ 完成：成功 ' + done + ' 筆，查不到座標 ' + failed + ' 筆');
+}
+
+// 週報表「來人熱點地圖」用：撈出這個日期區間內、已經有精確座標的
+// 客戶清單，疊在行政區泡泡地圖上當作精確定位點。權限規則同
+// getWeeklyReceptionList（主管/admin 才看得到）
+function getGeoPoints(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限');
+
+    var startDate = String((payload && payload.startDate) || todayTW()).substring(0, 10);
+    var endDate   = String((payload && payload.endDate)   || todayTW()).substring(0, 10);
+    var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER).filter(function(r) {
+      var vd = String(r.visit_date).substring(0, 10);
+      if (vd < startDate || vd > endDate) return false;
+      if (!r.geo_lat || !r.geo_lng) return false;
+      return ctx.role === CONFIG.ROLES.ADMIN || r.project_name === ctx.projectName;
+    });
+
+    var results = rows.map(function(r) {
+      return {
+        customer_name: r.customer_name,
+        district: r.district,
+        lat: Number(r.geo_lat),
+        lng: Number(r.geo_lng)
+      };
+    });
+    return ok({ start_date: startDate, end_date: endDate, results: results });
+  } catch (err) { return fail(err.message); }
+}
+
 // 銷售日報歷史區間查詢（近3~6個月歷史清單／週比較／月比較 用）
 function getDailyReportRange(payload) {
   try {
@@ -3364,12 +3495,17 @@ function initAllSheets() {
 function setupTriggers() {
   ScriptApp.getProjectTriggers().forEach(function(t) {
     var fn = t.getHandlerFunction();
-    if (fn === 'sendDailyTaskReminder' || fn === 'sendDailySalesReport') ScriptApp.deleteTrigger(t);
+    if (fn === 'sendDailyTaskReminder' || fn === 'sendDailySalesReport' || fn === 'geocodeMissingAddressesHourly') ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger('sendDailyTaskReminder').timeBased().atHour(9).everyDays(1).inTimezone(CONFIG.TIMEZONE).create();
   ScriptApp.newTrigger('sendDailySalesReport').timeBased().atHour(21).everyDays(1).inTimezone(CONFIG.TIMEZONE).create();
+  // 每小時自動幫新填的「詳細地址」轉座標，業務登記/編輯客戶資料時
+  // 不用等地址轉換完成，最多一小時內熱點地圖就會補上精確定位點
+  ScriptApp.newTrigger('geocodeMissingAddressesHourly').timeBased().everyHours(1).create();
   Logger.log('✓ 觸發器設定完成');
 }
+
+function geocodeMissingAddressesHourly() { geocodeMissingAddresses(200); }
 
 // ★ 修正：防止重複新增，已存在就更新
 function addUser(lineUserId, displayName, role, projectName) {
