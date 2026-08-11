@@ -506,6 +506,7 @@
         </div>
         <div class="field"><div class="field-label">年齡區間</div><div class="chips" id="cust_ageChips"></div></div>
         <div class="field"><div class="field-label">居住行政區</div><div class="chips" id="cust_distChips"></div><div class="extra-inp hidden" id="cust_distOtherWrap"><input class="inp" type="text" id="cust_distOther" placeholder="請輸入縣市/地區"></div></div>
+        <div class="field"><div class="field-label">詳細地址（選填，之後可用於熱點地圖精確定位）</div><input class="inp" type="text" id="cust_detailedAddress" placeholder="例：博愛路100號"></div>
         <div class="field-row">
           <div class="field">
             <div class="field-label">客戶職業</div>
@@ -911,6 +912,7 @@
     </div>
     <div class="field"><div class="field-label">年齡區間</div><select class="sel" id="edit_age"><option value="">請選擇</option><option>30歲以下</option><option>30-39歲</option><option>40-49歲</option><option>50-59歲</option><option>60歲以上</option></select></div>
     <div class="field"><div class="field-label">居住行政區</div><input class="inp" type="text" id="edit_district" placeholder="例：左營區"></div>
+    <div class="field"><div class="field-label">詳細地址（選填）</div><input class="inp" type="text" id="edit_detailedAddress" placeholder="例：博愛路100號"></div>
     <div class="field-row">
       <div class="field"><div class="field-label">客戶職業</div><input class="inp" type="text" id="edit_industry"></div>
       <div class="field"><div class="field-label">購屋動機</div><input class="inp" type="text" id="edit_motive"></div>
@@ -1620,6 +1622,7 @@ function openEditCustModal(custId) {
   document.getElementById('edit_phone').value = c.phone || '';
   document.getElementById('edit_age').value = c.age_range || '';
   document.getElementById('edit_district').value = c.district || '';
+  document.getElementById('edit_detailedAddress').value = c.detailed_address || '';
   document.getElementById('edit_industry').value = c.occupation_industry || '';
   document.getElementById('edit_motive').value = c.purchase_motive || '';
   document.getElementById('edit_source').value = c.source || '';
@@ -1683,6 +1686,7 @@ function submitEditCustomer() {
     phone:               document.getElementById('edit_phone').value.trim(),
     age_range:           document.getElementById('edit_age').value,
     district:            document.getElementById('edit_district').value.trim(),
+    detailed_address:    document.getElementById('edit_detailedAddress').value.trim(),
     occupation_industry: document.getElementById('edit_industry').value.trim(),
     purchase_motive:     document.getElementById('edit_motive').value.trim(),
     source:              document.getElementById('edit_source').value.trim(),
@@ -2516,6 +2520,7 @@ function submitCustomer() {
     sales_line_user_id: salesLineUserId,
     sales_name: salesName,
     visit_type: visitType, customer_name: name, phone: phone, age_range: ageRange, district: dist,
+    detailed_address: document.getElementById('cust_detailedAddress').value.trim(),
     occupation_industry: industry,
     purchase_motive: motive,
     source: source,
@@ -2554,7 +2559,7 @@ function duplicatePhoneMessage(records) {
 }
 
 function resetCustomerForm() {
-  ['cust_name','cust_phone','cust_note','cust_distOther','cust_againDate',
+  ['cust_name','cust_phone','cust_note','cust_distOther','cust_detailedAddress','cust_againDate',
    'cust_industryOther','cust_motiveOther','cust_sourceOther','cust_issueOther','cust_againOther',
    'cust_roomRequirementNote','cust_introducedUnits','cust_referrerName'
   ].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
