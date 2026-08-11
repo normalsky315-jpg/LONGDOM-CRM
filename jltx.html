@@ -2790,7 +2790,13 @@ function renderDistrictHeatmap(byDistrict, range) {
     return;
   }
   if (!weekHeatmapMap) {
-    weekHeatmapMap = L.map('weekHeatmap', { scrollWheelZoom: false }).setView([22.63, 120.33], 11);
+    // 目前主要服務範圍是鳳山區／大寮區，先只放大看這一塊，其他行政區
+    // 暫時用不到；用 maxBounds 鎖住可以平移/縮放的範圍，不會被資料點
+    // 或 fitBounds 帶著跑到範圍外面去
+    var focusBounds = L.latLngBounds([22.555, 120.305], [22.70, 120.455]);
+    weekHeatmapMap = L.map('weekHeatmap', {
+      scrollWheelZoom: false, maxBounds: focusBounds, maxBoundsViscosity: 1, minZoom: 12
+    }).fitBounds(focusBounds);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap',
       maxZoom: 18
@@ -2823,8 +2829,11 @@ function drawHeatmapLayers(byDistrict, geoPoints) {
 
   var maxCount = noAddressList.reduce(function(m, it){ return Math.max(m, it.count); }, 0) || 1;
   var unmatched = [];
-  var bounds = [];
 
+  // ★ 刻意不再用 fitBounds 依資料點自動縮放視角——地圖現在鎖定只看
+  // 鳳山/大寮這塊服務範圍（見 focusBounds），資料點如果剛好落在這個
+  // 範圍外（例如客戶其實住三民區），保持固定視角、不要為了那筆資料
+  // 把整張地圖拉遠，畫面才會一直維持「放大看鳳山/大寮」的效果
   noAddressList.forEach(function(it) {
     var coord = DISTRICT_COORDS[it.label];
     if (!coord) { unmatched.push(it); return; }
@@ -2839,7 +2848,6 @@ function drawHeatmapLayers(byDistrict, geoPoints) {
     marker.bindTooltip(it.label + ' 未記錄詳細地址 ' + it.count + '筆', {
       permanent: true, direction: 'top', className: 'heatmap-label', offset: [0, -4]
     });
-    bounds.push(coord);
   });
 
   geoPoints.forEach(function(p) {
@@ -2847,10 +2855,7 @@ function drawHeatmapLayers(byDistrict, geoPoints) {
       radius: 5, color: '#1D6FA5', weight: 1, fillColor: '#1D6FA5', fillOpacity: 0.9
     }).addTo(weekGeoLayer);
     marker.bindTooltip(escapeHtml(p.customer_name || '客戶'), { direction: 'top', offset: [0, -4] });
-    bounds.push([p.lat, p.lng]);
   });
-
-  if (bounds.length) weekHeatmapMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 13 });
 
   noteEl.innerHTML = '藍色小點是已經轉出精確座標的個別客戶；紅色圓圈代表「還沒有詳細地址、只知道行政區」的客戶數，畫在該行政區的概略中心點，圓圈大小依人數比例縮放' +
     (unmatched.length
