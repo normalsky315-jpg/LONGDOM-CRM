@@ -182,6 +182,15 @@
   .recept-table tr.hot td{background:var(--gold-soft);}
   .recept-table .recept-name{font-weight:600;color:var(--ink);}
   .recept-table .recept-star{color:var(--gold);margin-left:3px;}
+  .heatmap-label{font-size:11px;font-weight:700;padding:1px 6px;border:1px solid #C0392B;color:#C0392B;background:rgba(255,255,255,0.92);}
+  .heatmap-label::before{border-top-color:#C0392B;}
+  @media print{
+    body.print-map-only *{visibility:hidden;}
+    body.print-map-only #weekHeatmapCard,
+    body.print-map-only #weekHeatmapCard *{visibility:visible;}
+    body.print-map-only #weekHeatmapCard{position:absolute;top:0;left:0;width:100%;}
+    body.print-map-only .no-print{visibility:hidden !important;}
+  }
   .cust-card-deal.pending{background:var(--gold-soft);color:#634e0c;}
   .cust-card-deal.refund{background:var(--rust-soft);color:var(--rust);}
   .deal-btn{margin-top:8px;padding:7px 14px;font-size:12px;background:var(--ink);color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:inherit;}
@@ -660,8 +669,12 @@
         <div id="weekUnitBreakdown"></div>
       </div>
 
-      <div class="section-tag" style="margin-top:18px;">來人熱點地圖</div>
+      <div class="section-tag" style="margin-top:18px;display:flex;justify-content:space-between;align-items:center;">
+        <span>來人熱點地圖</span>
+        <button type="button" class="btn-mini no-print" onclick="printHeatmap()" style="font-size:11px;padding:5px 10px;">🖨 列印地圖</button>
+      </div>
       <div class="summary-card" id="weekHeatmapCard">
+        <div id="weekHeatmapTitle" style="font-weight:700;margin-bottom:8px;">吉隆天曜 來人熱點地圖</div>
         <div id="weekHeatmap" style="height:300px;border-radius:10px;overflow:hidden;"></div>
         <div id="weekHeatmapNote" style="font-size:12px;color:var(--ink-faint);margin-top:8px;line-height:1.6;"></div>
       </div>
@@ -2763,9 +2776,9 @@ var DISTRICT_COORDS = {
   '左營區': [22.6825, 120.2939], '鼓山區': [22.6461, 120.2789],
   '橋頭區': [22.7517, 120.3011]
 };
-var weekHeatmapMap = null, weekHeatmapLayer = null;
+var weekHeatmapMap = null, weekHeatmapLayer = null, weekGeoLayer = null;
 
-function renderDistrictHeatmap(byDistrict) {
+function renderDistrictHeatmap(byDistrict, range) {
   var el = document.getElementById('weekHeatmap');
   var noteEl = document.getElementById('weekHeatmapNote');
   if (typeof L === 'undefined') {
@@ -2797,16 +2810,54 @@ function renderDistrictHeatmap(byDistrict) {
       radius: radius, color: '#C0392B', weight: 1,
       fillColor: '#C0392B', fillOpacity: 0.45
     }).addTo(weekHeatmapLayer);
-    marker.bindTooltip(it.label + '　' + it.count + ' 組', { direction: 'top' });
+    // permanent:true 讓標籤一直顯示，不用滑鼠移過去才看得到，
+    // 這樣列印出來也看得懂每個圈圈是哪個區、幾組，不會只是一顆
+    // 沒有說明的紅點
+    marker.bindTooltip(it.label + ' ' + it.count, {
+      permanent: true, direction: 'top', className: 'heatmap-label', offset: [0, -4]
+    });
     bounds.push(coord);
   });
 
   if (bounds.length) weekHeatmapMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 13 });
 
-  noteEl.innerHTML = '圓圈大小代表來客組數，是「行政區」層級的概略熱點，不是精確住址定位' +
+  noteEl.innerHTML = '紅色圓圈大小代表來客組數，是「行政區」層級的概略熱點；藍色小點是已經填了詳細地址、轉換出精確座標的個別客戶（藍點的人也已經算在紅色圓圈的數字裡，不是額外的）' +
     (unmatched.length
       ? '<br>找不到座標、未顯示在地圖上：' + unmatched.map(function(u){ return escapeHtml(u.label) + '（' + u.count + ' 組）'; }).join('、')
       : '');
+
+  loadGeoPoints(range);
+}
+
+// 精確定位點：業務把客戶詳細地址填得夠完整後，後端會定期（每小時）
+// 自動轉成座標存起來，這裡疊一層藍色小點在紅色行政區泡泡上面，
+// 地址還沒轉換完成或沒填的人不會出現在這層，只會算在行政區泡泡裡
+function loadGeoPoints(range) {
+  if (!range || !weekHeatmapMap) return;
+  gasGet('getGeoPoints', { lineUserId: state.user.lineUserId, startDate: range[0], endDate: range[1] }, function(res) {
+    if (weekGeoLayer) weekHeatmapMap.removeLayer(weekGeoLayer);
+    if (!res.ok || !res.data.results || !res.data.results.length) return;
+    weekGeoLayer = L.layerGroup().addTo(weekHeatmapMap);
+    res.data.results.forEach(function(p) {
+      var marker = L.circleMarker([p.lat, p.lng], {
+        radius: 5, color: '#1D6FA5', weight: 1, fillColor: '#1D6FA5', fillOpacity: 0.9
+      }).addTo(weekGeoLayer);
+      marker.bindTooltip(escapeHtml(p.customer_name || '客戶'), { direction: 'top', offset: [0, -4] });
+    });
+  }, function() { /* 精確定位點載入失敗不影響行政區泡泡，靜默略過 */ });
+}
+
+// 只印地圖那張卡片：靠 body.print-map-only 這個 class 搭配 @media print
+// 的 visibility 規則，把頁面上其他東西都印成空白、只留地圖卡片。地圖
+// 本身是 Leaflet 用真的 DOM/img 畫出來的（不是 canvas 截圖），瀏覽器
+// 列印本來就會照樣印出目前畫面上看到的圖磚跟圓圈，不用額外處理
+function printHeatmap() {
+  document.body.classList.add('print-map-only');
+  var cleanup = function(){ document.body.classList.remove('print-map-only'); window.onafterprint = null; };
+  window.onafterprint = cleanup;
+  window.print();
+  // onafterprint 在少數瀏覽器不會觸發，保險起見多加一個逾時自動清除
+  setTimeout(cleanup, 5000);
 }
 
 /* ══ Weekly Report ★ 吉隆天曜專屬 ══ */
@@ -2877,9 +2928,11 @@ function loadWeeklyReport() {
 
   document.getElementById('weekSummaryLabel').textContent = weeklyReportAllTime ? 'ALL-TIME SUMMARY' : 'WEEKLY SUMMARY';
   document.getElementById('weekBreakdownLabel').textContent = (weeklyReportAllTime ? '全部期間來客分布' : '本週來客分布') + '（依客戶資料統計）';
-  document.getElementById('weekReportRange').textContent = weeklyReportAllTime
+  var rangeText = weeklyReportAllTime
     ? '全部期間（累計至今）'
     : mdDash(weekRange[0]) + ' ~ ' + mdDash(weekRange[1]);
+  document.getElementById('weekReportRange').textContent = rangeText;
+  document.getElementById('weekHeatmapTitle').textContent = '吉隆天曜 來人熱點地圖　' + rangeText;
   var emptyText = weeklyReportAllTime ? '目前尚無客戶資料' : '本週尚無客戶資料';
 
   var errHTML = '<div style="font-size:12px;color:var(--rust);padding:6px 0;">載入失敗，請確認 GAS 已部署最新版本</div>';
@@ -2898,7 +2951,7 @@ function loadWeeklyReport() {
     document.getElementById('weekDistrictBreakdown').innerHTML = breakdownChipsHTML(d.by_district, d.total, emptyText);
     document.getElementById('weekSourceBreakdown').innerHTML = breakdownChipsHTML(d.by_source, d.total, emptyText);
     document.getElementById('weekUnitBreakdown').innerHTML = breakdownChipsHTML(d.by_unit, d.total, emptyText);
-    renderDistrictHeatmap(d.by_district);
+    renderDistrictHeatmap(d.by_district, statsRange);
   }, function() {
     document.getElementById('weekDistrictBreakdown').innerHTML = errHTML;
     document.getElementById('weekSourceBreakdown').innerHTML = '';
