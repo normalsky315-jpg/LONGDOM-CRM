@@ -644,11 +644,14 @@
       </div>
       <div class="field" style="margin-bottom:14px;">
         <div class="field-label">查詢週次</div>
-        <input class="inp" type="week" id="weekReportDate" onchange="loadWeeklyReport()">
+        <div style="display:flex;gap:8px;">
+          <input class="inp" type="week" id="weekReportDate" onchange="setWeeklyReportAllTime(false)" style="flex:1;">
+          <button type="button" class="btn-mini" id="weekAllTimeBtn" onclick="setWeeklyReportAllTime(true)" style="flex-shrink:0;">全部期間</button>
+        </div>
       </div>
-      <div class="summary-card"><div class="summary-card-label">WEEKLY SUMMARY</div><div class="summary-card-date" id="weekReportRange">—</div><div class="summary-stats"><div class="summary-stat"><div class="summary-stat-num" id="weekSumVisitor">0</div><div class="summary-stat-label">接待</div></div><div class="summary-stat"><div class="summary-stat-num" id="weekSumFirst">0</div><div class="summary-stat-label">初訪</div></div><div class="summary-stat"><div class="summary-stat-num" id="weekSumRevisit">0</div><div class="summary-stat-label">回籠</div></div><div class="summary-stat"><div class="summary-stat-num" id="weekSumDeal">0</div><div class="summary-stat-label">成交</div></div></div></div>
+      <div class="summary-card"><div class="summary-card-label" id="weekSummaryLabel">WEEKLY SUMMARY</div><div class="summary-card-date" id="weekReportRange">—</div><div class="summary-stats"><div class="summary-stat"><div class="summary-stat-num" id="weekSumVisitor">0</div><div class="summary-stat-label">接待</div></div><div class="summary-stat"><div class="summary-stat-num" id="weekSumFirst">0</div><div class="summary-stat-label">初訪</div></div><div class="summary-stat"><div class="summary-stat-num" id="weekSumRevisit">0</div><div class="summary-stat-label">回籠</div></div><div class="summary-stat"><div class="summary-stat-num" id="weekSumDeal">0</div><div class="summary-stat-label">成交</div></div></div></div>
       <div class="summary-card" id="weekBreakdownCard">
-        <div class="summary-card-label">本週來客分布（依客戶資料統計）</div>
+        <div class="summary-card-label" id="weekBreakdownLabel">本週來客分布（依客戶資料統計）</div>
         <div style="font-size:12px;color:var(--ink-faint);margin-top:6px;">居住行政區</div>
         <div id="weekDistrictBreakdown"></div>
         <div style="font-size:12px;color:var(--ink-faint);margin-top:10px;">來源管道</div>
@@ -2847,14 +2850,40 @@ function isoWeekStringFromDate(dateStr) {
 function renderWeeklyReport() {
   var input = document.getElementById('weekReportDate');
   if (!input.value) input.value = isoWeekStringFromDate(todayStr());
+  weeklyReportAllTime = false;
   loadWeeklyReport();
 }
+
+// 「全部期間」切換：業務日常都是看單一週，但有時候想看的是「總共」
+// 來過多少人、行政區/來源整體分布，不想一週一週切。這個模式只影響
+// 上面的統計數字/分布圖表/熱點地圖，「本週有望客」「客戶接待明細」
+// 這兩塊本質上就是「這一週」的東西，全部期間資料量太大也沒意義，
+// 維持照週次輸入框顯示，不受這個切換影響
+var weeklyReportAllTime = false;
+function setWeeklyReportAllTime(allTime) {
+  weeklyReportAllTime = allTime;
+  var btn = document.getElementById('weekAllTimeBtn');
+  btn.style.background = allTime ? 'var(--ink)' : '';
+  btn.style.color = allTime ? '#fff' : '';
+  loadWeeklyReport();
+}
+
 function loadWeeklyReport() {
   var weekStr = document.getElementById('weekReportDate').value || isoWeekStringFromDate(todayStr());
-  var range = isoWeekRangeFromString(weekStr);
-  document.getElementById('weekReportRange').textContent = mdDash(range[0]) + ' ~ ' + mdDash(range[1]);
+  var weekRange = isoWeekRangeFromString(weekStr);
+  // 全部期間：用一個夠早的起始日期涵蓋所有歷史資料，不用另外開一支
+  // API，後端 getWeeklyVisitorBreakdown 本來就是純日期區間篩選
+  var statsRange = weeklyReportAllTime ? ['2000-01-01', todayStr()] : weekRange;
+
+  document.getElementById('weekSummaryLabel').textContent = weeklyReportAllTime ? 'ALL-TIME SUMMARY' : 'WEEKLY SUMMARY';
+  document.getElementById('weekBreakdownLabel').textContent = (weeklyReportAllTime ? '全部期間來客分布' : '本週來客分布') + '（依客戶資料統計）';
+  document.getElementById('weekReportRange').textContent = weeklyReportAllTime
+    ? '全部期間（累計至今）'
+    : mdDash(weekRange[0]) + ' ~ ' + mdDash(weekRange[1]);
+  var emptyText = weeklyReportAllTime ? '目前尚無客戶資料' : '本週尚無客戶資料';
+
   var errHTML = '<div style="font-size:12px;color:var(--rust);padding:6px 0;">載入失敗，請確認 GAS 已部署最新版本</div>';
-  gasGet('getWeeklyVisitorBreakdown', { lineUserId: state.user.lineUserId, startDate: range[0], endDate: range[1] }, function(res) {
+  gasGet('getWeeklyVisitorBreakdown', { lineUserId: state.user.lineUserId, startDate: statsRange[0], endDate: statsRange[1] }, function(res) {
     if (!res.ok) {
       document.getElementById('weekDistrictBreakdown').innerHTML = errHTML;
       document.getElementById('weekSourceBreakdown').innerHTML = '';
@@ -2866,9 +2895,9 @@ function loadWeeklyReport() {
     document.getElementById('weekSumFirst').textContent = d.first_visit;
     document.getElementById('weekSumRevisit').textContent = d.revisit;
     document.getElementById('weekSumDeal').textContent = d.deal;
-    document.getElementById('weekDistrictBreakdown').innerHTML = breakdownChipsHTML(d.by_district, d.total, '本週尚無客戶資料');
-    document.getElementById('weekSourceBreakdown').innerHTML = breakdownChipsHTML(d.by_source, d.total, '本週尚無客戶資料');
-    document.getElementById('weekUnitBreakdown').innerHTML = breakdownChipsHTML(d.by_unit, d.total, '本週尚無客戶資料');
+    document.getElementById('weekDistrictBreakdown').innerHTML = breakdownChipsHTML(d.by_district, d.total, emptyText);
+    document.getElementById('weekSourceBreakdown').innerHTML = breakdownChipsHTML(d.by_source, d.total, emptyText);
+    document.getElementById('weekUnitBreakdown').innerHTML = breakdownChipsHTML(d.by_unit, d.total, emptyText);
     renderDistrictHeatmap(d.by_district);
   }, function() {
     document.getElementById('weekDistrictBreakdown').innerHTML = errHTML;
@@ -2876,8 +2905,8 @@ function loadWeeklyReport() {
     document.getElementById('weekUnitBreakdown').innerHTML = '';
   });
 
-  loadWeeklyHotPicksCard(range);
-  loadWeeklyReceptionTable(range);
+  loadWeeklyHotPicksCard(weekRange);
+  loadWeeklyReceptionTable(weekRange);
 }
 
 // 本週有望客卡片：業務挑選送出的清單，跨業務彙整
