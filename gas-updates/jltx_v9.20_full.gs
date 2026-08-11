@@ -1,5 +1,21 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.19
+//  龍登 CRM — 吉隆天曜專用版 v9.20
+//  v9.20 變更：修正地址轉座標「查不到」的最大宗原因——行政區重複疊加：
+//    實測發現業務登記時常常直接把完整地址（含市/區）打進「詳細地址」
+//    欄位，原本的邏輯又把「行政區」欄位疊上去一次，變成「大寮區大寮區
+//    開封街…」這種重複，甚至「大寮區高雄市三民區…」這種行政區互相
+//    矛盾的怪字串，Nominatim 當然查不到（實測 15 筆裡 14 筆都是這個
+//    原因）。
+//    1. 新增 buildGeocodeAddress_：詳細地址裡已經有「市」字就直接用、
+//       不疊加；只有「區」沒「市」才補「高雄市」；純路名門牌才用
+//       「行政區」欄位組（外縣市會取「外縣市：」後面實際打的縣市名）
+//    2. 新增 stripFloorSuffix_：拿掉門牌後面的樓層/室號（例如「225號
+//       10樓」→「225號」），Nominatim 通常不認得樓層，留著可能查詢
+//       失敗。geocodeAddress_ 現在會依序試：完整地址 → 拿掉樓層 →
+//       只留路名，三層都失敗才真的算查不到
+//    3. geocodeMissingAddresses 改用 buildGeocodeAddress_ 組查詢字串
+//    部署後記得重新執行一次 geocodeMissingAddresses()，之前失敗的
+//    那幾筆會被抓進待處理清單重新嘗試
 //  v9.19 變更：熱點地圖語意調整＋只有路名也能定位：
 //    1. geocodeAddress_ 新增退回查詢：完整地址查不到座標時（常見是
 //       只寫路名沒門牌號碼、或門牌太新 OSM 還沒收錄），退一步只查到
@@ -2530,18 +2546,56 @@ function extractRoadName_(address) {
   return m ? m[0] : null;
 }
 
-// 先查完整地址；查不到的話（常見是只寫了路名沒門牌號碼，或門牌太新
-// OSM 資料庫還沒收錄），退一步只查到路名為止，抓這條路的概略中心點
-// 當作精確位置用，比完全查不到、整筆掉回行政區層級好
+// 拿掉門牌後面的樓層/室號（例：「琉球路168號3樓-5」→「琉球路168號」，
+// 「大豐二路225號10樓」→「大豐二路225號」），Nominatim 通常不認得
+// 樓層資訊，留著反而可能讓查詢失敗
+function stripFloorSuffix_(address) {
+  return String(address).replace(/\d+\s*[樓Ff].*$/, '').trim();
+}
+
+// 組合真正要拿去查詢的地址字串。業務登記時常常直接把「完整地址（含
+// 市/區）」打進「詳細地址」欄位，如果這裡再把「行政區」欄位疊上去，
+// 會變成「大寮區大寮區開封街…」這種重複，甚至「大寮區高雄市三民區…」
+// 這種行政區互相矛盾的怪字串，導致 Nominatim 完全查不到——這是目前
+// 「查不到座標」最大宗的原因，不是地址本身有問題，是重複疊加造成的。
+// 判斷規則：
+//   - 詳細地址裡已經有「市」字 → 代表打了完整地址，直接用，不疊加
+//   - 只有「區」沒有「市」→ 補上「高雄市」
+//   - 兩個都沒有（純路名門牌）→ 用「行政區」欄位組（外縣市的話取
+//     「外縣市：」後面實際打的縣市名，不是高雄市底下的行政區）
+function buildGeocodeAddress_(district, detailedAddress) {
+  var addr = String(detailedAddress || '').trim();
+  if (!addr) return '';
+  if (addr.indexOf('市') >= 0) return addr;
+  if (addr.indexOf('區') >= 0) return '高雄市' + addr;
+  var dist = String(district || '').replace(/^外縣市[：:]\s*/, '');
+  if (!dist) return addr;
+  var cityPrefix = (dist.indexOf('市') >= 0 || dist.indexOf('縣') >= 0) ? '' : '高雄市';
+  return cityPrefix + dist + addr;
+}
+
+// 先查完整地址；查不到的話依序退兩步再試：
+//   1. 拿掉樓層/室號後再查一次（常見門牌本身查得到，樓層資訊反而
+//      讓 Nominatim 判斷失敗）
+//   2. 只查到路名為止，抓這條路的概略中心點當精確位置用（常見是只
+//      寫了路名沒門牌號碼，或門牌太新 OSM 資料庫還沒收錄），比完全
+//      查不到、整筆掉回行政區層級好
 function geocodeAddress_(address) {
   if (!address) return null;
-  var geo = geocodeQuery_('高雄市 ' + address);
+  var geo = geocodeQuery_(address);
   if (geo) return geo;
+
+  var noFloor = stripFloorSuffix_(address);
+  if (noFloor && noFloor !== address) {
+    Utilities.sleep(1100); // 每次查詢間都要遵守 Nominatim 每秒最多 1 次的限制
+    geo = geocodeQuery_(noFloor);
+    if (geo) return geo;
+  }
 
   var roadName = extractRoadName_(address);
   if (!roadName || roadName === address) return null;
-  Utilities.sleep(1100); // 兩次查詢間一樣要遵守 Nominatim 每秒最多 1 次的限制
-  return geocodeQuery_('高雄市 ' + roadName);
+  Utilities.sleep(1100);
+  return geocodeQuery_(roadName);
 }
 
 // 批次幫「有填詳細地址、但還沒有座標」的客戶資料轉座標，寫回
@@ -2560,7 +2614,7 @@ function geocodeMissingAddresses(maxCount) {
   var done = 0, failed = 0, failedList = [];
   for (var i = 0; i < rows.length && done + failed < maxCount; i++) {
     var r = rows[i];
-    var fullAddress = r.district ? (r.district + r.detailed_address) : r.detailed_address;
+    var fullAddress = buildGeocodeAddress_(r.district, r.detailed_address);
     var geo = geocodeAddress_(fullAddress);
     if (geo) {
       updateRowById(CONFIG.SHEETS.CUSTOMER, 'customer_id', r.customer_id, {
