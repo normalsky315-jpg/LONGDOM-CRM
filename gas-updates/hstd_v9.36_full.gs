@@ -1,5 +1,13 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.35
+//  龍登 CRM — 華雄天地專用版 v9.36
+//  v9.36 變更：客戶登記/編輯新增「詳細地址」欄位（選填）：
+//    1. CUSTOMER_EXTRA_FIELDS 補上 detailed_address，ensureCustomerExtraColumns
+//       會自動幫 Customer_Data 補這個欄位，不用手動改表頭
+//    2. appendCustomerData 寫入這個欄位；updateCustomerData 因為
+//       editableFields 是 CUSTOMER_EXTRA_FIELDS.concat(...)，自動就能改
+//    3. 對應前端（hstd.html）：客戶登記表單、編輯客戶資料表單的
+//       「居住行政區」下方都新增「詳細地址」輸入框，選填
+//    跟吉隆天曜（jltx_v9.16_full.gs）同一次一起加，兩邊資料欄位保持一致
 //  v9.35 變更：客戶登記新增「回訪客人關聯」功能：
 //    1. Customer_Data 新增 linked_customer_id／linked_customer_name／
 //       linked_visit_date 三個欄位（透過 ensureCustomerExtraColumns
@@ -1062,7 +1070,7 @@ function getPurchaseMotiveList() { return ok(CONFIG.PURCHASE_MOTIVES); }
 // 使用前要先確保表頭存在，否則 appendObjectToSheet/updateRowById
 // 都只認得既有表頭，資料會被靜默丟掉）。重新同步時記得保留這段跟
 // appendCustomerData/updateCustomerData 裡用到的部分，不要被覆蓋掉。
-var CUSTOMER_EXTRA_FIELDS = ['introduced_units', 'linked_customer_id', 'linked_customer_name', 'linked_visit_date'];
+var CUSTOMER_EXTRA_FIELDS = ['introduced_units', 'linked_customer_id', 'linked_customer_name', 'linked_visit_date', 'detailed_address'];
 
 function ensureCustomerExtraColumns() {
   var sh = getSheet(CONFIG.SHEETS.CUSTOMER);
@@ -1110,6 +1118,7 @@ function appendCustomerData(payload) {
       phone: payload.phone,
       age_range: payload.age_range || '',
       district: payload.district || '',
+      detailed_address: payload.detailed_address || '',
       occupation_industry: payload.occupation_industry || '',
       purchase_motive: payload.purchase_motive || '',
       source: payload.source || '',
