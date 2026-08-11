@@ -1,5 +1,23 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.17
+//  龍登 CRM — 吉隆天曜專用版 v9.19
+//  v9.19 變更：熱點地圖語意調整＋只有路名也能定位：
+//    1. geocodeAddress_ 新增退回查詢：完整地址查不到座標時（常見是
+//       只寫路名沒門牌號碼、或門牌太新 OSM 還沒收錄），退一步只查到
+//       路名為止（extractRoadName_ 截字），抓那條路的概略中心點當作
+//       精確位置，比整筆掉回行政區層級更精確
+//    2. jltx.html 熱點地圖語意改變：紅色泡泡原本代表「這個行政區的
+//       全部來客數」（含已經精確定位的），現在改成只代表「還沒有
+//       詳細地址、只知道行政區」的人數，標籤文字改成「XX區 未記錄
+//       詳細地址 N筆」；全部客戶都已經精確定位的行政區不會再畫紅色
+//       泡泡（沒有東西要標示）。前端改成先抓 getGeoPoints 精確點清單，
+//       算出每個行政區「未定位」的人數後才畫紅色泡泡，避免同一個人
+//       同時被藍點跟紅色泡泡重複計算
+//  v9.18 變更：geocodeMissingAddresses 補上失敗清單，方便排查「查不到
+//    座標」的原因：原本只 log 成功/失敗總數，看不出是哪幾筆、為什麼查
+//    不到。改成把每一筆查不到座標的客戶姓名＋customer_id＋實際拿去
+//    查詢的地址都印出來，方便對照 Customer_Data 手動修正。常見原因：
+//    地址只寫到巷弄沒有門牌號碼、新建案地址 OSM 資料庫還沒收錄、地址
+//    打錯字。修正後重跑一次 geocodeMissingAddresses() 即可。
 //  v9.17 變更：來人熱點地圖升級成精確定位版（疊在行政區泡泡上）：
 //    ★ 部署後要做的事：
 //      1. 在 Apps Script 編輯器手動執行一次 geocodeMissingAddresses()，
@@ -2486,11 +2504,10 @@ function getWeeklyHotPicks(payload) {
 // 呼叫 Nominatim 把地址轉成 { lat, lng }，查不到回傳 null。加上
 // 「高雄市」當作查詢上下文，提高命中率（大部分地址只寫到路名門牌，
 // 沒特別註明縣市）
-function geocodeAddress_(address) {
-  if (!address) return null;
+// 真正打 Nominatim 查詢的部分，query 是完整要查的文字（已經包含「高雄市」）
+function geocodeQuery_(query) {
   try {
-    var query = encodeURIComponent('高雄市 ' + address);
-    var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=tw&q=' + query;
+    var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=tw&q=' + encodeURIComponent(query);
     var resp = UrlFetchApp.fetch(url, {
       method: 'get',
       headers: { 'User-Agent': 'LongdomCRM-jltx/1.0 (internal use)' },
@@ -2501,9 +2518,30 @@ function geocodeAddress_(address) {
     if (!data || !data.length) return null;
     return { lat: Number(data[0].lat), lng: Number(data[0].lon) };
   } catch (err) {
-    Logger.log('geocodeAddress_ 失敗（' + address + '）：' + err);
+    Logger.log('geocodeQuery_ 失敗（' + query + '）：' + err);
     return null;
   }
+}
+
+// 從地址裡截出「到路名/街名為止」的部分，門牌號碼、巷弄、樓層都拿掉。
+// 例：「博愛路100號5樓」「博愛二路100巷5號」都會截成「博愛路」/「博愛二路」
+function extractRoadName_(address) {
+  var m = String(address).match(/^.*?(路|街|大道)/);
+  return m ? m[0] : null;
+}
+
+// 先查完整地址；查不到的話（常見是只寫了路名沒門牌號碼，或門牌太新
+// OSM 資料庫還沒收錄），退一步只查到路名為止，抓這條路的概略中心點
+// 當作精確位置用，比完全查不到、整筆掉回行政區層級好
+function geocodeAddress_(address) {
+  if (!address) return null;
+  var geo = geocodeQuery_('高雄市 ' + address);
+  if (geo) return geo;
+
+  var roadName = extractRoadName_(address);
+  if (!roadName || roadName === address) return null;
+  Utilities.sleep(1100); // 兩次查詢間一樣要遵守 Nominatim 每秒最多 1 次的限制
+  return geocodeQuery_('高雄市 ' + roadName);
 }
 
 // 批次幫「有填詳細地址、但還沒有座標」的客戶資料轉座標，寫回
@@ -2519,10 +2557,11 @@ function geocodeMissingAddresses(maxCount) {
   });
   Logger.log('待轉座標：' + rows.length + ' 筆，這次最多處理 ' + maxCount + ' 筆');
 
-  var done = 0, failed = 0;
+  var done = 0, failed = 0, failedList = [];
   for (var i = 0; i < rows.length && done + failed < maxCount; i++) {
     var r = rows[i];
-    var geo = geocodeAddress_(r.district ? (r.district + r.detailed_address) : r.detailed_address);
+    var fullAddress = r.district ? (r.district + r.detailed_address) : r.detailed_address;
+    var geo = geocodeAddress_(fullAddress);
     if (geo) {
       updateRowById(CONFIG.SHEETS.CUSTOMER, 'customer_id', r.customer_id, {
         geo_lat: geo.lat, geo_lng: geo.lng
@@ -2530,10 +2569,20 @@ function geocodeMissingAddresses(maxCount) {
       done++;
     } else {
       failed++;
+      // 只記總數看不出是哪幾筆、為什麼查不到，之前這樣 log 完全沒辦法
+      // 排查，改成把每一筆查不到的客戶姓名＋實際拿去查詢的地址都印
+      // 出來，方便對照 Customer_Data 手動修正（常見原因：地址只寫到
+      // 巷弄沒有門牌號碼、新建案地址 OSM 資料庫還沒收錄、地址打錯字）
+      failedList.push(r.customer_name + '（' + r.customer_id + '）：' + fullAddress);
     }
     Utilities.sleep(1100);
   }
   Logger.log('✓ 完成：成功 ' + done + ' 筆，查不到座標 ' + failed + ' 筆');
+  if (failedList.length) {
+    Logger.log('查不到座標的清單（常見原因：地址只寫到巷弄沒門牌號碼／新建案\n' +
+      'OSM 還沒收錄／地址打錯字，可以手動修正 detailed_address 後重跑一次）：\n' +
+      failedList.join('\n'));
+  }
 }
 
 // 週報表「來人熱點地圖」用：撈出這個日期區間內、已經有精確座標的
