@@ -1,5 +1,15 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.15
+//  龍登 CRM — 吉隆天曜專用版 v9.16
+//  v9.16 變更：客戶登記/編輯新增「詳細地址」欄位（選填）：
+//    1. CUSTOMER_EXTRA_FIELDS 補上 detailed_address，ensureCustomerExtraColumns
+//       會自動幫 Customer_Data 補這個欄位，不用手動改表頭
+//    2. appendCustomerData 寫入這個欄位；updateCustomerData 因為
+//       editableFields 是 CUSTOMER_EXTRA_FIELDS.concat(...)，自動就能改
+//    3. 對應前端：客戶登記表單「居住行政區」下方、編輯客戶資料的表單
+//       「居住行政區」下方都新增「詳細地址」輸入框，選填
+//    背景：週報表「來人熱點地圖」目前只能用行政區泡泡呈現（因為原本
+//    沒有詳細地址可用），這次先把資料欄位補上，之後累積夠多詳細地址
+//    後，可以另外做地址轉座標（geocoding），在地圖上疊一層精確定位的點
 //  v9.15 變更：週報表「客戶接待明細」表格微調＋一鍵列印：
 //    1. getWeeklyReceptionList 回傳欄位改成 visit_type／linked_customer_name／
 //       linked_visit_date（原本是 revisit_plan，改掉是因為經理要看的是
@@ -1094,7 +1104,7 @@ function submitPublicLead(payload) {
 // 用到這些欄位的部分，不要被覆蓋掉。
 var CUSTOMER_EXTRA_FIELDS = ['gender','marital_status','visit_time_slot',
   'sqft_requirement','room_requirement_note','introduced_units','referrer_name',
-  'linked_customer_id','linked_customer_name','linked_visit_date'];
+  'linked_customer_id','linked_customer_name','linked_visit_date','detailed_address'];
 
 function ensureCustomerExtraColumns() {
   var sh = getSheet(CONFIG.SHEETS.CUSTOMER);
@@ -1174,6 +1184,7 @@ function appendCustomerData(payload) {
       phone: payload.phone,
       age_range: payload.age_range || '',
       district: payload.district || '',
+      detailed_address: payload.detailed_address || '',
       occupation_industry: payload.occupation_industry || '',
       purchase_motive: payload.purchase_motive || '',
       source: payload.source || '',
