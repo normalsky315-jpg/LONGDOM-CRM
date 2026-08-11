@@ -675,7 +675,7 @@
       </div>
       <div class="summary-card" id="weekHeatmapCard">
         <div id="weekHeatmapTitle" style="font-weight:700;margin-bottom:8px;">吉隆天曜 來人熱點地圖</div>
-        <div id="weekHeatmap" style="height:460px;border-radius:10px;overflow:hidden;"></div>
+        <div id="weekHeatmap" style="height:600px;border-radius:10px;overflow:hidden;"></div>
         <div id="weekHeatmapNote" style="font-size:12px;color:var(--ink-faint);margin-top:8px;line-height:1.6;"></div>
       </div>
 
@@ -2793,7 +2793,7 @@ function renderDistrictHeatmap(byDistrict, range) {
     // 目前主要服務範圍是鳳山區／大寮區，先只放大看這一塊，其他行政區
     // 暫時用不到；用 maxBounds 鎖住可以平移/縮放的範圍，不會被資料點
     // 或 fitBounds 帶著跑到範圍外面去
-    var focusBounds = L.latLngBounds([22.555, 120.305], [22.70, 120.455]);
+    var focusBounds = L.latLngBounds([22.50, 120.305], [22.75, 120.455]);
     weekHeatmapMap = L.map('weekHeatmap', {
       scrollWheelZoom: false, maxBounds: focusBounds, maxBoundsViscosity: 1, minZoom: 12
     }).fitBounds(focusBounds);
