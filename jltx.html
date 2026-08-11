@@ -9,6 +9,9 @@
 <link rel="preconnect" href="https://static.line-scdn.net">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700&family=Noto+Sans+TC:wght@300;400;500&display=swap" rel="stylesheet">
 <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<!-- 來人熱點地圖用：Leaflet + OpenStreetMap，完全免費、不用申請 API 金鑰 -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   :root {
     --cream:#FAF8F4; --ink:#1A1A2E; --ink-light:#4A4A6A; --ink-faint:#8A8AA0;
@@ -651,6 +654,12 @@
         <div id="weekSourceBreakdown"></div>
         <div style="font-size:12px;color:var(--ink-faint);margin-top:10px;">已介紹房型（戶別反應）</div>
         <div id="weekUnitBreakdown"></div>
+      </div>
+
+      <div class="section-tag" style="margin-top:18px;">來人熱點地圖</div>
+      <div class="summary-card" id="weekHeatmapCard">
+        <div id="weekHeatmap" style="height:300px;border-radius:10px;overflow:hidden;"></div>
+        <div id="weekHeatmapNote" style="font-size:12px;color:var(--ink-faint);margin-top:8px;line-height:1.6;"></div>
       </div>
 
       <div class="section-tag" style="margin-top:18px;">本週有望客</div>
@@ -2728,6 +2737,70 @@ function breakdownChipsHTML(items, total, emptyText) {
   '</div>';
 }
 
+/* ══ 來人熱點地圖 ★ 吉隆天曜專屬 ══ */
+// 目前客戶資料大多只填「居住行政區」，還沒有詳細街地址，沒辦法標出
+// 精確的點。所以先用「行政區泡泡」呈現：每個行政區的地理中心點畫一個
+// 圓圈，圓圈大小/深淺代表那個區這週來的組數，不是假裝知道確切住址。
+// 之後如果客戶資料填了更詳細的地址，可以另外加一層「精確定位」的點
+// （另外開發，不影響這層行政區泡泡）。座標是高雄市各行政區的概略中心
+// 點（非官方精確界址中心，僅供視覺參考用）。
+var DISTRICT_COORDS = {
+  '大寮區': [22.6103, 120.3993], '鳳山區': [22.6273, 120.3600],
+  '林園區': [22.5000, 120.3967], '小港區': [22.5667, 120.3500],
+  '鳥松區': [22.6494, 120.3617], '大樹區': [22.7005, 120.4344],
+  '前鎮區': [22.5975, 120.3200], '三民區': [22.6461, 120.3211],
+  '苓雅區': [22.6197, 120.3086], '新興區': [22.6280, 120.3025],
+  '前金區': [22.6280, 120.2925], '鹽埕區': [22.6247, 120.2825],
+  '仁武區': [22.7014, 120.3617], '楠梓區': [22.7264, 120.3111],
+  '左營區': [22.6825, 120.2939], '鼓山區': [22.6461, 120.2789],
+  '橋頭區': [22.7517, 120.3011]
+};
+var weekHeatmapMap = null, weekHeatmapLayer = null;
+
+function renderDistrictHeatmap(byDistrict) {
+  var el = document.getElementById('weekHeatmap');
+  var noteEl = document.getElementById('weekHeatmapNote');
+  if (typeof L === 'undefined') {
+    el.innerHTML = '<div style="padding:16px;font-size:12px;color:var(--rust);">地圖套件載入失敗，請檢查網路連線</div>';
+    return;
+  }
+  if (!weekHeatmapMap) {
+    weekHeatmapMap = L.map('weekHeatmap', { scrollWheelZoom: false }).setView([22.63, 120.33], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap',
+      maxZoom: 18
+    }).addTo(weekHeatmapMap);
+  } else {
+    setTimeout(function(){ weekHeatmapMap.invalidateSize(); }, 0);
+  }
+  if (weekHeatmapLayer) weekHeatmapMap.removeLayer(weekHeatmapLayer);
+  weekHeatmapLayer = L.layerGroup().addTo(weekHeatmapMap);
+
+  var list = byDistrict || [];
+  var maxCount = list.reduce(function(m, it){ return Math.max(m, it.count); }, 0) || 1;
+  var unmatched = [];
+  var bounds = [];
+
+  list.forEach(function(it) {
+    var coord = DISTRICT_COORDS[it.label];
+    if (!coord) { unmatched.push(it); return; }
+    var radius = 10 + (it.count / maxCount) * 26; // 10~36px，依比例縮放
+    var marker = L.circleMarker(coord, {
+      radius: radius, color: '#C0392B', weight: 1,
+      fillColor: '#C0392B', fillOpacity: 0.45
+    }).addTo(weekHeatmapLayer);
+    marker.bindTooltip(it.label + '　' + it.count + ' 組', { direction: 'top' });
+    bounds.push(coord);
+  });
+
+  if (bounds.length) weekHeatmapMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 13 });
+
+  noteEl.innerHTML = '圓圈大小代表來客組數，是「行政區」層級的概略熱點，不是精確住址定位' +
+    (unmatched.length
+      ? '<br>找不到座標、未顯示在地圖上：' + unmatched.map(function(u){ return escapeHtml(u.label) + '（' + u.count + ' 組）'; }).join('、')
+      : '');
+}
+
 /* ══ Weekly Report ★ 吉隆天曜專屬 ══ */
 // input[type=week] 存的是 ISO 週次字串（例如 "2026-W31"），這兩個
 // helper 負責字串<->週一~週日日期範圍互轉，全部用 UTC 運算避免受
@@ -2791,6 +2864,7 @@ function loadWeeklyReport() {
     document.getElementById('weekDistrictBreakdown').innerHTML = breakdownChipsHTML(d.by_district, d.total, '本週尚無客戶資料');
     document.getElementById('weekSourceBreakdown').innerHTML = breakdownChipsHTML(d.by_source, d.total, '本週尚無客戶資料');
     document.getElementById('weekUnitBreakdown').innerHTML = breakdownChipsHTML(d.by_unit, d.total, '本週尚無客戶資料');
+    renderDistrictHeatmap(d.by_district);
   }, function() {
     document.getElementById('weekDistrictBreakdown').innerHTML = errHTML;
     document.getElementById('weekSourceBreakdown').innerHTML = '';
