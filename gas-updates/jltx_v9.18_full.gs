@@ -1,5 +1,11 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.17
+//  龍登 CRM — 吉隆天曜專用版 v9.18
+//  v9.18 變更：geocodeMissingAddresses 補上失敗清單，方便排查「查不到
+//    座標」的原因：原本只 log 成功/失敗總數，看不出是哪幾筆、為什麼查
+//    不到。改成把每一筆查不到座標的客戶姓名＋customer_id＋實際拿去
+//    查詢的地址都印出來，方便對照 Customer_Data 手動修正。常見原因：
+//    地址只寫到巷弄沒有門牌號碼、新建案地址 OSM 資料庫還沒收錄、地址
+//    打錯字。修正後重跑一次 geocodeMissingAddresses() 即可。
 //  v9.17 變更：來人熱點地圖升級成精確定位版（疊在行政區泡泡上）：
 //    ★ 部署後要做的事：
 //      1. 在 Apps Script 編輯器手動執行一次 geocodeMissingAddresses()，
@@ -2519,10 +2525,11 @@ function geocodeMissingAddresses(maxCount) {
   });
   Logger.log('待轉座標：' + rows.length + ' 筆，這次最多處理 ' + maxCount + ' 筆');
 
-  var done = 0, failed = 0;
+  var done = 0, failed = 0, failedList = [];
   for (var i = 0; i < rows.length && done + failed < maxCount; i++) {
     var r = rows[i];
-    var geo = geocodeAddress_(r.district ? (r.district + r.detailed_address) : r.detailed_address);
+    var fullAddress = r.district ? (r.district + r.detailed_address) : r.detailed_address;
+    var geo = geocodeAddress_(fullAddress);
     if (geo) {
       updateRowById(CONFIG.SHEETS.CUSTOMER, 'customer_id', r.customer_id, {
         geo_lat: geo.lat, geo_lng: geo.lng
@@ -2530,10 +2537,20 @@ function geocodeMissingAddresses(maxCount) {
       done++;
     } else {
       failed++;
+      // 只記總數看不出是哪幾筆、為什麼查不到，之前這樣 log 完全沒辦法
+      // 排查，改成把每一筆查不到的客戶姓名＋實際拿去查詢的地址都印
+      // 出來，方便對照 Customer_Data 手動修正（常見原因：地址只寫到
+      // 巷弄沒有門牌號碼、新建案地址 OSM 資料庫還沒收錄、地址打錯字）
+      failedList.push(r.customer_name + '（' + r.customer_id + '）：' + fullAddress);
     }
     Utilities.sleep(1100);
   }
   Logger.log('✓ 完成：成功 ' + done + ' 筆，查不到座標 ' + failed + ' 筆');
+  if (failedList.length) {
+    Logger.log('查不到座標的清單（常見原因：地址只寫到巷弄沒門牌號碼／新建案\n' +
+      'OSM 還沒收錄／地址打錯字，可以手動修正 detailed_address 後重跑一次）：\n' +
+      failedList.join('\n'));
+  }
 }
 
 // 週報表「來人熱點地圖」用：撈出這個日期區間內、已經有精確座標的
