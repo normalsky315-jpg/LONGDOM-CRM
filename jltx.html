@@ -184,6 +184,10 @@
   .recept-table .recept-star{color:var(--gold);margin-left:3px;}
   .heatmap-label{font-size:11px;font-weight:700;padding:1px 6px;border:1px solid #C0392B;color:#C0392B;background:rgba(255,255,255,0.92);}
   .heatmap-label::before{border-top-color:#C0392B;}
+  #weekHeatmapCard:fullscreen{background:var(--surface);padding:16px;display:flex;flex-direction:column;}
+  #weekHeatmapCard:fullscreen #weekHeatmap{height:calc(100vh - 90px) !important;flex:1;}
+  #weekHeatmapCard:-webkit-full-screen{background:var(--surface);padding:16px;display:flex;flex-direction:column;}
+  #weekHeatmapCard:-webkit-full-screen #weekHeatmap{height:calc(100vh - 90px) !important;flex:1;}
   @media print{
     @page{size:A4 portrait;margin:12mm;}
     body.print-map-only *{visibility:hidden;}
@@ -676,10 +680,17 @@
 
       <div class="section-tag" style="margin-top:18px;display:flex;justify-content:space-between;align-items:center;">
         <span>來人熱點地圖</span>
-        <button type="button" class="btn-mini no-print" onclick="printHeatmap()" style="font-size:11px;padding:5px 10px;">🖨 列印地圖</button>
+        <div class="no-print" style="display:flex;gap:6px;">
+          <button type="button" class="btn-mini" onclick="toggleHeatmapFullscreen()" style="font-size:11px;padding:5px 10px;">⛶ 全螢幕</button>
+          <button type="button" class="btn-mini" onclick="printHeatmap()" style="font-size:11px;padding:5px 10px;">🖨 列印地圖</button>
+        </div>
       </div>
       <div class="summary-card" id="weekHeatmapCard">
         <div id="weekHeatmapTitle" style="font-weight:700;margin-bottom:8px;">吉隆天曜 來人熱點地圖</div>
+        <div class="no-print" style="display:flex;gap:6px;margin-bottom:8px;">
+          <button type="button" class="btn-mini" onclick="showAllHeatmapData()" style="font-size:11px;padding:5px 10px;flex:1;">🔍 顯示全部區域</button>
+          <button type="button" class="btn-mini" onclick="focusHeatmapOnServiceArea()" style="font-size:11px;padding:5px 10px;flex:1;">📍 回到鳳山/大寮</button>
+        </div>
         <div id="weekHeatmap" style="height:600px;border-radius:10px;overflow:hidden;"></div>
         <div id="weekHeatmapNote" style="font-size:12px;color:var(--ink-faint);margin-top:8px;line-height:1.6;"></div>
       </div>
@@ -2790,7 +2801,7 @@ var DISTRICT_COORDS = {
   '左營區': [22.6825, 120.2939], '鼓山區': [22.6461, 120.2789],
   '橋頭區': [22.7517, 120.3011]
 };
-var weekHeatmapMap = null, weekHeatmapLayer = null, weekGeoLayer = null;
+var weekHeatmapMap = null, weekHeatmapLayer = null, weekGeoLayer = null, weekHeatmapFocusBounds = null, weekHeatmapAllBounds = null;
 
 // 紅色泡泡跟藍色精確點要一起算才不會重複計算，所以這裡先抓精確定位點
 // 清單，算出「這個行政區裡，還沒有精確座標的有幾組」，紅色泡泡只代表
@@ -2804,13 +2815,14 @@ function renderDistrictHeatmap(byDistrict, range) {
     return;
   }
   if (!weekHeatmapMap) {
-    // 目前主要服務範圍是鳳山區／大寮區，先只放大看這一塊，其他行政區
-    // 暫時用不到；用 maxBounds 鎖住可以平移/縮放的範圍，不會被資料點
-    // 或 fitBounds 帶著跑到範圍外面去
-    var focusBounds = L.latLngBounds([22.50, 120.305], [22.75, 120.455]);
-    weekHeatmapMap = L.map('weekHeatmap', {
-      scrollWheelZoom: false, maxBounds: focusBounds, maxBoundsViscosity: 1, minZoom: 12
-    }).fitBounds(focusBounds);
+    // 目前主要服務範圍是鳳山區／大寮區，一開始先放大看這一塊比較方便，
+    // 但★不鎖死★可以平移/縮放的範圍——之前用 maxBounds 鎖住過，結果
+    // 客戶地址剛好落在這個範圍外（例如三民區）就完全看不到，使用者
+    // 誤以為資料不見了。改成只是「預設看這裡」，使用者仍然可以自由
+    // 拖曳/縮放去看其他地方，另外提供「顯示全部」按鈕一鍵縮放到看得
+    // 到所有資料點的範圍
+    weekHeatmapFocusBounds = L.latLngBounds([22.50, 120.305], [22.75, 120.455]);
+    weekHeatmapMap = L.map('weekHeatmap', { scrollWheelZoom: false }).fitBounds(weekHeatmapFocusBounds);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap',
       maxZoom: 18
@@ -2843,11 +2855,8 @@ function drawHeatmapLayers(byDistrict, geoPoints) {
 
   var maxCount = noAddressList.reduce(function(m, it){ return Math.max(m, it.count); }, 0) || 1;
   var unmatched = [];
+  var bounds = [];
 
-  // ★ 刻意不再用 fitBounds 依資料點自動縮放視角——地圖現在鎖定只看
-  // 鳳山/大寮這塊服務範圍（見 focusBounds），資料點如果剛好落在這個
-  // 範圍外（例如客戶其實住三民區），保持固定視角、不要為了那筆資料
-  // 把整張地圖拉遠，畫面才會一直維持「放大看鳳山/大寮」的效果
   noAddressList.forEach(function(it) {
     var coord = DISTRICT_COORDS[it.label];
     if (!coord) { unmatched.push(it); return; }
@@ -2862,6 +2871,7 @@ function drawHeatmapLayers(byDistrict, geoPoints) {
     marker.bindTooltip(it.label + ' 未記錄詳細地址 ' + it.count + '筆', {
       permanent: true, direction: 'top', className: 'heatmap-label', offset: [0, -4]
     });
+    bounds.push(coord);
   });
 
   geoPoints.forEach(function(p) {
@@ -2869,13 +2879,46 @@ function drawHeatmapLayers(byDistrict, geoPoints) {
       radius: 5, color: '#1D6FA5', weight: 1, fillColor: '#1D6FA5', fillOpacity: 0.9
     }).addTo(weekGeoLayer);
     marker.bindTooltip(escapeHtml(p.customer_name || '客戶'), { direction: 'top', offset: [0, -4] });
+    bounds.push([p.lat, p.lng]);
   });
+
+  // 記下這次畫出來的全部座標，「顯示全部區域」按鈕用來一鍵縮放到看得
+  // 到每一個點（包含鳳山/大寮以外的），不用使用者自己土法煉鋼慢慢拖
+  weekHeatmapAllBounds = bounds.length ? L.latLngBounds(bounds) : null;
 
   noteEl.innerHTML = '藍色小點是已經轉出精確座標的個別客戶；紅色圓圈代表「還沒有詳細地址、只知道行政區」的客戶數，畫在該行政區的概略中心點，圓圈大小依人數比例縮放' +
     (unmatched.length
       ? '<br>找不到座標、未顯示在地圖上：' + unmatched.map(function(u){ return escapeHtml(u.label) + '（' + u.count + ' 組）'; }).join('、')
       : '');
 }
+
+function showAllHeatmapData() {
+  if (!weekHeatmapMap) return;
+  if (weekHeatmapAllBounds) weekHeatmapMap.fitBounds(weekHeatmapAllBounds, { padding: [24, 24] });
+  else showToast('目前沒有資料點可以顯示','error');
+}
+
+function focusHeatmapOnServiceArea() {
+  if (!weekHeatmapMap || !weekHeatmapFocusBounds) return;
+  weekHeatmapMap.fitBounds(weekHeatmapFocusBounds);
+}
+
+// 全螢幕：用瀏覽器原生的 Fullscreen API，不用額外套件。地圖容器變成
+// 全螢幕後畫面變大很多，可以放大看大寮的細節同時還看得到周圍範圍，
+// 不會像現在的卡片大小那樣「放大就會有一部分被裁掉看不到」
+function toggleHeatmapFullscreen() {
+  var card = document.getElementById('weekHeatmapCard');
+  if (!document.fullscreenElement) {
+    (card.requestFullscreen || card.webkitRequestFullscreen).call(card);
+  } else {
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  }
+}
+['fullscreenchange', 'webkitfullscreenchange'].forEach(function(evt) {
+  document.addEventListener(evt, function() {
+    if (weekHeatmapMap) setTimeout(function(){ weekHeatmapMap.invalidateSize(); }, 100);
+  });
+});
 
 // 只印地圖那張卡片：靠 body.print-map-only 這個 class 搭配 @media print
 // 的 visibility 規則，把頁面上其他東西都印成空白、只留地圖卡片。地圖
