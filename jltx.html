@@ -446,10 +446,14 @@
       <!-- 近期客戶總表（主管/admin 才顯示） -->
       <div class="recent-customers-wrap hidden" id="recentCustomersSection">
         <div class="section-tag" style="margin-top:10px;">近7天客戶資料</div>
-        <div style="display:flex;gap:8px;margin:8px 0;">
+        <div style="display:flex;gap:8px;margin:8px 0 0;">
           <input class="inp" type="text" id="recentSearchName" placeholder="🔍 搜尋姓名" oninput="renderRecentCustomers()" style="flex:1;">
-          <input class="inp" type="date" id="recentSearchDate" onchange="renderRecentCustomers()" style="width:140px;flex-shrink:0;">
-          <button type="button" class="btn-mini" style="flex-shrink:0;" onclick="document.getElementById('recentSearchName').value='';document.getElementById('recentSearchDate').value='';renderRecentCustomers();">清除</button>
+          <button type="button" class="btn-mini" style="flex-shrink:0;" onclick="document.getElementById('recentSearchName').value='';document.getElementById('recentSearchDateStart').value='';document.getElementById('recentSearchDateEnd').value='';renderRecentCustomers();">清除</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin:8px 0;">
+          <input class="inp" type="date" id="recentSearchDateStart" onchange="renderRecentCustomers()" style="flex:1;">
+          <span style="color:var(--ink-faint);font-size:13px;">～</span>
+          <input class="inp" type="date" id="recentSearchDateEnd" onchange="renderRecentCustomers()" style="flex:1;">
         </div>
         <div class="recent-filter-bar" id="recentFilterBar">
           <div class="filter-chip active" data-sales="all" onclick="filterRecentCustomers(this)">全部</div>
@@ -730,8 +734,12 @@
     <div class="list-wrap">
       <div style="display:flex;gap:8px;margin-bottom:8px;">
         <input class="inp" type="text" id="myCustomerSearchName" placeholder="🔍 搜尋姓名" oninput="renderMyCustomerList()" style="flex:1;">
-        <input class="inp" type="date" id="myCustomerSearchDate" onchange="renderMyCustomerList()" style="width:140px;flex-shrink:0;">
-        <button type="button" class="btn-mini" style="flex-shrink:0;" onclick="document.getElementById('myCustomerSearchName').value='';document.getElementById('myCustomerSearchDate').value='';renderMyCustomerList();">清除</button>
+        <button type="button" class="btn-mini" style="flex-shrink:0;" onclick="document.getElementById('myCustomerSearchName').value='';document.getElementById('myCustomerSearchDateStart').value='';document.getElementById('myCustomerSearchDateEnd').value='';renderMyCustomerList();">清除</button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+        <input class="inp" type="date" id="myCustomerSearchDateStart" onchange="renderMyCustomerList()" style="flex:1;">
+        <span style="color:var(--ink-faint);font-size:13px;">～</span>
+        <input class="inp" type="date" id="myCustomerSearchDateEnd" onchange="renderMyCustomerList()" style="flex:1;">
       </div>
       <div class="recent-filter-bar hidden" id="myCustomerFilterBar"></div>
       <div id="myCustomerList"></div>
@@ -1563,7 +1571,7 @@ function renderMyCustomerList() {
   if (state.myCustomerFilterSales !== 'all') {
     list = list.filter(function(r){ return r.sales_name === state.myCustomerFilterSales; });
   }
-  list = applyCustomerSearch(list, 'myCustomerSearchName', 'myCustomerSearchDate');
+  list = applyCustomerSearch(list, 'myCustomerSearchName', 'myCustomerSearchDateStart', 'myCustomerSearchDateEnd');
   if (!list.length) { box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📁</div><div class="empty-state-text">尚無符合條件的客戶資料</div></div>'; return; }
   box.innerHTML = sortByDateDesc(list).map(function(c){ return myCustomerCardHTML(c); }).join('');
 }
@@ -1896,16 +1904,21 @@ function sortByDateDesc(list) {
 }
 
 /* ══ 客戶搜尋：依姓名（模糊比對）／訪客日期（精確比對）篩選 ══ */
-function applyCustomerSearch(list, nameInputId, dateInputId) {
+function applyCustomerSearch(list, nameInputId, dateStartInputId, dateEndInputId) {
   var nameEl = document.getElementById(nameInputId);
-  var dateEl = document.getElementById(dateInputId);
+  var startEl = document.getElementById(dateStartInputId);
+  var endEl = document.getElementById(dateEndInputId);
   var name = nameEl ? nameEl.value.trim() : '';
-  var date = dateEl ? dateEl.value : '';
+  var startDate = startEl ? startEl.value : '';
+  var endDate = endEl ? endEl.value : '';
   if (name) {
     list = list.filter(function(r){ return String(r.customer_name||'').indexOf(name) >= 0; });
   }
-  if (date) {
-    list = list.filter(function(r){ return String(r.visit_date||'').substring(0,10) === date; });
+  if (startDate) {
+    list = list.filter(function(r){ return String(r.visit_date||'').substring(0,10) >= startDate; });
+  }
+  if (endDate) {
+    list = list.filter(function(r){ return String(r.visit_date||'').substring(0,10) <= endDate; });
   }
   return list;
 }
@@ -1916,7 +1929,7 @@ function renderRecentCustomers() {
   if (state.recentFilterSales !== 'all') {
     list = list.filter(function(r){ return r.sales_name === state.recentFilterSales; });
   }
-  list = applyCustomerSearch(list, 'recentSearchName', 'recentSearchDate');
+  list = applyCustomerSearch(list, 'recentSearchName', 'recentSearchDateStart', 'recentSearchDateEnd');
   if (!list.length) {
     box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👤</div><div class="empty-state-text">沒有符合條件的客戶資料</div></div>';
     return;
