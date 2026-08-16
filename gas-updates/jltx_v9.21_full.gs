@@ -1,5 +1,22 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.20
+//  龍登 CRM — 吉隆天曜專用版 v9.21
+//  v9.21 變更：geocode 失敗原因加上診斷（分辨「被 Nominatim 擋掉」還是
+//    「真的查無資料」）：
+//    使用者回報一批失敗清單裡，有好幾筆是完整地址、真實存在的道路
+//    （有門牌號碼），照理不該查不到，懷疑是 Nominatim 這個免費公用
+//    服務把 GAS 共用雲端 IP 的請求限流/擋掉，不是地址本身的問題，但
+//    原本的程式碼把「非 200 回應」跟「200 但查無資料」都當同一種
+//    「失敗」處理，log 裡看不出差異，沒辦法確認猜測對不對。
+//    1. geocodeQuery_ 改回傳 { geo, reason }，非 200 時記錄實際 HTTP
+//       狀態碼＋回應內容片段，區分「HTTP 403/429 等被擋掉」跟
+//       「Nominatim 查無結果」兩種不同失敗原因
+//    2. geocodeAddress_ 三層退回查詢（完整地址→拿掉樓層→只留路名）
+//       全部改用新的 {geo,reason} 格式傳遞，最後回傳最後一次嘗試的
+//       失敗原因
+//    3. geocodeMissingAddresses 的失敗清單現在每一筆後面會附上失敗
+//       原因，例如「[HTTP 403（可能被 Nominatim 限流/擋掉，不是地址
+//       問題）]」或「[Nominatim 查無結果]」，只有後者才需要去
+//       Customer_Data 修正地址，前者換個時間重跑通常就會好
 //  v9.20 變更：修正地址轉座標「查不到」的最大宗原因——行政區重複疊加：
 //    實測發現業務登記時常常直接把完整地址（含市/區）打進「詳細地址」
 //    欄位，原本的邏輯又把「行政區」欄位疊上去一次，變成「大寮區大寮區
@@ -2521,6 +2538,12 @@ function getWeeklyHotPicks(payload) {
 // 「高雄市」當作查詢上下文，提高命中率（大部分地址只寫到路名門牌，
 // 沒特別註明縣市）
 // 真正打 Nominatim 查詢的部分，query 是完整要查的文字（已經包含「高雄市」）
+// 回傳 { geo, reason }：geo 查到就有值，reason 只在查不到時填，用來
+// 分辨「Nominatim 真的查無資料（HTTP 200，空陣列）」還是「請求被擋掉
+// 了（非 200，例如 403/429）」。GAS 送出的請求都是從 Google 共用雲端
+// IP 發出，Nominatim 這個免費公用服務對這種來源比較容易限流／拒絕，
+// 之前沒有分開記錄這兩種情況，沒辦法判斷「查不到」到底是地址真的有
+// 問題、還是被服務端擋掉，這次補上
 function geocodeQuery_(query) {
   try {
     var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=tw&q=' + encodeURIComponent(query);
@@ -2529,13 +2552,18 @@ function geocodeQuery_(query) {
       headers: { 'User-Agent': 'LongdomCRM-jltx/1.0 (internal use)' },
       muteHttpExceptions: true
     });
-    if (resp.getResponseCode() !== 200) return null;
+    var code = resp.getResponseCode();
+    if (code !== 200) {
+      var reason = 'HTTP ' + code + '（可能被 Nominatim 限流/擋掉，不是地址問題）';
+      Logger.log('geocodeQuery_ 非 200（' + query + '）：' + reason + '　回應：' + resp.getContentText().substring(0, 200));
+      return { geo: null, reason: reason };
+    }
     var data = JSON.parse(resp.getContentText());
-    if (!data || !data.length) return null;
-    return { lat: Number(data[0].lat), lng: Number(data[0].lon) };
+    if (!data || !data.length) return { geo: null, reason: 'Nominatim 查無結果' };
+    return { geo: { lat: Number(data[0].lat), lng: Number(data[0].lon) }, reason: null };
   } catch (err) {
-    Logger.log('geocodeQuery_ 失敗（' + query + '）：' + err);
-    return null;
+    Logger.log('geocodeQuery_ 例外（' + query + '）：' + err);
+    return { geo: null, reason: '例外：' + err };
   }
 }
 
@@ -2581,21 +2609,27 @@ function buildGeocodeAddress_(district, detailedAddress) {
 //      寫了路名沒門牌號碼，或門牌太新 OSM 資料庫還沒收錄），比完全
 //      查不到、整筆掉回行政區層級好
 function geocodeAddress_(address) {
-  if (!address) return null;
-  var geo = geocodeQuery_(address);
-  if (geo) return geo;
+  if (!address) return { geo: null, reason: '地址空白' };
+  var r1 = geocodeQuery_(address);
+  if (r1.geo) return r1;
+  var lastReason = r1.reason;
 
   var noFloor = stripFloorSuffix_(address);
   if (noFloor && noFloor !== address) {
     Utilities.sleep(1100); // 每次查詢間都要遵守 Nominatim 每秒最多 1 次的限制
-    geo = geocodeQuery_(noFloor);
-    if (geo) return geo;
+    var r2 = geocodeQuery_(noFloor);
+    if (r2.geo) return r2;
+    lastReason = r2.reason;
   }
 
   var roadName = extractRoadName_(address);
-  if (!roadName || roadName === address) return null;
-  Utilities.sleep(1100);
-  return geocodeQuery_(roadName);
+  if (roadName && roadName !== address) {
+    Utilities.sleep(1100);
+    var r3 = geocodeQuery_(roadName);
+    if (r3.geo) return r3;
+    lastReason = r3.reason;
+  }
+  return { geo: null, reason: lastReason };
 }
 
 // 批次幫「有填詳細地址、但還沒有座標」的客戶資料轉座標，寫回
@@ -2615,26 +2649,29 @@ function geocodeMissingAddresses(maxCount) {
   for (var i = 0; i < rows.length && done + failed < maxCount; i++) {
     var r = rows[i];
     var fullAddress = buildGeocodeAddress_(r.district, r.detailed_address);
-    var geo = geocodeAddress_(fullAddress);
-    if (geo) {
+    var result = geocodeAddress_(fullAddress);
+    if (result.geo) {
       updateRowById(CONFIG.SHEETS.CUSTOMER, 'customer_id', r.customer_id, {
-        geo_lat: geo.lat, geo_lng: geo.lng
+        geo_lat: result.geo.lat, geo_lng: result.geo.lng
       });
       done++;
     } else {
       failed++;
       // 只記總數看不出是哪幾筆、為什麼查不到，之前這樣 log 完全沒辦法
-      // 排查，改成把每一筆查不到的客戶姓名＋實際拿去查詢的地址都印
-      // 出來，方便對照 Customer_Data 手動修正（常見原因：地址只寫到
-      // 巷弄沒有門牌號碼、新建案地址 OSM 資料庫還沒收錄、地址打錯字）
-      failedList.push(r.customer_name + '（' + r.customer_id + '）：' + fullAddress);
+      // 排查，改成把每一筆查不到的客戶姓名＋實際拿去查詢的地址＋失敗
+      // 原因都印出來。原因如果是「HTTP 403/429」代表被 Nominatim 限流
+      // 擋掉，不是地址本身的問題，換個時間重跑通常就會好；如果是
+      // 「查無結果」才是地址本身要修正（巷弄沒門牌號碼／新建案 OSM
+      // 還沒收錄／地址打錯字）
+      failedList.push(r.customer_name + '（' + r.customer_id + '）：' + fullAddress + '　[' + (result.reason || '未知原因') + ']');
     }
     Utilities.sleep(1100);
   }
   Logger.log('✓ 完成：成功 ' + done + ' 筆，查不到座標 ' + failed + ' 筆');
   if (failedList.length) {
-    Logger.log('查不到座標的清單（常見原因：地址只寫到巷弄沒門牌號碼／新建案\n' +
-      'OSM 還沒收錄／地址打錯字，可以手動修正 detailed_address 後重跑一次）：\n' +
+    Logger.log('查不到座標的清單（方括號是失敗原因；如果是 HTTP 403/429 代表被\n' +
+      'Nominatim 限流擋掉不是地址問題，換個時間重跑通常會好；如果是「查無\n' +
+      '結果」才需要去 Customer_Data 修正 detailed_address 後重跑一次）：\n' +
       failedList.join('\n'));
   }
 }
