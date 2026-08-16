@@ -184,6 +184,8 @@
   .recept-table .recept-star{color:var(--gold);margin-left:3px;}
   .heatmap-label{font-size:11px;font-weight:700;padding:1px 6px;border:1px solid #C0392B;color:#C0392B;background:rgba(255,255,255,0.92);}
   .heatmap-label::before{border-top-color:#C0392B;}
+  .heatmap-label-pending{border-color:#D97706;color:#D97706;}
+  .heatmap-label-pending::before{border-top-color:#D97706;}
   #weekHeatmapCard:fullscreen{background:var(--surface);padding:16px;display:flex;flex-direction:column;}
   #weekHeatmapCard:fullscreen #weekHeatmap{height:calc(100vh - 90px) !important;flex:1;}
   #weekHeatmapCard:-webkit-full-screen{background:var(--surface);padding:16px;display:flex;flex-direction:column;}
@@ -691,7 +693,10 @@
           <button type="button" class="btn-mini" onclick="showAllHeatmapData()" style="font-size:11px;padding:5px 10px;flex:1;">🔍 顯示全部區域</button>
           <button type="button" class="btn-mini" onclick="focusHeatmapOnServiceArea()" style="font-size:11px;padding:5px 10px;flex:1;">📍 回到鳳山/大寮</button>
         </div>
-        <div id="weekHeatmap" style="height:600px;border-radius:10px;overflow:hidden;"></div>
+        <div style="position:relative;">
+          <div id="weekHeatmap" style="height:600px;border-radius:10px;overflow:hidden;"></div>
+          <div id="weekHeatmapOverlay" style="position:absolute;bottom:8px;right:8px;max-width:60%;text-align:right;font-size:11px;line-height:1.6;font-weight:700;pointer-events:none;z-index:1000;"></div>
+        </div>
         <div id="weekHeatmapNote" style="font-size:12px;color:var(--ink-faint);margin-top:8px;line-height:1.6;"></div>
       </div>
 
@@ -2801,7 +2806,7 @@ var DISTRICT_COORDS = {
   '左營區': [22.6825, 120.2939], '鼓山區': [22.6461, 120.2789],
   '橋頭區': [22.7517, 120.3011]
 };
-var weekHeatmapMap = null, weekHeatmapLayer = null, weekGeoLayer = null, weekHeatmapFocusBounds = null, weekHeatmapAllBounds = null;
+var weekHeatmapMap = null, weekHeatmapLayer = null, weekGeoLayer = null, weekPendingLayer = null, weekHeatmapFocusBounds = null, weekHeatmapAllBounds = null;
 
 // 紅色泡泡跟藍色精確點要一起算才不會重複計算，所以這裡先抓精確定位點
 // 清單，算出「這個行政區裡，還沒有精確座標的有幾組」，紅色泡泡只代表
@@ -2831,48 +2836,64 @@ function renderDistrictHeatmap(byDistrict, range) {
     setTimeout(function(){ weekHeatmapMap.invalidateSize(); }, 0);
   }
 
-  if (!range) { drawHeatmapLayers(byDistrict || [], []); return; }
+  if (!range) { drawHeatmapLayers(byDistrict || [], [], []); return; }
   gasGet('getGeoPoints', { lineUserId: state.user.lineUserId, startDate: range[0], endDate: range[1] }, function(res) {
-    drawHeatmapLayers(byDistrict || [], (res.ok && res.data.results) ? res.data.results : []);
+    var geo = (res.ok && res.data.results) ? res.data.results : [];
+    var pending = (res.ok && res.data.pending) ? res.data.pending : [];
+    drawHeatmapLayers(byDistrict || [], geo, pending);
   }, function() {
-    drawHeatmapLayers(byDistrict || [], []); // 精確點載入失敗不影響行政區泡泡，退回全部當「未記錄詳細地址」處理
+    drawHeatmapLayers(byDistrict || [], [], []); // 精確點載入失敗不影響行政區泡泡，退回全部當「未記錄詳細地址」處理
   });
 }
 
-function drawHeatmapLayers(byDistrict, geoPoints) {
+// 三種狀態分開標示，不再混在一起：
+//   藍色小點：已經轉出精確座標的個別客戶
+//   橘色圓圈：有填詳細地址，但還沒轉出座標（可能還在排隊等每小時的
+//             自動轉換，或是轉換失敗了）——這個之前會被誤算進紅色
+//             「未記錄詳細地址」，造成「明明有填地址、點數卻對不起來」
+//   紅色圓圈：真的完全沒有填詳細地址，只知道行政區
+function drawHeatmapLayers(byDistrict, geoPoints, pending) {
   var noteEl = document.getElementById('weekHeatmapNote');
   if (weekHeatmapLayer) weekHeatmapMap.removeLayer(weekHeatmapLayer);
   if (weekGeoLayer) weekHeatmapMap.removeLayer(weekGeoLayer);
+  if (weekPendingLayer) weekHeatmapMap.removeLayer(weekPendingLayer);
   weekHeatmapLayer = L.layerGroup().addTo(weekHeatmapMap);
   weekGeoLayer = L.layerGroup().addTo(weekHeatmapMap);
+  weekPendingLayer = L.layerGroup().addTo(weekHeatmapMap);
 
   var geoCountByDistrict = {};
   geoPoints.forEach(function(p) { geoCountByDistrict[p.district] = (geoCountByDistrict[p.district] || 0) + 1; });
+  var pendingCountByDistrict = {};
+  (pending || []).forEach(function(p) { pendingCountByDistrict[p.label] = p.count; });
 
   var noAddressList = byDistrict.map(function(it) {
-    return { label: it.label, count: Math.max(0, it.count - (geoCountByDistrict[it.label] || 0)) };
+    var count = it.count - (geoCountByDistrict[it.label] || 0) - (pendingCountByDistrict[it.label] || 0);
+    return { label: it.label, count: Math.max(0, count) };
   }).filter(function(it) { return it.count > 0; });
+  var pendingList = (pending || []).filter(function(it) { return it.count > 0; });
 
-  var maxCount = noAddressList.reduce(function(m, it){ return Math.max(m, it.count); }, 0) || 1;
+  var maxCount = noAddressList.concat(pendingList).reduce(function(m, it){ return Math.max(m, it.count); }, 0) || 1;
   var unmatched = [];
   var bounds = [];
 
-  noAddressList.forEach(function(it) {
+  function drawCircle(it, color, labelSuffix, labelClass, layer) {
     var coord = DISTRICT_COORDS[it.label];
     if (!coord) { unmatched.push(it); return; }
     var radius = 12 + (it.count / maxCount) * 26; // 12~38px，依比例縮放，比精確點明顯大一圈
     var marker = L.circleMarker(coord, {
-      radius: radius, color: '#C0392B', weight: 1,
-      fillColor: '#C0392B', fillOpacity: 0.45
-    }).addTo(weekHeatmapLayer);
+      radius: radius, color: color, weight: 1, fillColor: color, fillOpacity: 0.45
+    }).addTo(layer);
     // permanent:true 讓標籤一直顯示，不用滑鼠移過去才看得到，
     // 這樣列印出來也看得懂每個圈圈是哪個區、幾組，不會只是一顆
-    // 沒有說明的紅點
-    marker.bindTooltip(it.label + ' 未記錄詳細地址 ' + it.count + '筆', {
-      permanent: true, direction: 'top', className: 'heatmap-label', offset: [0, -4]
+    // 沒有說明的圓點
+    marker.bindTooltip(it.label + ' ' + labelSuffix + ' ' + it.count + '筆', {
+      permanent: true, direction: 'top', className: labelClass, offset: [0, -4]
     });
     bounds.push(coord);
-  });
+  }
+
+  noAddressList.forEach(function(it) { drawCircle(it, '#C0392B', '未記錄詳細地址', 'heatmap-label', weekHeatmapLayer); });
+  pendingList.forEach(function(it) { drawCircle(it, '#D97706', '已填地址待定位', 'heatmap-label heatmap-label-pending', weekPendingLayer); });
 
   geoPoints.forEach(function(p) {
     var marker = L.circleMarker([p.lat, p.lng], {
@@ -2886,7 +2907,19 @@ function drawHeatmapLayers(byDistrict, geoPoints) {
   // 到每一個點（包含鳳山/大寮以外的），不用使用者自己土法煉鋼慢慢拖
   weekHeatmapAllBounds = bounds.length ? L.latLngBounds(bounds) : null;
 
-  noteEl.innerHTML = '藍色小點是已經轉出精確座標的個別客戶；紅色圓圈代表「還沒有詳細地址、只知道行政區」的客戶數，畫在該行政區的概略中心點，圓圈大小依人數比例縮放' +
+  // 右下角文字統計：圓圈大小終究是用眼睛比對，數字容易吵不清楚，直接
+  // 用文字條列「XX區 未記錄詳細地址 N人」「XX區 已填地址待定位 N人」，
+  // 半透明蓋在地圖右下角，不擋操作（pointer-events:none），
+  // 一眼就能對數字，不用再猜圓圈大小代表多少人
+  var overlayEl = document.getElementById('weekHeatmapOverlay');
+  var overlayLines = noAddressList.map(function(it) {
+    return '<div style="color:rgba(192,57,43,0.85);text-shadow:0 1px 2px rgba(255,255,255,0.9);">' + escapeHtml(it.label) + ' 未記錄詳細地址 ' + it.count + '人</div>';
+  }).concat(pendingList.map(function(it) {
+    return '<div style="color:rgba(217,119,6,0.85);text-shadow:0 1px 2px rgba(255,255,255,0.9);">' + escapeHtml(it.label) + ' 已填地址待定位 ' + it.count + '人</div>';
+  }));
+  overlayEl.innerHTML = overlayLines.join('');
+
+  noteEl.innerHTML = '藍色小點：已轉出精確座標的個別客戶　橘色圓圈：已填地址但還沒轉出座標（排隊中或轉換失敗，等下次自動轉換或執行 geocodeMissingAddresses()）　紅色圓圈：完全沒有填詳細地址，只知道行政區' +
     (unmatched.length
       ? '<br>找不到座標、未顯示在地圖上：' + unmatched.map(function(u){ return escapeHtml(u.label) + '（' + u.count + ' 組）'; }).join('、')
       : '');
