@@ -1,5 +1,16 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.22
+//  龍登 CRM — 吉隆天曜專用版 v9.23
+//  v9.23 變更：熱點地圖新增「已填地址待定位」橘色標示，分清楚跟
+//    「真的沒填地址」的差別：
+//    使用者回報「大寮區明明有 29 組客人（5 組沒填地址、24 組有填），
+//    但地圖上只看到 19 個點」——根因是原本的紅色「未記錄詳細地址」
+//    泡泡，其實混了兩種完全不同的狀況：真的沒填地址、跟填了地址但
+//    還沒轉出座標（排隊中或轉換失敗），導致「有填地址」的人也被算
+//    成「未記錄」，看起來點數對不起來。
+//    1. getGeoPoints 新增回傳 pending（依行政區分組，統計「有填
+//       detailed_address 但 geo_lat/geo_lng 還是空的」的筆數）
+//    2. jltx.html 熱點地圖現在分三種顏色：藍色小點（已轉出座標）、
+//       橘色圓圈（已填地址、還沒轉出座標）、紅色圓圈（真的沒填地址）
 //  v9.22 變更：修正地址轉座標大量被限流（HTTP 429）的問題：
 //    上一版加了失敗原因診斷後，使用者實測發現 16 筆失敗裡有 14 筆是
 //    HTTP 429（太多請求），不是地址問題——確認 GAS 共用雲端 IP 打
@@ -2703,6 +2714,12 @@ function geocodeMissingAddresses(maxCount) {
 // 週報表「來人熱點地圖」用：撈出這個日期區間內、已經有精確座標的
 // 客戶清單，疊在行政區泡泡地圖上當作精確定位點。權限規則同
 // getWeeklyReceptionList（主管/admin 才看得到）
+// 除了已經轉出座標的精確點，這裡也一併回傳「有填詳細地址、但還沒轉出
+// 座標」的統計（pending，依行政區分組）。之前地圖只分「有精確座標」
+// 跟「其他」兩種，「其他」裡其實混了兩種完全不同的狀況：真的沒填
+// 詳細地址、跟填了地址但還在排隊等轉換（或轉換失敗）。使用者反應
+// 「明明有填地址，點數卻對不起來」，就是被這個混在一起的分類誤導，
+// 這裡拆開讓前端可以分開標示
 function getGeoPoints(payload) {
   try {
     var ctx = getUserContext(payload && payload.lineUserId);
@@ -2714,11 +2731,10 @@ function getGeoPoints(payload) {
     var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER).filter(function(r) {
       var vd = String(r.visit_date).substring(0, 10);
       if (vd < startDate || vd > endDate) return false;
-      if (!r.geo_lat || !r.geo_lng) return false;
       return ctx.role === CONFIG.ROLES.ADMIN || r.project_name === ctx.projectName;
     });
 
-    var results = rows.map(function(r) {
+    var results = rows.filter(function(r) { return r.geo_lat && r.geo_lng; }).map(function(r) {
       return {
         customer_name: r.customer_name,
         district: r.district,
@@ -2726,7 +2742,16 @@ function getGeoPoints(payload) {
         lng: Number(r.geo_lng)
       };
     });
-    return ok({ start_date: startDate, end_date: endDate, results: results });
+
+    var pendingByDistrict = {};
+    rows.forEach(function(r) {
+      if (r.detailed_address && (!r.geo_lat || !r.geo_lng)) {
+        pendingByDistrict[r.district] = (pendingByDistrict[r.district] || 0) + 1;
+      }
+    });
+    var pending = Object.keys(pendingByDistrict).map(function(k) { return { label: k, count: pendingByDistrict[k] }; });
+
+    return ok({ start_date: startDate, end_date: endDate, results: results, pending: pending });
   } catch (err) { return fail(err.message); }
 }
 
