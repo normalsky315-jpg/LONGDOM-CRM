@@ -1,5 +1,15 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.21
+//  龍登 CRM — 吉隆天曜專用版 v9.22
+//  v9.22 變更：修正地址轉座標大量被限流（HTTP 429）的問題：
+//    上一版加了失敗原因診斷後，使用者實測發現 16 筆失敗裡有 14 筆是
+//    HTTP 429（太多請求），不是地址問題——確認 GAS 共用雲端 IP 打
+//    Nominatim 免費服務，原本每筆間隔 1.1 秒（官方政策寫的「每秒最多
+//    1 次查詢」）在實務上還是常常被限流。
+//    1. geocodeQuery_ 收到 429 時，用漸增等待時間（3秒／6秒）原地
+//       重試最多 3 次，撐過短暫限流，撐不過才真的算失敗
+//    2. 所有查詢之間的間隔從 1.1 秒拉長到 2 秒，降低整體請求頻率
+//    因為每筆間隔變長＋可能觸發重試，單次執行實際能處理的筆數會比
+//    之前少，但每小時排程觸發器會持續補上，不用擔心處理不完
 //  v9.21 變更：geocode 失敗原因加上診斷（分辨「被 Nominatim 擋掉」還是
 //    「真的查無資料」）：
 //    使用者回報一批失敗清單裡，有好幾筆是完整地址、真實存在的道路
@@ -2544,26 +2554,38 @@ function getWeeklyHotPicks(payload) {
 // IP 發出，Nominatim 這個免費公用服務對這種來源比較容易限流／拒絕，
 // 之前沒有分開記錄這兩種情況，沒辦法判斷「查不到」到底是地址真的有
 // 問題、還是被服務端擋掉，這次補上
+// ★ 實測發現絕大多數「查不到座標」其實是 HTTP 429（太多請求），不是
+// 地址問題——GAS 送出的請求都是從 Google 共用雲端 IP 發出，Nominatim
+// 這個免費公用服務對這種來源的限流比想像中嚴格，原本每筆之間 sleep
+// 1.1 秒（官方政策寫的「每秒最多 1 次」）顯然不夠。改成收到 429 的話
+// 用漸增等待時間（3秒／6秒）原地重試最多 3 次，撐過短暫的限流狀態
 function geocodeQuery_(query) {
-  try {
-    var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=tw&q=' + encodeURIComponent(query);
-    var resp = UrlFetchApp.fetch(url, {
-      method: 'get',
-      headers: { 'User-Agent': 'LongdomCRM-jltx/1.0 (internal use)' },
-      muteHttpExceptions: true
-    });
-    var code = resp.getResponseCode();
-    if (code !== 200) {
-      var reason = 'HTTP ' + code + '（可能被 Nominatim 限流/擋掉，不是地址問題）';
-      Logger.log('geocodeQuery_ 非 200（' + query + '）：' + reason + '　回應：' + resp.getContentText().substring(0, 200));
-      return { geo: null, reason: reason };
+  var maxAttempts = 3;
+  for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=tw&q=' + encodeURIComponent(query);
+      var resp = UrlFetchApp.fetch(url, {
+        method: 'get',
+        headers: { 'User-Agent': 'LongdomCRM-jltx/1.0 (internal use)' },
+        muteHttpExceptions: true
+      });
+      var code = resp.getResponseCode();
+      if (code === 429 && attempt < maxAttempts) {
+        Utilities.sleep(attempt * 3000); // 3秒、6秒漸增等待
+        continue;
+      }
+      if (code !== 200) {
+        var reason = 'HTTP ' + code + '（可能被 Nominatim 限流/擋掉，不是地址問題）';
+        Logger.log('geocodeQuery_ 非 200（' + query + '）：' + reason + '　回應：' + resp.getContentText().substring(0, 200));
+        return { geo: null, reason: reason };
+      }
+      var data = JSON.parse(resp.getContentText());
+      if (!data || !data.length) return { geo: null, reason: 'Nominatim 查無結果' };
+      return { geo: { lat: Number(data[0].lat), lng: Number(data[0].lon) }, reason: null };
+    } catch (err) {
+      Logger.log('geocodeQuery_ 例外（' + query + '）：' + err);
+      return { geo: null, reason: '例外：' + err };
     }
-    var data = JSON.parse(resp.getContentText());
-    if (!data || !data.length) return { geo: null, reason: 'Nominatim 查無結果' };
-    return { geo: { lat: Number(data[0].lat), lng: Number(data[0].lon) }, reason: null };
-  } catch (err) {
-    Logger.log('geocodeQuery_ 例外（' + query + '）：' + err);
-    return { geo: null, reason: '例外：' + err };
   }
 }
 
@@ -2616,7 +2638,7 @@ function geocodeAddress_(address) {
 
   var noFloor = stripFloorSuffix_(address);
   if (noFloor && noFloor !== address) {
-    Utilities.sleep(1100); // 每次查詢間都要遵守 Nominatim 每秒最多 1 次的限制
+    Utilities.sleep(2000); // 拉長到 2 秒，降低整體請求頻率，減少被限流的機率
     var r2 = geocodeQuery_(noFloor);
     if (r2.geo) return r2;
     lastReason = r2.reason;
@@ -2624,7 +2646,7 @@ function geocodeAddress_(address) {
 
   var roadName = extractRoadName_(address);
   if (roadName && roadName !== address) {
-    Utilities.sleep(1100);
+    Utilities.sleep(2000);
     var r3 = geocodeQuery_(roadName);
     if (r3.geo) return r3;
     lastReason = r3.reason;
@@ -2634,9 +2656,11 @@ function geocodeAddress_(address) {
 
 // 批次幫「有填詳細地址、但還沒有座標」的客戶資料轉座標，寫回
 // geo_lat／geo_lng。手動在 Apps Script 編輯器執行，或掛在
-// setupTriggers 的排程觸發器上自動跑。每筆之間 sleep 1.1 秒遵守
-// Nominatim「每秒最多 1 次查詢」的免費用量政策，一次執行最多處理
-// maxCount 筆（預設 200），避免單次執行時間超過 GAS 6 分鐘上限
+// setupTriggers 的排程觸發器上自動跑。每筆之間 sleep 2 秒（比 Nominatim
+// 官方政策「每秒最多 1 次查詢」更保守，實測 1.1 秒常常還是被 429 限流），
+// 一次執行最多處理 maxCount 筆（預設 200），避免單次執行時間超過 GAS
+// 6 分鐘上限；因為每筆間隔變長，實際能處理的筆數會比之前少，但會靠
+// 每小時的排程觸發器持續補上，不用擔心處理不完
 function geocodeMissingAddresses(maxCount) {
   maxCount = maxCount || 200;
   ensureCustomerExtraColumns();
@@ -2665,7 +2689,7 @@ function geocodeMissingAddresses(maxCount) {
       // 還沒收錄／地址打錯字）
       failedList.push(r.customer_name + '（' + r.customer_id + '）：' + fullAddress + '　[' + (result.reason || '未知原因') + ']');
     }
-    Utilities.sleep(1100);
+    Utilities.sleep(2000);
   }
   Logger.log('✓ 完成：成功 ' + done + ' 筆，查不到座標 ' + failed + ' 筆');
   if (failedList.length) {
