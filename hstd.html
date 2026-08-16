@@ -405,6 +405,10 @@
         <div class="stat-card"><div class="stat-num" id="statRevisit">—</div><div class="stat-label">回籠</div></div>
         <div class="stat-card"><div class="stat-num" id="statDeal">—</div><div class="stat-label">成交</div></div>
       </div>
+      <!-- 本週各業務接待統計（主管/admin 才顯示）：初訪／回籠／成交
+           三項都拆開顯示，方便看每個業務這週的接待跟成交狀況 -->
+      <div class="section-tag hidden" id="salesBreakdownWeeklyLabel" style="margin-top:14px;">本週各業務接待統計</div>
+      <div id="salesBreakdownWeeklyList"></div>
       <!-- 本月各業務接待統計（主管/admin 才顯示，讓主管看得到底下每個
            業務各自接了幾組，不是只有案場加總） -->
       <div class="section-tag hidden" id="salesBreakdownLabel" style="margin-top:14px;">本月各業務接待統計</div>
@@ -1298,7 +1302,12 @@ function renderHome() {
     document.getElementById('statFirst').textContent   = rows.filter(function(r){ return r.visit_type==='初訪'; }).length;
     document.getElementById('statRevisit').textContent = rows.filter(function(r){ return r.visit_type==='回籠'; }).length;
     document.getElementById('statDeal').textContent    = rows.filter(function(r){ return r.deal_status==='已成交'; }).length;
-    if (isAdmin()) renderSalesBreakdown(rows);
+    if (isAdmin()) {
+      renderSalesBreakdown(rows);
+      var weekStart = dateToStr(getWeekDates(0)[0]);
+      var weekRows = res.data.filter(function(r){ return String(r.visit_date).substring(0,10) >= weekStart; });
+      renderSalesBreakdownWeekly(weekRows);
+    }
   });
 
   // 今日休假人員
@@ -1316,6 +1325,28 @@ function renderHome() {
   loadTaskReminders();
   loadFollowupReminders();
   loadReservationReminders();
+}
+
+// 首頁「本週各業務接待統計」：跟月統計同一份 getCustomerList 資料，
+// 只是改成本週（週一~今天）範圍，並且拆出初訪／回籠／成交三項，
+// 讓主管每週就能看到底下每個業務的接待跟成交狀況，不用等到月底
+function renderSalesBreakdownWeekly(rows) {
+  var bySales = {};
+  rows.forEach(function(r) {
+    var name = r.sales_name || '未指定';
+    if (!bySales[name]) bySales[name] = { first: 0, revisit: 0, deal: 0 };
+    if (r.visit_type === '初訪') bySales[name].first++;
+    if (r.visit_type === '回籠') bySales[name].revisit++;
+    if (r.deal_status === '已成交') bySales[name].deal++;
+  });
+  var names = Object.keys(bySales).sort(function(a,b){
+    return (bySales[b].first+bySales[b].revisit) - (bySales[a].first+bySales[a].revisit);
+  });
+  document.getElementById('salesBreakdownWeeklyLabel').classList.remove('hidden');
+  document.getElementById('salesBreakdownWeeklyList').innerHTML = names.length ? names.map(function(name) {
+    var s = bySales[name];
+    return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">' + escapeHtml(name) + '</div><div class="list-item-title" style="font-weight:600;">' + (s.first+s.revisit) + ' 組</div></div><div class="list-item-meta"><span>初訪 ' + s.first + '</span><span>回籠 ' + s.revisit + '</span><span>成交 ' + s.deal + '</span></div></div>';
+  }).join('') : '<div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-text">本週尚無客戶資料</div></div>';
 }
 
 // 首頁「本月各業務接待統計」：主管/admin 看的是整個範圍（案場/全部）
