@@ -1,5 +1,26 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.36
+//  龍登 CRM — 華雄天地專用版 v9.37
+//  v9.37 變更：把吉隆天曜（jltx）已經有、但天地還沒有的功能同步過來：
+//    1. 客戶資料表新增 gender／marital_status／visit_time_slot／
+//       sqft_requirement／room_requirement_note／referrer_name／
+//       geo_lat／geo_lng 共 8 個欄位（CUSTOMER_EXTRA_FIELDS），
+//       appendCustomerData／updateCustomerData 自動接上
+//    2. 新增 Config_Options 可編輯選單模組：居住行政區／來源管道／
+//       年齡區間／職業／購屋動機這五種表單選項改成存在 Google 試算表
+//       的 Config_Options 分頁，之後要增刪/排序選項直接改表就好，
+//       不用改程式重新部署（getIndustryList／getPurchaseMotiveList
+//       也一併改讀這裡，避免同一份選項存兩個地方）
+//    3. 新增地址轉座標＋來人熱點地圖：Nominatim 地址查詢（含 429 限流
+//       重試、行政區重複疊加防呆）、geocodeMissingAddresses 批次轉換
+//       （掛每小時排程觸發器）、getGeoPoints API；前端用 Leaflet+OSM
+//       畫出藍/橘/紅三色地圖（已定位／待定位／沒填地址），可全螢幕、
+//       可只印地圖
+//    4. 新增本週有望客：業務在「週報表」勾選 1~2 位本週有望成交的客戶
+//       送出（Weekly_Hot_Picks 分頁），主管在週報表看到跨業務彙總；
+//       同時新增「客戶接待明細表」（跟紙本表格同款欄位）、匯出 Excel、
+//       一鍵列印（A4 橫式、自動縮放成一頁）
+//    這幾項功能的程式碼盡量直接複用吉隆天曜既有的實作，沒有另外發明
+//    新寫法，維持兩案場程式碼邏輯一致、好維護
 //  v9.36 變更：客戶登記/編輯新增「詳細地址」欄位（選填）：
 //    1. CUSTOMER_EXTRA_FIELDS 補上 detailed_address，ensureCustomerExtraColumns
 //       會自動幫 Customer_Data 補這個欄位，不用手動改表頭
@@ -446,7 +467,9 @@ const CONFIG = {
     CALENDAR_NOTES: 'Calendar_Notes',
     DEAL_DETAIL:    'Deal_Detail',
     CONTACT_LOG:    'Contact_Log',
-    RESERVATION:    'Reservation'
+    RESERVATION:    'Reservation',
+    CONFIG_OPTIONS: 'Config_Options',
+    WEEKLY_HOT_PICKS: 'Weekly_Hot_Picks'
   },
 
   ROLES:  { SALES: 'sales', MANAGER: 'manager', ADMIN: 'admin' },
@@ -471,8 +494,9 @@ const CONFIG = {
 // 統一在這裡維護，讀取與寫入共用，避免各處各自維護一份漏掉欄位
 var DATE_ONLY_FIELDS  = ['visit_date','leave_date','report_date','due_date','note_date',
                           'expected_sign_date','signed_date','refund_date',
-                          'contact_date','next_followup_date','scheduled_date'];
-var DATETIME_FIELDS   = ['created_at','updated_at','last_login_at','completed_at','changed_at','timestamp'];
+                          'contact_date','next_followup_date','scheduled_date',
+                          'week_start','week_end'];
+var DATETIME_FIELDS   = ['created_at','updated_at','last_login_at','completed_at','changed_at','timestamp','submitted_at'];
 var TEXT_FORCE_FIELDS = ['phone'];
 
 function getCrmSS()     { return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID); }
@@ -663,6 +687,8 @@ function doGet(e) {
         return jsonResponse(getIndustryList());
       case 'getPurchaseMotiveList':
         return jsonResponse(getPurchaseMotiveList());
+      case 'getConfigOptions':
+        return jsonResponse(getConfigOptions());
       case 'getTasks':
         return jsonResponse(getTasks(payload.lineUserId ? payload : {
           lineUserId: e.parameter.lineUserId, status: e.parameter.status
@@ -700,6 +726,22 @@ function doGet(e) {
       case 'getDailyReportRange':
         return jsonResponse(getDailyReportRange(payload.lineUserId ? payload : {
           lineUserId: e.parameter.lineUserId, months: e.parameter.months
+        }));
+      case 'getGeoPoints':
+        return jsonResponse(getGeoPoints(payload.lineUserId ? payload : {
+          lineUserId: e.parameter.lineUserId, startDate: e.parameter.startDate, endDate: e.parameter.endDate
+        }));
+      case 'getWeeklyReceptionList':
+        return jsonResponse(getWeeklyReceptionList(payload.lineUserId ? payload : {
+          lineUserId: e.parameter.lineUserId, startDate: e.parameter.startDate, endDate: e.parameter.endDate
+        }));
+      case 'getMyWeekCustomersForPick':
+        return jsonResponse(getMyWeekCustomersForPick(payload.lineUserId ? payload : {
+          lineUserId: e.parameter.lineUserId, startDate: e.parameter.startDate, endDate: e.parameter.endDate
+        }));
+      case 'getWeeklyHotPicks':
+        return jsonResponse(getWeeklyHotPicks(payload.lineUserId ? payload : {
+          lineUserId: e.parameter.lineUserId, startDate: e.parameter.startDate, endDate: e.parameter.endDate
         }));
       case 'getMaintenanceList':
         return jsonResponse(getMaintenanceList(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
@@ -823,6 +865,7 @@ function doPost(e) {
       case 'verifyAccess':            return jsonResponse(verifyAccess(payload));
       case 'appendCustomerData':      return jsonResponse(appendCustomerData(payload));
       case 'updateCustomerData':      return jsonResponse(updateCustomerData(payload));
+      case 'submitWeeklyHotPicks':    return jsonResponse(submitWeeklyHotPicks(payload));
       case 'deleteCustomerData':      return jsonResponse(deleteCustomerData(payload));
       case 'updateCustomerDeal':      return jsonResponse(updateCustomerDeal(payload));
       case 'saveDealDetail':          return jsonResponse(saveDealDetail(payload));
@@ -1062,15 +1105,16 @@ function getSalesByProject(projectName, lineUserId) {
   } catch (err) { return fail(err.message); }
 }
 
-function getIndustryList()       { return ok(CONFIG.INDUSTRIES); }
-function getPurchaseMotiveList() { return ok(CONFIG.PURCHASE_MOTIVES); }
+function getIndustryList()       { try { return ok(getAllConfigOptions_().industry || []); } catch (err) { return fail(err.message); } }
+function getPurchaseMotiveList() { try { return ok(getAllConfigOptions_().purchase_motive || []); } catch (err) { return fail(err.message); } }
 
 // ==================== Customer Module ====================
 // ★ 客戶資料表額外欄位（原本天地版本的試算表沒有這個欄位，第一次
 // 使用前要先確保表頭存在，否則 appendObjectToSheet/updateRowById
 // 都只認得既有表頭，資料會被靜默丟掉）。重新同步時記得保留這段跟
 // appendCustomerData/updateCustomerData 裡用到的部分，不要被覆蓋掉。
-var CUSTOMER_EXTRA_FIELDS = ['introduced_units', 'linked_customer_id', 'linked_customer_name', 'linked_visit_date', 'detailed_address'];
+var CUSTOMER_EXTRA_FIELDS = ['introduced_units', 'linked_customer_id', 'linked_customer_name', 'linked_visit_date', 'detailed_address',
+  'gender', 'marital_status', 'visit_time_slot', 'sqft_requirement', 'room_requirement_note', 'referrer_name', 'geo_lat', 'geo_lng'];
 
 function ensureCustomerExtraColumns() {
   var sh = getSheet(CONFIG.SHEETS.CUSTOMER);
@@ -1079,6 +1123,240 @@ function ensureCustomerExtraColumns() {
   var missing = CUSTOMER_EXTRA_FIELDS.filter(function(h){ return headers.indexOf(h) < 0; });
   if (!missing.length) return;
   sh.getRange(1, headers.length + 1, 1, missing.length).setValues([missing]);
+}
+
+// ==================== Config_Options（可自行編排的選項清單）====================
+// 客戶登記表單的居住行政區／來源管道／年齡區間／職業／購屋動機五種選項，
+// 原本寫死在 hstd.html 跟這份程式碼的 CONFIG.INDUSTRIES／PURCHASE_MOTIVES
+// 裡，改選項要工程師改程式重新部署。改成存在 Config_Options 這張表後，
+// 之後要增刪/排序選項，直接在 Google 試算表編輯這張表就好，不用再改
+// 程式碼、不用重新部署，最多 60 秒快取過期後就會反映在系統上。
+var CONFIG_OPTIONS_HEADERS = ['option_type','value','sort_order','active'];
+
+// 第一次建表時拿目前的預設值當種子資料，之後管理者要調整就直接在表上改
+var CONFIG_OPTIONS_SEED = {
+  district: ['楠梓區','左營區','鼓山區','三民區','苓雅區','新興區','前金區','鹽埕區','前鎮區','小港區','仁武區','鳳山區','其他'],
+  source: ['Facebook','網路媒體','591','戶外看板','親友介紹','路過','其他'],
+  age_range: ['30歲以下','30-39歲','40-49歲','50-59歲','60歲以上'],
+  industry: CONFIG.INDUSTRIES,
+  purchase_motive: CONFIG.PURCHASE_MOTIVES
+};
+
+function ensureConfigOptionsSheet() {
+  var ss = getCrmSS();
+  var name = CONFIG.SHEETS.CONFIG_OPTIONS;
+  var sh = ss.getSheetByName(name);
+  if (sh) return sh;
+  sh = ss.insertSheet(name);
+  sh.getRange(1,1,1,CONFIG_OPTIONS_HEADERS.length).setValues([CONFIG_OPTIONS_HEADERS]);
+  sh.getRange(1,1,1,CONFIG_OPTIONS_HEADERS.length).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
+  sh.setFrozenRows(1);
+  Object.keys(CONFIG_OPTIONS_SEED).forEach(function(type) {
+    CONFIG_OPTIONS_SEED[type].forEach(function(value, i) {
+      sh.appendRow([type, value, i + 1, true]);
+    });
+  });
+  Logger.log('✓ Config_Options 分頁已建立並帶入預設選項');
+  return sh;
+}
+
+// 依 option_type 分組、依 sort_order 排序、只留 active（空白視為啟用，
+// 只有明確填 FALSE 才算停用），快取 60 秒避免每次開表單都整張表重讀
+function getAllConfigOptions_() {
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get('configOptions');
+  if (cached) return JSON.parse(cached);
+
+  ensureConfigOptionsSheet();
+  var rows = readSheetAsObjects(CONFIG.SHEETS.CONFIG_OPTIONS).filter(function(r) {
+    return r.value && String(r.active).toLowerCase() !== 'false';
+  });
+  rows.sort(function(a, b) { return (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0); });
+
+  var grouped = {};
+  rows.forEach(function(r) {
+    if (!grouped[r.option_type]) grouped[r.option_type] = [];
+    grouped[r.option_type].push(r.value);
+  });
+  cache.put('configOptions', JSON.stringify(grouped), 60);
+  return grouped;
+}
+
+// 改完 Config_Options 表不想等 60 秒快取過期的話，在 Apps Script 編輯器
+// 選這支函式執行一次，馬上清快取立即生效
+function invalidateConfigOptionsCache() {
+  try { CacheService.getScriptCache().remove('configOptions'); } catch (e) {}
+  Logger.log('✓ 選項清單快取已清除，下一次讀取會直接抓最新的 Config_Options');
+}
+
+function getConfigOptions() {
+  try {
+    var grouped = getAllConfigOptions_();
+    return ok({
+      district: grouped.district || [],
+      source: grouped.source || [],
+      age_range: grouped.age_range || [],
+      industry: grouped.industry || [],
+      purchase_motive: grouped.purchase_motive || []
+    });
+  } catch (err) { return fail(err.message); }
+}
+
+// ==================== 地址轉座標 + 熱點地圖 ====================
+// 呼叫 Nominatim（OpenStreetMap 免費地理編碼服務）把客戶詳細地址轉成
+// 經緯度座標，供銷售日報頁「來人熱點地圖」使用。GAS 送出的請求都是從
+// Google 共用雲端 IP 發出，Nominatim 對這種來源的限流比想像中嚴格，
+// 收到 429（太多請求）用漸增等待時間（3秒／6秒）原地重試最多 3 次
+function geocodeQuery_(query) {
+  var maxAttempts = 3;
+  for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=tw&q=' + encodeURIComponent(query);
+      var resp = UrlFetchApp.fetch(url, {
+        method: 'get',
+        headers: { 'User-Agent': 'LongdomCRM-hstd/1.0 (internal use)' },
+        muteHttpExceptions: true
+      });
+      var code = resp.getResponseCode();
+      if (code === 429 && attempt < maxAttempts) {
+        Utilities.sleep(attempt * 3000); // 3秒、6秒漸增等待
+        continue;
+      }
+      if (code !== 200) {
+        var reason = 'HTTP ' + code + '（可能被 Nominatim 限流/擋掉，不是地址問題）';
+        Logger.log('geocodeQuery_ 非 200（' + query + '）：' + reason + '　回應：' + resp.getContentText().substring(0, 200));
+        return { geo: null, reason: reason };
+      }
+      var data = JSON.parse(resp.getContentText());
+      if (!data || !data.length) return { geo: null, reason: 'Nominatim 查無結果' };
+      return { geo: { lat: Number(data[0].lat), lng: Number(data[0].lon) }, reason: null };
+    } catch (err) {
+      Logger.log('geocodeQuery_ 例外（' + query + '）：' + err);
+      return { geo: null, reason: '例外：' + err };
+    }
+  }
+}
+
+// 從地址裡截出「到路名/街名為止」的部分，門牌號碼、巷弄、樓層都拿掉
+function extractRoadName_(address) {
+  var m = String(address).match(/^.*?(路|街|大道)/);
+  return m ? m[0] : null;
+}
+
+// 拿掉門牌後面的樓層/室號，Nominatim 通常不認得樓層資訊，留著反而可能讓查詢失敗
+function stripFloorSuffix_(address) {
+  return String(address).replace(/\d+\s*[樓Ff].*$/, '').trim();
+}
+
+// 組合真正要拿去查詢的地址字串。詳細地址裡已經有「市」「區」「縣」
+// 「鄉」「鎮」任一個字，代表已經打了完整地址，直接用不疊加行政區欄位，
+// 避免變成「XX區XX區開封街…」這種重複、查不到座標
+function buildGeocodeAddress_(district, detailedAddress) {
+  var addr = String(detailedAddress || '').trim();
+  if (!addr) return '';
+  if (/[市區縣鄉鎮]/.test(addr)) return addr;
+  // 「居住行政區」選「其他」時前端會存成「其他：台南市新營區」這種格式，
+  // 「其他：」只是 UI 標記不是縣市名的一部分，組查詢字串前要先拿掉，
+  // 不然會變成「其他：台南市新營區...」這種帶垃圾字首的查詢
+  var dist = String(district || '').replace(/^其他[：:]\s*/, '');
+  if (!dist) return addr;
+  var cityPrefix = (dist.indexOf('市') >= 0 || dist.indexOf('縣') >= 0) ? '' : '高雄市';
+  return cityPrefix + dist + addr;
+}
+
+// 先查完整地址；查不到依序退兩步：去樓層再查一次、只查到路名為止
+function geocodeAddress_(address) {
+  if (!address) return { geo: null, reason: '地址空白' };
+  var r1 = geocodeQuery_(address);
+  if (r1.geo) return r1;
+  var lastReason = r1.reason;
+
+  var noFloor = stripFloorSuffix_(address);
+  if (noFloor && noFloor !== address) {
+    Utilities.sleep(2000);
+    var r2 = geocodeQuery_(noFloor);
+    if (r2.geo) return r2;
+    lastReason = r2.reason;
+  }
+
+  var roadName = extractRoadName_(address);
+  if (roadName && roadName !== address) {
+    Utilities.sleep(2000);
+    var r3 = geocodeQuery_(roadName);
+    if (r3.geo) return r3;
+    lastReason = r3.reason;
+  }
+  return { geo: null, reason: lastReason };
+}
+
+// 批次幫「有填詳細地址、但還沒有座標」的客戶資料轉座標，寫回
+// geo_lat／geo_lng。手動在 Apps Script 編輯器執行，或掛在 setupTriggers
+// 的排程觸發器上自動跑，每筆間隔 2 秒降低被限流機率
+function geocodeMissingAddresses(maxCount) {
+  maxCount = maxCount || 200;
+  ensureCustomerExtraColumns();
+  var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER).filter(function(r) {
+    return r.detailed_address && (!r.geo_lat || !r.geo_lng);
+  });
+  Logger.log('待轉座標：' + rows.length + ' 筆，這次最多處理 ' + maxCount + ' 筆');
+
+  var done = 0, failed = 0, failedList = [];
+  for (var i = 0; i < rows.length && done + failed < maxCount; i++) {
+    var r = rows[i];
+    var fullAddress = buildGeocodeAddress_(r.district, r.detailed_address);
+    var result = geocodeAddress_(fullAddress);
+    if (result.geo) {
+      updateRowById(CONFIG.SHEETS.CUSTOMER, 'customer_id', r.customer_id, {
+        geo_lat: result.geo.lat, geo_lng: result.geo.lng
+      });
+      done++;
+    } else {
+      failed++;
+      failedList.push(r.customer_name + '（' + r.customer_id + '）：' + fullAddress + '　[' + (result.reason || '未知原因') + ']');
+    }
+    Utilities.sleep(2000);
+  }
+  Logger.log('✓ 完成：成功 ' + done + ' 筆，查不到座標 ' + failed + ' 筆');
+  if (failedList.length) {
+    Logger.log('查不到座標的清單（方括號是失敗原因；HTTP 403/429 代表被 Nominatim\n' +
+      '限流擋掉不是地址問題，換個時間重跑通常會好；「查無結果」才需要去\n' +
+      'Customer_Data 修正 detailed_address 後重跑一次）：\n' + failedList.join('\n'));
+  }
+}
+
+function geocodeMissingAddressesHourly() { geocodeMissingAddresses(200); }
+
+// 銷售日報「來人熱點地圖」用：撈出這個日期區間內、已經有精確座標的
+// 客戶清單，另外回傳「有填詳細地址、但還沒轉出座標」的統計（pending，
+// 依行政區分組），讓前端可以分開標示「已定位／待定位／沒填地址」三種
+function getGeoPoints(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限');
+
+    var startDate = String((payload && payload.startDate) || todayTW()).substring(0, 10);
+    var endDate   = String((payload && payload.endDate)   || todayTW()).substring(0, 10);
+    var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER).filter(function(r) {
+      var vd = String(r.visit_date).substring(0, 10);
+      if (vd < startDate || vd > endDate) return false;
+      return ctx.role === CONFIG.ROLES.ADMIN || r.project_name === ctx.projectName;
+    });
+
+    var results = rows.filter(function(r) { return r.geo_lat && r.geo_lng; }).map(function(r) {
+      return { customer_name: r.customer_name, district: r.district, lat: Number(r.geo_lat), lng: Number(r.geo_lng) };
+    });
+
+    var pendingByDistrict = {};
+    rows.forEach(function(r) {
+      if (r.detailed_address && (!r.geo_lat || !r.geo_lng)) {
+        pendingByDistrict[r.district] = (pendingByDistrict[r.district] || 0) + 1;
+      }
+    });
+    var pending = Object.keys(pendingByDistrict).map(function(k) { return { label: k, count: pendingByDistrict[k] }; });
+
+    return ok({ start_date: startDate, end_date: endDate, results: results, pending: pending });
+  } catch (err) { return fail(err.message); }
 }
 
 function appendCustomerData(payload) {
@@ -1133,7 +1411,13 @@ function appendCustomerData(payload) {
       deal_status: '未成交',
       deal_unit: '',
       status_note: payload.status_note,
-      note: payload.note || ''
+      note: payload.note || '',
+      gender: payload.gender || '',
+      marital_status: payload.marital_status || '',
+      visit_time_slot: payload.visit_time_slot || '',
+      sqft_requirement: payload.sqft_requirement || '',
+      room_requirement_note: payload.room_requirement_note || '',
+      referrer_name: payload.referrer_name || ''
     });
     writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.CUSTOMER, customerId,
       ctx.displayName + ' 新增客戶: ' + payload.customer_name);
@@ -2240,6 +2524,214 @@ function getWeeklyVisitorBreakdown(payload) {
   } catch (err) { return fail(err.message); }
 }
 
+// ==================== 週報表：客戶接待明細表／本週有望客 ====================
+// 把 Customer_Data 依週次整理成跟紙本表格一樣的欄位，讓經理在系統上一眼
+// 看到整週接待狀況；業務每週勾選 1~2 個有望客戶回報，存到
+// Weekly_Hot_Picks，經理端直接在同一頁看得到誰被標記、備註寫什麼。
+
+var WEEKLY_HOT_PICKS_HEADERS = ['pick_id','week_start','week_end','customer_id','customer_name',
+  'phone','project_name','sales_line_user_id','sales_name','note','submitted_at'];
+
+function ensureWeeklyHotPicksSheet() {
+  var ss = getCrmSS();
+  var name = CONFIG.SHEETS.WEEKLY_HOT_PICKS;
+  var sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    sh.getRange(1,1,1,WEEKLY_HOT_PICKS_HEADERS.length).setValues([WEEKLY_HOT_PICKS_HEADERS]);
+    sh.getRange(1,1,1,WEEKLY_HOT_PICKS_HEADERS.length).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
+    sh.setFrozenRows(1);
+    Logger.log('✓ Weekly_Hot_Picks 分頁已建立');
+    return sh;
+  }
+  var existing = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+  var missing = WEEKLY_HOT_PICKS_HEADERS.filter(function(h){ return existing.indexOf(h) < 0; });
+  if (missing.length) {
+    sh.getRange(1, existing.length + 1, 1, missing.length).setValues([missing]);
+    sh.getRange(1, existing.length + 1, 1, missing.length).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
+  }
+  return sh;
+}
+
+// 經理視角：整理成跟紙本表格一樣的欄位，依日期排序，並標出這筆客戶
+// 這週有沒有被業務標記為「有望」。權限規則同 getWeeklyVisitorBreakdown
+function getWeeklyReceptionList(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限');
+
+    var startDate = String((payload && payload.startDate) || todayTW()).substring(0, 10);
+    var endDate   = String((payload && payload.endDate)   || todayTW()).substring(0, 10);
+    var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER).filter(function(r) {
+      var vd = String(r.visit_date).substring(0, 10);
+      if (vd < startDate || vd > endDate) return false;
+      return ctx.role === CONFIG.ROLES.ADMIN || r.project_name === ctx.projectName;
+    });
+    rows.sort(function(a, b) {
+      var da = String(a.visit_date).substring(0, 10), db = String(b.visit_date).substring(0, 10);
+      return da < db ? -1 : (da > db ? 1 : 0);
+    });
+
+    ensureWeeklyHotPicksSheet();
+    var picks = readSheetAsObjects(CONFIG.SHEETS.WEEKLY_HOT_PICKS).filter(function(p) {
+      return p.week_start === startDate && p.week_end === endDate;
+    });
+    var pickByCustomerId = {};
+    picks.forEach(function(p) { pickByCustomerId[p.customer_id] = p; });
+
+    var results = rows.map(function(r, i) {
+      var pick = pickByCustomerId[r.customer_id];
+      return {
+        seq: i + 1,
+        customer_id: r.customer_id,
+        visit_date: String(r.visit_date).substring(0, 10),
+        customer_name: r.customer_name,
+        phone: r.phone,
+        district: r.district,
+        source: r.source,
+        occupation_industry: r.occupation_industry,
+        age_range: r.age_range,
+        introduced_units: r.introduced_units,
+        visit_type: r.visit_type,
+        linked_customer_name: r.linked_customer_name || '',
+        linked_visit_date: r.linked_visit_date ? String(r.linked_visit_date).substring(0, 10) : '',
+        status_note: r.status_note,
+        sales_name: r.sales_name,
+        is_hot_pick: !!pick,
+        hot_pick_note: pick ? pick.note : ''
+      };
+    });
+
+    return ok({ start_date: startDate, end_date: endDate, results: results });
+  } catch (err) { return fail(err.message); }
+}
+
+// 業務視角：列出自己這週接待過的客戶，供勾選「本週有望客」用，附上
+// 目前已經選過的狀態（重新打開頁面時預選回原本勾的那幾筆，方便修改）
+function getMyWeekCustomersForPick(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+
+    var startDate = String((payload && payload.startDate) || todayTW()).substring(0, 10);
+    var endDate   = String((payload && payload.endDate)   || todayTW()).substring(0, 10);
+    var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER).filter(function(r) {
+      var vd = String(r.visit_date).substring(0, 10);
+      if (vd < startDate || vd > endDate) return false;
+      return String(r.sales_line_user_id) === String(ctx.lineUserId);
+    });
+    rows.sort(function(a, b) {
+      var da = String(a.visit_date).substring(0, 10), db = String(b.visit_date).substring(0, 10);
+      return da < db ? -1 : (da > db ? 1 : 0);
+    });
+
+    ensureWeeklyHotPicksSheet();
+    var picks = readSheetAsObjects(CONFIG.SHEETS.WEEKLY_HOT_PICKS).filter(function(p) {
+      return p.week_start === startDate && p.week_end === endDate &&
+        String(p.sales_line_user_id) === String(ctx.lineUserId);
+    });
+    var pickByCustomerId = {};
+    picks.forEach(function(p) { pickByCustomerId[p.customer_id] = p; });
+
+    var results = rows.map(function(r) {
+      var pick = pickByCustomerId[r.customer_id];
+      return {
+        customer_id: r.customer_id,
+        visit_date: String(r.visit_date).substring(0, 10),
+        customer_name: r.customer_name,
+        phone: r.phone,
+        status_note: r.status_note,
+        picked: !!pick,
+        note: pick ? pick.note : ''
+      };
+    });
+
+    return ok({ start_date: startDate, end_date: endDate, results: results });
+  } catch (err) { return fail(err.message); }
+}
+
+// 業務送出本週有望客（1~2 位）。同一週重複送出視為「修改這週的選擇」，
+// 先清掉這個業務這週原本選的，再存新的一批，不會愈存愈多筆垃圾資料
+function submitWeeklyHotPicks(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+
+    var startDate = String((payload && payload.startDate) || '').substring(0, 10);
+    var endDate   = String((payload && payload.endDate)   || '').substring(0, 10);
+    if (!startDate || !endDate) return fail('週次區間必填');
+
+    var customerIds = Array.isArray(payload.customer_ids) ? payload.customer_ids : [];
+    customerIds = customerIds.filter(function(id) { return id; });
+    if (!customerIds.length) return fail('至少要選 1 位客戶');
+    if (customerIds.length > 2) return fail('本週有望客最多選 2 位');
+
+    // 只能選自己這週接待過的客戶，避免有人竄改 payload 選到別人的客戶
+    var myRows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER).filter(function(r) {
+      var vd = String(r.visit_date).substring(0, 10);
+      return vd >= startDate && vd <= endDate && String(r.sales_line_user_id) === String(ctx.lineUserId);
+    });
+    var myRowById = {};
+    myRows.forEach(function(r) { myRowById[r.customer_id] = r; });
+    var invalid = customerIds.filter(function(id) { return !myRowById[id]; });
+    if (invalid.length) return fail('選到不是這週自己接待的客戶，請重新整理頁面再選一次');
+
+    ensureWeeklyHotPicksSheet();
+    var notes = (payload && payload.notes) || {};
+
+    // 清掉這個業務這週原本選過的舊紀錄
+    var existing = readSheetAsObjects(CONFIG.SHEETS.WEEKLY_HOT_PICKS).filter(function(p) {
+      return p.week_start === startDate && p.week_end === endDate &&
+        String(p.sales_line_user_id) === String(ctx.lineUserId);
+    });
+    existing.forEach(function(p) { deleteRowById(CONFIG.SHEETS.WEEKLY_HOT_PICKS, 'pick_id', p.pick_id); });
+
+    customerIds.forEach(function(id) {
+      var row = myRowById[id];
+      appendObjectToSheet(CONFIG.SHEETS.WEEKLY_HOT_PICKS, {
+        pick_id: genId('WHP'),
+        week_start: startDate,
+        week_end: endDate,
+        customer_id: id,
+        customer_name: row.customer_name,
+        phone: row.phone,
+        project_name: row.project_name,
+        sales_line_user_id: ctx.lineUserId,
+        sales_name: ctx.displayName,
+        note: notes[id] || '',
+        submitted_at: nowTW()
+      });
+    });
+
+    writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.WEEKLY_HOT_PICKS, startDate + '~' + endDate,
+      ctx.displayName + ' 送出本週有望客 ' + customerIds.length + ' 位');
+
+    return ok({ submitted: customerIds.length });
+  } catch (err) { return fail(err.message); }
+}
+
+// 經理視角：本週有望客清單（跨業務彙整），權限規則同 getWeeklyReceptionList
+function getWeeklyHotPicks(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限');
+
+    var startDate = String((payload && payload.startDate) || todayTW()).substring(0, 10);
+    var endDate   = String((payload && payload.endDate)   || todayTW()).substring(0, 10);
+
+    ensureWeeklyHotPicksSheet();
+    var picks = readSheetAsObjects(CONFIG.SHEETS.WEEKLY_HOT_PICKS).filter(function(p) {
+      if (p.week_start !== startDate || p.week_end !== endDate) return false;
+      return ctx.role === CONFIG.ROLES.ADMIN || p.project_name === ctx.projectName;
+    });
+    picks.sort(function(a, b) { return String(a.sales_name).localeCompare(String(b.sales_name), 'zh-Hant'); });
+
+    return ok({ start_date: startDate, end_date: endDate, results: picks });
+  } catch (err) { return fail(err.message); }
+}
+
 // 銷售日報歷史區間查詢（近3~6個月歷史清單／週比較／月比較 用）
 function getDailyReportRange(payload) {
   try {
@@ -3227,10 +3719,13 @@ function initAllSheets() {
 function setupTriggers() {
   ScriptApp.getProjectTriggers().forEach(function(t) {
     var fn = t.getHandlerFunction();
-    if (fn === 'sendDailyTaskReminder' || fn === 'sendDailySalesReport') ScriptApp.deleteTrigger(t);
+    if (fn === 'sendDailyTaskReminder' || fn === 'sendDailySalesReport' || fn === 'geocodeMissingAddressesHourly') ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger('sendDailyTaskReminder').timeBased().atHour(9).everyDays(1).inTimezone(CONFIG.TIMEZONE).create();
   ScriptApp.newTrigger('sendDailySalesReport').timeBased().atHour(21).everyDays(1).inTimezone(CONFIG.TIMEZONE).create();
+  // 每小時自動幫新填的「詳細地址」轉座標，業務登記/編輯客戶資料時
+  // 不用等地址轉換完成，最多一小時內熱點地圖就會補上精確定位點
+  ScriptApp.newTrigger('geocodeMissingAddressesHourly').timeBased().everyHours(1).create();
   Logger.log('✓ 觸發器設定完成');
 }
 
