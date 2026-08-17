@@ -9,6 +9,9 @@
 <link rel="preconnect" href="https://static.line-scdn.net">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700&family=Noto+Sans+TC:wght@300;400;500&display=swap" rel="stylesheet">
 <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<!-- 來人熱點地圖用：Leaflet + OpenStreetMap，完全免費、不用申請 API 金鑰 -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   :root {
     --cream:#FAF8F4; --ink:#1A1A2E; --ink-light:#4A4A6A; --ink-faint:#8A8AA0;
@@ -156,6 +159,47 @@
   .cust-card-deal.done{background:var(--teal-soft);color:#0f6e56;}
   .cust-card-deal.pending{background:var(--gold-soft);color:#634e0c;}
   .cust-card-deal.refund{background:var(--rust-soft);color:var(--rust);}
+  .pick-item{background:var(--surface);border-radius:10px;border:1.5px solid var(--border);padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s,background 0.15s;}
+  .pick-item.selected{border-color:var(--rust);background:var(--rust-soft);}
+  .pick-item-head{display:flex;align-items:center;gap:10px;}
+  .pick-item-checkbox{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--border-strong);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;transition:all 0.15s;}
+  .pick-item.selected .pick-item-checkbox{background:var(--rust);border-color:var(--rust);}
+  .pick-item-name{font-family:'Noto Serif TC',serif;font-size:15px;font-weight:600;flex:1;}
+  .pick-item-date{font-size:11px;color:var(--ink-faint);}
+  .pick-item-meta{font-size:12px;color:var(--ink-light);margin-top:4px;padding-left:30px;}
+  .pick-item-note{width:100%;margin-top:8px;padding:9px 12px;border:1.5px solid var(--rust);border-radius:8px;font-family:'Noto Sans TC',sans-serif;font-size:13px;color:var(--ink);background:#fff;resize:vertical;min-height:44px;}
+  .pick-submitted-hint{background:var(--teal-soft);border:1px solid var(--teal);border-radius:10px;padding:10px 14px;font-size:12px;color:#0f6e56;line-height:1.7;margin-bottom:12px;}
+  .hotpick-card{background:var(--gold-soft);border:1px solid var(--gold);border-radius:10px;padding:12px 14px;margin-bottom:8px;}
+  .hotpick-card-head{display:flex;justify-content:space-between;align-items:baseline;}
+  .hotpick-card-name{font-family:'Noto Serif TC',serif;font-size:14px;font-weight:600;color:var(--ink);}
+  .hotpick-card-sales{font-size:11px;color:#8A6D3F;}
+  .hotpick-card-note{font-size:12px;color:var(--ink-light);margin-top:4px;line-height:1.5;}
+  .recept-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow-x:auto;box-shadow:0 1px 4px rgba(26,26,46,0.04);}
+  .recept-table{border-collapse:collapse;width:100%;min-width:760px;font-size:13px;}
+  .recept-table th{position:sticky;top:0;background:var(--ink);color:#fff;font-weight:500;padding:9px 10px;text-align:left;white-space:nowrap;letter-spacing:0.5px;}
+  .recept-table td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--ink-light);white-space:nowrap;}
+  .recept-table td.wrap-cell{white-space:normal;max-width:240px;min-width:160px;}
+  .recept-table tr:last-child td{border-bottom:none;}
+  .recept-table tr:nth-child(even) td{background:var(--cream);}
+  .recept-table tr.hot td{background:var(--gold-soft);}
+  .recept-table .recept-name{font-weight:600;color:var(--ink);}
+  .recept-table .recept-star{color:var(--gold);margin-left:3px;}
+  .heatmap-label{font-size:11px;font-weight:700;padding:1px 6px;border:1px solid #C0392B;color:#C0392B;background:rgba(255,255,255,0.92);}
+  .heatmap-label::before{border-top-color:#C0392B;}
+  .heatmap-label-pending{border-color:#D97706;color:#D97706;}
+  .heatmap-label-pending::before{border-top-color:#D97706;}
+  #weekHeatmapCard:fullscreen{background:var(--surface);padding:16px;display:flex;flex-direction:column;}
+  #weekHeatmapCard:fullscreen #weekHeatmap{height:calc(100vh - 90px) !important;flex:1;}
+  #weekHeatmapCard:-webkit-full-screen{background:var(--surface);padding:16px;display:flex;flex-direction:column;}
+  #weekHeatmapCard:-webkit-full-screen #weekHeatmap{height:calc(100vh - 90px) !important;flex:1;}
+  @media print{
+    @page{size:A4 portrait;margin:12mm;}
+    body.print-map-only *{visibility:hidden;}
+    body.print-map-only #weekHeatmapCard,
+    body.print-map-only #weekHeatmapCard *{visibility:visible;}
+    body.print-map-only #weekHeatmapCard{position:absolute;top:0;left:0;width:100%;}
+    body.print-map-only .no-print{visibility:hidden !important;}
+  }
   .deal-btn{margin-top:8px;padding:7px 14px;font-size:12px;background:var(--ink);color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:inherit;}
 
   /* Form */
@@ -359,6 +403,11 @@
           <div class="feature-card-desc" id="taskCountDesc">查看待辦</div>
           <span class="feature-badge hidden" id="taskBadge">0</span>
         </div>
+        <div class="feature-card" onclick="route('#/weeklypick')" style="border-top:2px solid var(--rust);">
+          <div class="feature-card-icon">⭐</div>
+          <div class="feature-card-title">本週有望客</div>
+          <div class="feature-card-desc">勾選並送出給主管</div>
+        </div>
         <div class="feature-card hidden" id="reportFeature" onclick="route('#/report')">
           <span class="feature-badge gold">主管</span>
           <div class="feature-card-icon">📊</div>
@@ -463,14 +512,27 @@
           <input type="hidden" id="cust_linkedCustomerName">
           <input type="hidden" id="cust_linkedVisitDate">
         </div>
+        <div class="field">
+          <div class="field-label">來訪時段</div>
+          <div class="chips">
+            <label class="chip"><input type="radio" name="cust_timeSlot" value="09:00-12:00"><span class="chip-label">09-12</span></label>
+            <label class="chip"><input type="radio" name="cust_timeSlot" value="12:00-15:00"><span class="chip-label">12-15</span></label>
+            <label class="chip"><input type="radio" name="cust_timeSlot" value="15:00-18:00"><span class="chip-label">15-18</span></label>
+            <label class="chip"><input type="radio" name="cust_timeSlot" value="18:00-21:00"><span class="chip-label">18-21</span></label>
+          </div>
+        </div>
       </div>
       <div class="section">
         <div class="section-header"><div class="section-num">2</div><div class="section-name">客戶基本資料</div></div>
         <div class="field-row">
           <div class="field"><div class="field-label">姓名 <span class="req">*</span></div><input class="inp" type="text" id="cust_name" placeholder="請輸入姓名"></div>
-          <div class="field"><div class="field-label">電話 <span class="req">*</span></div><input class="inp" type="tel" id="cust_phone" placeholder="0912345678"></div>
+          <div class="field"><div class="field-label">性別</div><div class="chips"><label class="chip"><input type="radio" name="cust_gender" value="男"><span class="chip-label">男</span></label><label class="chip"><input type="radio" name="cust_gender" value="女"><span class="chip-label">女</span></label></div></div>
         </div>
-        <div class="field"><div class="field-label">年齡區間</div><div class="chips"><label class="chip"><input type="radio" name="cust_age" value="30歲以下"><span class="chip-label">30以下</span></label><label class="chip"><input type="radio" name="cust_age" value="30-39歲"><span class="chip-label">30-39</span></label><label class="chip"><input type="radio" name="cust_age" value="40-49歲"><span class="chip-label">40-49</span></label><label class="chip"><input type="radio" name="cust_age" value="50-59歲"><span class="chip-label">50-59</span></label><label class="chip"><input type="radio" name="cust_age" value="60歲以上"><span class="chip-label">60以上</span></label></div></div>
+        <div class="field-row">
+          <div class="field"><div class="field-label">電話 <span class="req">*</span></div><input class="inp" type="tel" id="cust_phone" placeholder="0912345678"></div>
+          <div class="field"><div class="field-label">婚姻狀況</div><div class="chips"><label class="chip"><input type="radio" name="cust_marital" value="已婚"><span class="chip-label">已婚</span></label><label class="chip"><input type="radio" name="cust_marital" value="未婚"><span class="chip-label">未婚</span></label></div></div>
+        </div>
+        <div class="field"><div class="field-label">年齡區間</div><div class="chips" id="cust_ageChips"></div></div>
         <div class="field"><div class="field-label">居住行政區（高雄）</div><div class="chips" id="cust_distChips"></div><div class="extra-inp hidden" id="cust_distOtherWrap"><input class="inp" type="text" id="cust_distOther" placeholder="請輸入其他地區"></div></div>
         <div class="field"><div class="field-label">詳細地址（選填）</div><input class="inp" type="text" id="cust_detailedAddress" placeholder="例：博愛路100號"></div>
         <div class="field-row">
@@ -487,22 +549,24 @@
         </div>
         <div class="field">
           <div class="field-label">來源管道</div>
-          <div class="chips">
-            <label class="chip"><input type="radio" name="cust_source" value="Facebook"><span class="chip-label">FB</span></label>
-            <label class="chip"><input type="radio" name="cust_source" value="網路媒體"><span class="chip-label">網路媒體</span></label>
-            <label class="chip"><input type="radio" name="cust_source" value="591"><span class="chip-label">591</span></label>
-            <label class="chip"><input type="radio" name="cust_source" value="戶外看板"><span class="chip-label">看板</span></label>
-            <label class="chip"><input type="radio" name="cust_source" value="親友介紹"><span class="chip-label">介紹</span></label>
-            <label class="chip"><input type="radio" name="cust_source" value="路過"><span class="chip-label">路過</span></label>
-            <label class="chip"><input type="radio" name="cust_source" value="其他" onchange="toggleOther('cust_sourceOtherWrap',true)"><span class="chip-label">其他</span></label>
-          </div>
+          <div class="chips" id="cust_sourceChips"></div>
           <div class="extra-inp hidden" id="cust_sourceOtherWrap"><input class="inp" type="text" id="cust_sourceOther" placeholder="請輸入來源管道"></div>
+          <div class="extra-inp hidden" id="cust_referrerWrap"><input class="inp" type="text" id="cust_referrerName" placeholder="請輸入介紹人姓名"></div>
         </div>
       </div>
       <div class="section">
         <div class="section-header"><div class="section-num">3</div><div class="section-name">購屋需求</div></div>
         <div class="field-row">
           <div class="field"><div class="field-label">需求房型</div><div class="chips"><label class="chip"><input type="checkbox" name="cust_room" value="2房"><span class="chip-label">2房</span></label><label class="chip"><input type="checkbox" name="cust_room" value="3房"><span class="chip-label">3房</span></label><label class="chip"><input type="checkbox" name="cust_room" value="4房"><span class="chip-label">4房</span></label><label class="chip"><input type="checkbox" name="cust_room" value="店面"><span class="chip-label">店面</span></label></div></div>
+          <div class="field"><div class="field-label">房型需求備註</div><input class="inp" type="text" id="cust_roomRequirementNote" placeholder="選填，例：要更衣室、要邊間"></div>
+          <div class="field">
+            <div class="field-label">坪數需求</div>
+            <div class="chips">
+              <label class="chip"><input type="radio" name="cust_sqft" value="20-30坪"><span class="chip-label">20-30坪</span></label>
+              <label class="chip"><input type="radio" name="cust_sqft" value="30-40坪"><span class="chip-label">30-40坪</span></label>
+              <label class="chip"><input type="radio" name="cust_sqft" value="40坪以上"><span class="chip-label">40坪以上</span></label>
+            </div>
+          </div>
           <div class="field">
             <div class="field-label">購屋預算</div>
             <select class="sel" id="cust_budget">
@@ -629,6 +693,32 @@
         <div style="font-size:12px;color:var(--ink-faint);margin-top:10px;">來源管道</div>
         <div id="weekSourceBreakdown"></div>
       </div>
+
+      <div class="section-tag" style="margin-top:18px;display:flex;justify-content:space-between;align-items:center;">
+        <span>來人熱點地圖</span>
+        <div class="no-print" style="display:flex;gap:6px;">
+          <button type="button" class="btn-mini" onclick="toggleHeatmapFullscreen()" style="font-size:11px;padding:5px 10px;">⛶ 全螢幕</button>
+          <button type="button" class="btn-mini" onclick="printHeatmap()" style="font-size:11px;padding:5px 10px;">🖨 列印地圖</button>
+        </div>
+      </div>
+      <div class="summary-card" id="weekHeatmapCard">
+        <div id="weekHeatmapTitle" style="font-weight:700;margin-bottom:8px;">華雄天地 來人熱點地圖</div>
+        <div class="no-print" style="display:flex;gap:6px;margin-bottom:8px;">
+          <button type="button" class="btn-mini" onclick="showAllHeatmapData()" style="font-size:11px;padding:5px 10px;flex:1;">🔍 顯示全部區域</button>
+          <button type="button" class="btn-mini" onclick="focusHeatmapOnServiceArea()" style="font-size:11px;padding:5px 10px;flex:1;">📍 回到服務區</button>
+        </div>
+        <div style="position:relative;">
+          <div id="weekHeatmap" style="height:600px;border-radius:10px;overflow:hidden;"></div>
+          <div id="weekHeatmapOverlay" style="position:absolute;bottom:8px;right:8px;max-width:60%;text-align:right;font-size:11px;line-height:1.6;font-weight:700;pointer-events:none;z-index:1000;"></div>
+        </div>
+        <div id="weekHeatmapNote" style="font-size:12px;color:var(--ink-faint);margin-top:8px;line-height:1.6;"></div>
+      </div>
+
+      <div class="section-tag" style="margin-top:18px;">本週有望客</div>
+      <div id="weekHotPicksCard"></div>
+
+      <div class="section-tag" style="margin-top:18px;">客戶接待明細</div>
+      <div id="weekReceptionTable"></div>
     </div>
   </div>
 
@@ -693,6 +783,23 @@
       <div id="reservationList"></div>
     </div>
     <button class="fab" onclick="openReservationModal()">+</button>
+  </div>
+
+  <!-- Weekly Hot Picks：業務勾選本週有望客送出給主管 -->
+  <div id="viewWeeklyPick" class="view hidden">
+    <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">本週有望客</div><div style="width:36px;"></div></div></div>
+    <div class="list-wrap">
+      <div class="field" style="margin-bottom:14px;">
+        <div class="field-label">查詢週次</div>
+        <input class="inp" type="week" id="pickWeek" onchange="loadWeeklyPickList()">
+      </div>
+      <div style="font-size:12px;color:var(--ink-faint);line-height:1.7;margin-bottom:14px;">
+        從本週接待過的客戶裡挑 1~2 位最有望成交的，送出後主管就會在週報表看到，不用再手寫一份。重複送出會直接取代這週原本選的。
+      </div>
+      <div id="pickSubmittedHint"></div>
+      <div id="pickList"></div>
+      <button class="btn-primary" style="margin-top:16px;" id="pickSubmitBtn" onclick="submitWeeklyPick()">送 出 本 週 有 望 客</button>
+    </div>
   </div>
 
   <!-- Users -->
@@ -887,6 +994,18 @@
     <div class="field"><div class="field-label">已介紹產品（棟別/戶別/樓層）</div><input class="inp" type="text" id="edit_introducedUnits"></div>
     <div class="field"><div class="field-label">接待狀況</div><textarea class="ta" id="edit_note" style="min-height:80px;"></textarea></div>
     <div class="field"><div class="field-label">備註</div><textarea class="ta" id="edit_extra" style="min-height:60px;"></textarea></div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">性別</div><input class="inp" type="text" id="edit_gender" placeholder="男／女"></div>
+      <div class="field"><div class="field-label">婚姻狀況</div><input class="inp" type="text" id="edit_maritalStatus" placeholder="已婚／未婚"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">來訪時段</div><input class="inp" type="text" id="edit_visitTimeSlot" placeholder="例：09:00-12:00"></div>
+      <div class="field"><div class="field-label">介紹人</div><input class="inp" type="text" id="edit_referrerName" placeholder="來源管道為親友介紹時填寫"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">坪數需求</div><input class="inp" type="text" id="edit_sqftRequirement" placeholder="例：30-40坪"></div>
+      <div class="field"><div class="field-label">房型需求備註</div><input class="inp" type="text" id="edit_roomRequirementNote"></div>
+    </div>
     <div style="display:flex;gap:10px;margin-top:18px;">
       <button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('editCustModal')">取消</button>
       <button class="btn-mini primary" id="editCustSubmitBtn" style="flex:2;padding:14px;font-weight:600;" onclick="submitEditCustomer()">儲 存 修 改</button>
@@ -966,10 +1085,16 @@ var state = {
   myCustomerFilterSales: 'all',
   reservationsRaw: [],
   reservationTab: 'active',
-  pendingReservationConversion: null
+  pendingReservationConversion: null,
+  configOptions: {}
 };
 
+// 這個陣列只是 API 失敗時的備用值（例如舊版 GAS 還沒部署 getConfigOptions），
+// 正常情況下實際選項來自後端 Config_Options 表（見 loadGlobalData），
+// 管理者要調整選項直接改 Google 試算表就好，不用改這裡
 var DISTRICTS = ['楠梓區','左營區','鼓山區','三民區','苓雅區','新興區','前金區','鹽埕區','前鎮區','小港區','仁武區','鳳山區','其他'];
+var AGE_RANGES = ['30歲以下','30-39歲','40-49歲','50-59歲','60歲以上'];
+var SOURCE_CHANNELS = ['Facebook','網路媒體','591','戶外看板','親友介紹','路過','其他'];
 
 /* ══ 權限判斷共用函式（避免各處散落字串比對） ══ */
 function isSales() { return !!state.user && state.user.role === 'sales'; }
@@ -1209,11 +1334,19 @@ function logout() {
 
 /* ══ Global Data ══ */
 function loadGlobalData(done) {
-  var pending = 3;
+  var pending = 4;
   function check(){ if(--pending===0 && done) done(); }
   gasGet('getProjectList',        null, function(r){ state.projects   = r.ok ? r.data : []; check(); }, check);
   gasGet('getIndustryList',       null, function(r){ state.industries = r.ok ? r.data : []; check(); }, check);
   gasGet('getPurchaseMotiveList', null, function(r){ state.motives    = r.ok ? r.data : []; check(); }, check);
+  // 居住行政區／來源管道／年齡區間：原本寫死在這個檔案裡，改成從
+  // Config_Options 表抓，讓經理可以直接在 Google 試算表自己增刪/排序
+  // 選項，不用改程式碼重新部署。API 失敗（例如舊版 GAS 還沒部署）就
+  // 用內建的預設值頂著，表單至少還能用
+  gasGet('getConfigOptions', null, function(r){
+    state.configOptions = (r.ok && r.data) ? r.data : {};
+    check();
+  }, function(){ state.configOptions = {}; check(); });
 }
 
 /* ══ Router ══ */
@@ -1235,6 +1368,7 @@ function route(hash) {
     case '#/mycustomers': document.getElementById('viewMyCustomers').classList.remove('hidden'); renderMyCustomers(); break;
     case '#/reservation': document.getElementById('viewReservation').classList.remove('hidden'); renderReservationView(); break;
     case '#/task':     document.getElementById('viewTask').classList.remove('hidden');     renderTaskList(); break;
+    case '#/weeklypick': document.getElementById('viewWeeklyPick').classList.remove('hidden'); renderWeeklyPick(); break;
     case '#/report':
       if (isSales()) { route('#/home'); return; }
       document.getElementById('viewReport').classList.remove('hidden'); renderReport(); break;
@@ -1499,7 +1633,9 @@ var FIELD_LABELS = {
   age_range:'年齡區間', district:'居住區域', occupation_industry:'職業',
   purchase_motive:'購屋動機', source:'來源管道', room_types:'需求房型',
   budget:'購屋預算', issues:'癥結點', revisit_plan:'預計再訪',
-  status_note:'接待狀況', note:'備註', introduced_units:'已介紹產品'
+  status_note:'接待狀況', note:'備註', introduced_units:'已介紹產品',
+  gender:'性別', marital_status:'婚姻狀況', visit_time_slot:'來訪時段',
+  sqft_requirement:'坪數需求', room_requirement_note:'房型需求備註', referrer_name:'介紹人'
 };
 
 function renderMyCustomers() {
@@ -1630,6 +1766,12 @@ function openEditCustModal(custId) {
   document.getElementById('edit_introducedUnits').value = c.introduced_units || '';
   document.getElementById('edit_note').value = c.status_note || '';
   document.getElementById('edit_extra').value = c.note || '';
+  document.getElementById('edit_gender').value = c.gender || '';
+  document.getElementById('edit_maritalStatus').value = c.marital_status || '';
+  document.getElementById('edit_visitTimeSlot').value = c.visit_time_slot || '';
+  document.getElementById('edit_referrerName').value = c.referrer_name || '';
+  document.getElementById('edit_sqftRequirement').value = c.sqft_requirement || '';
+  document.getElementById('edit_roomRequirementNote').value = c.room_requirement_note || '';
   var salesWrap = document.getElementById('edit_salesWrap');
   if (isAdmin()) {
     salesWrap.classList.remove('hidden');
@@ -1688,7 +1830,13 @@ function submitEditCustomer() {
     issues:              document.getElementById('edit_issues').value.trim(),
     introduced_units:    document.getElementById('edit_introducedUnits').value.trim(),
     status_note:         document.getElementById('edit_note').value.trim(),
-    note:                document.getElementById('edit_extra').value.trim()
+    note:                document.getElementById('edit_extra').value.trim(),
+    gender:              document.getElementById('edit_gender').value.trim(),
+    marital_status:      document.getElementById('edit_maritalStatus').value.trim(),
+    visit_time_slot:     document.getElementById('edit_visitTimeSlot').value.trim(),
+    referrer_name:       document.getElementById('edit_referrerName').value.trim(),
+    sqft_requirement:    document.getElementById('edit_sqftRequirement').value.trim(),
+    room_requirement_note: document.getElementById('edit_roomRequirementNote').value.trim()
   };
   if (isAdmin()) {
     var salesSel = document.getElementById('edit_salesAssign');
@@ -2241,11 +2389,38 @@ function renderCustomerForm() {
 
   var dc = document.getElementById('cust_distChips');
   if (!dc.children.length) {
-    DISTRICTS.forEach(function(d) {
+    var districts = (state.configOptions.district && state.configOptions.district.length) ? state.configOptions.district : DISTRICTS;
+    districts.forEach(function(d) {
       var label = document.createElement('label'); label.className = 'chip';
       label.innerHTML = '<input type="radio" name="cust_dist" value="' + d + '"><span class="chip-label">' + (d==='其他'?'其他':d.replace('區','')) + '</span>';
       dc.appendChild(label);
       label.querySelector('input').addEventListener('change', function(){ document.getElementById('cust_distOtherWrap').classList.toggle('hidden', this.value!=='其他'); });
+    });
+  }
+
+  var ac = document.getElementById('cust_ageChips');
+  if (!ac.children.length) {
+    var ageRanges = (state.configOptions.age_range && state.configOptions.age_range.length) ? state.configOptions.age_range : AGE_RANGES;
+    ageRanges.forEach(function(a) {
+      var label = document.createElement('label'); label.className = 'chip';
+      label.innerHTML = '<input type="radio" name="cust_age" value="' + a + '"><span class="chip-label">' + a.replace('歲','') + '</span>';
+      ac.appendChild(label);
+    });
+  }
+
+  var sc = document.getElementById('cust_sourceChips');
+  if (!sc.children.length) {
+    var sources = (state.configOptions.source && state.configOptions.source.length) ? state.configOptions.source : SOURCE_CHANNELS;
+    sources.forEach(function(s) {
+      var label = document.createElement('label'); label.className = 'chip';
+      label.innerHTML = '<input type="radio" name="cust_source" value="' + s + '"><span class="chip-label">' + s + '</span>';
+      sc.appendChild(label);
+      // 「其他」「親友介紹」這兩個值有特殊行為（跳出額外欄位），管理者
+      // 如果在 Config_Options 表把文字改掉，對應欄位就不會再跳出來
+      label.querySelector('input').addEventListener('change', function(){
+        toggleOther('cust_sourceOtherWrap', this.value === '其他');
+        toggleOther('cust_referrerWrap', this.value === '親友介紹');
+      });
     });
   }
 
@@ -2478,7 +2653,13 @@ function submitCustomer() {
     linked_customer_name: document.getElementById('cust_linkedCustomerName').value,
     linked_visit_date: document.getElementById('cust_linkedVisitDate').value,
     revisit_plan: again,
-    status_note: note
+    status_note: note,
+    gender: getRadio('cust_gender'),
+    marital_status: getRadio('cust_marital'),
+    visit_time_slot: getRadio('cust_timeSlot'),
+    sqft_requirement: getRadio('cust_sqft'),
+    room_requirement_note: document.getElementById('cust_roomRequirementNote').value.trim(),
+    referrer_name: document.getElementById('cust_referrerName').value.trim()
   }, function(res) {
     btn.disabled=false; btn.textContent='送 出 登 記';
     if (res.ok) {
@@ -2507,13 +2688,13 @@ function duplicatePhoneMessage(records) {
 function resetCustomerForm() {
   ['cust_name','cust_phone','cust_note','cust_distOther','cust_detailedAddress','cust_againDate',
    'cust_industryOther','cust_motiveOther','cust_sourceOther','cust_budgetOther','cust_issueOther','cust_againOther',
-   'cust_introducedUnits'
+   'cust_roomRequirementNote','cust_introducedUnits','cust_referrerName'
   ].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
   document.querySelectorAll('#viewCustomer input[type="radio"]').forEach(function(r){ r.checked=false; });
   document.querySelectorAll('#viewCustomer input[type="checkbox"]').forEach(function(c){ c.checked=false; });
   ['cust_industry','cust_motive','cust_budget'].forEach(function(id){ document.getElementById(id).value=''; });
   ['cust_distOtherWrap','cust_againDateWrap','cust_industryOtherWrap','cust_motiveOtherWrap',
-   'cust_sourceOtherWrap','cust_budgetOtherWrap','cust_issueOtherWrap','cust_againOtherWrap'
+   'cust_sourceOtherWrap','cust_budgetOtherWrap','cust_issueOtherWrap','cust_againOtherWrap','cust_referrerWrap'
   ].forEach(function(id){ document.getElementById(id).classList.add('hidden'); });
   document.getElementById('cust_unitBuilding').value = 'A';
   populateUnitTypeSelect();
@@ -2805,6 +2986,17 @@ function breakdownChipsHTML(items, total, emptyText) {
 function fmtUTCDate(d) {
   return d.getUTCFullYear() + '-' + String(d.getUTCMonth()+1).padStart(2,'0') + '-' + String(d.getUTCDate()).padStart(2,'0');
 }
+// 'YYYY-MM-DD' → 'MM-DD'，經理不需要看年份，拿掉比較好讀
+function mdDash(dateStr) {
+  var s = String(dateStr || '');
+  return s.length >= 10 ? s.substring(5, 10) : s;
+}
+// 'YYYY-MM-DD' → 'M/D'（不補零），列印表頭用
+function mdSlash(dateStr) {
+  var s = String(dateStr || '');
+  if (s.length < 10) return s;
+  return Number(s.substring(5, 7)) + '/' + Number(s.substring(8, 10));
+}
 function isoWeekRangeFromString(weekStr) {
   var parts = weekStr.split('-W');
   var year = +parts[0], week = +parts[1];
@@ -2825,6 +3017,93 @@ function isoWeekStringFromDate(dateStr) {
   var weekNo = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
   return date.getUTCFullYear() + '-W' + String(weekNo).padStart(2, '0');
 }
+// ==================== 業務端：本週有望客勾選送出 ====================
+var weeklyPickState = { list: [], selected: {}, notes: {} };
+
+function renderWeeklyPick() {
+  var input = document.getElementById('pickWeek');
+  if (!input.value) input.value = isoWeekStringFromDate(todayStr());
+  loadWeeklyPickList();
+}
+
+function loadWeeklyPickList() {
+  weeklyPickState = { list: [], selected: {}, notes: {} };
+  var weekStr = document.getElementById('pickWeek').value || isoWeekStringFromDate(todayStr());
+  var range = isoWeekRangeFromString(weekStr);
+  var listEl = document.getElementById('pickList');
+  var hintEl = document.getElementById('pickSubmittedHint');
+  hintEl.innerHTML = '';
+  listEl.innerHTML = '<div class="empty-state" style="padding:16px 0;"><div class="empty-state-text">載入中…</div></div>';
+
+  gasGet('getMyWeekCustomersForPick', { lineUserId: state.user.lineUserId, startDate: range[0], endDate: range[1] }, function(res) {
+    if (!res.ok) { listEl.innerHTML = '<div style="font-size:12px;color:var(--rust);">載入失敗：' + escapeHtml(res.error||'') + '</div>'; return; }
+    var list = res.data.results || [];
+    if (!list.length) { listEl.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">這週還沒有接待紀錄</div></div>'; return; }
+
+    var alreadyPicked = list.filter(function(c) { return c.picked; });
+    if (alreadyPicked.length) {
+      hintEl.innerHTML = '<div class="pick-submitted-hint">✓ 這週已經送出過：' +
+        alreadyPicked.map(function(c) { return escapeHtml(c.customer_name); }).join('、') +
+        '（重新勾選送出會取代掉這份）</div>';
+    }
+
+    weeklyPickState.list = list;
+    list.forEach(function(c) {
+      if (c.picked) { weeklyPickState.selected[c.customer_id] = true; weeklyPickState.notes[c.customer_id] = c.note || ''; }
+    });
+
+    renderPickList();
+  }, function() { listEl.innerHTML = '<div style="font-size:12px;color:var(--rust);">網路錯誤，請再試一次</div>'; });
+}
+
+function renderPickList() {
+  document.getElementById('pickList').innerHTML = weeklyPickState.list.map(function(c) { return pickItemHTML(c); }).join('');
+}
+
+function pickItemHTML(c) {
+  var selected = !!weeklyPickState.selected[c.customer_id];
+  var note = weeklyPickState.notes[c.customer_id] || '';
+  return '<div class="pick-item' + (selected ? ' selected' : '') + '" onclick="togglePickItem(\'' + c.customer_id + '\')">' +
+    '<div class="pick-item-head">' +
+      '<div class="pick-item-checkbox">' + (selected ? '✓' : '') + '</div>' +
+      '<div class="pick-item-name">' + escapeHtml(c.customer_name || '（未填姓名）') + '</div>' +
+      '<div class="pick-item-date">' + escapeHtml(c.visit_date || '') + '</div>' +
+    '</div>' +
+    '<div class="pick-item-meta">' + escapeHtml(c.phone || '') + (c.status_note ? '　' + escapeHtml(c.status_note) : '') + '</div>' +
+    (selected ? '<textarea class="pick-item-note" placeholder="備註（選填，例如：預算已到位，這週會回訪）" onclick="event.stopPropagation()" oninput="weeklyPickState.notes[\'' + c.customer_id + '\']=this.value">' + escapeHtml(note) + '</textarea>' : '') +
+  '</div>';
+}
+
+function togglePickItem(customerId) {
+  var selectedCount = Object.keys(weeklyPickState.selected).filter(function(id) { return weeklyPickState.selected[id]; }).length;
+  if (!weeklyPickState.selected[customerId] && selectedCount >= 2) {
+    showToast('最多只能選 2 位，請先取消一位再選新的','error'); return;
+  }
+  weeklyPickState.selected[customerId] = !weeklyPickState.selected[customerId];
+  if (!weeklyPickState.selected[customerId]) delete weeklyPickState.notes[customerId];
+  renderPickList();
+}
+
+function submitWeeklyPick() {
+  var ids = Object.keys(weeklyPickState.selected).filter(function(id) { return weeklyPickState.selected[id]; });
+  if (!ids.length) { showToast('請至少勾選 1 位客戶','error'); return; }
+  if (ids.length > 2) { showToast('最多只能選 2 位','error'); return; }
+
+  var weekStr = document.getElementById('pickWeek').value || isoWeekStringFromDate(todayStr());
+  var range = isoWeekRangeFromString(weekStr);
+  var btn = document.getElementById('pickSubmitBtn');
+  btn.disabled = true; btn.textContent = '送 出 中…';
+
+  gasPost('submitWeeklyHotPicks', {
+    lineUserId: state.user.lineUserId, startDate: range[0], endDate: range[1],
+    customer_ids: ids, notes: weeklyPickState.notes
+  }, function(res) {
+    btn.disabled = false; btn.textContent = '送 出 本 週 有 望 客';
+    if (res.ok) { showToast('已送出本週有望客','success'); loadWeeklyPickList(); }
+    else { showToast(res.error || '送出失敗','error'); }
+  }, function() { btn.disabled = false; btn.textContent = '送 出 本 週 有 望 客'; showToast('連線失敗','error'); });
+}
+
 function renderWeeklyReport() {
   var input = document.getElementById('weekReportDate');
   if (!input.value) input.value = isoWeekStringFromDate(todayStr());
@@ -2834,6 +3113,7 @@ function loadWeeklyReport() {
   var weekStr = document.getElementById('weekReportDate').value || isoWeekStringFromDate(todayStr());
   var range = isoWeekRangeFromString(weekStr);
   document.getElementById('weekReportRange').textContent = range[0] + ' ~ ' + range[1];
+  document.getElementById('weekHeatmapTitle').textContent = '華雄天地 來人熱點地圖　' + mdDash(range[0]) + ' ~ ' + mdDash(range[1]);
   var errHTML = '<div style="font-size:12px;color:var(--rust);padding:6px 0;">載入失敗，請確認 GAS 已部署最新版本</div>';
   gasGet('getWeeklyVisitorBreakdown', { lineUserId: state.user.lineUserId, startDate: range[0], endDate: range[1] }, function(res) {
     if (!res.ok) {
@@ -2848,10 +3128,310 @@ function loadWeeklyReport() {
     document.getElementById('weekSumDeal').textContent = d.deal;
     document.getElementById('weekDistrictBreakdown').innerHTML = breakdownChipsHTML(d.by_district, d.total, '本週尚無客戶資料');
     document.getElementById('weekSourceBreakdown').innerHTML = breakdownChipsHTML(d.by_source, d.total, '本週尚無客戶資料');
+    renderDistrictHeatmap(d.by_district, range);
   }, function() {
     document.getElementById('weekDistrictBreakdown').innerHTML = errHTML;
     document.getElementById('weekSourceBreakdown').innerHTML = '';
   });
+
+  loadWeeklyHotPicksCard(range);
+  loadWeeklyReceptionTable(range);
+}
+
+// ==================== 來人熱點地圖 ====================
+// 座標是高雄市各行政區的概略中心點（非官方精確界址中心，僅供視覺參考用）
+var DISTRICT_COORDS = {
+  '楠梓區': [22.7264, 120.3111], '左營區': [22.6825, 120.2939],
+  '鼓山區': [22.6461, 120.2789], '三民區': [22.6461, 120.3211],
+  '苓雅區': [22.6197, 120.3086], '新興區': [22.6280, 120.3025],
+  '前金區': [22.6280, 120.2925], '鹽埕區': [22.6247, 120.2825],
+  '前鎮區': [22.5975, 120.3200], '小港區': [22.5667, 120.3500],
+  '仁武區': [22.7014, 120.3617], '鳳山區': [22.6273, 120.3600]
+};
+var weekHeatmapMap = null, weekHeatmapLayer = null, weekGeoLayer = null, weekPendingLayer = null, weekHeatmapFocusBounds = null, weekHeatmapAllBounds = null;
+
+// 紅色泡泡跟藍色精確點要一起算才不會重複計算，所以這裡先抓精確定位點
+// 清單，算出「這個行政區裡，還沒有精確座標的有幾組」，紅色泡泡只代表
+// 這個「未記錄詳細地址」的數字（藍點涵蓋到的那些人不會再算進紅色泡泡
+// 裡），沒有缺漏的行政區（全部客戶都已經精確定位）就不畫紅色泡泡了
+function renderDistrictHeatmap(byDistrict, range) {
+  var el = document.getElementById('weekHeatmap');
+  if (typeof L === 'undefined') {
+    el.innerHTML = '<div style="padding:16px;font-size:12px;color:var(--rust);">地圖套件載入失敗，請檢查網路連線</div>';
+    return;
+  }
+  if (!weekHeatmapMap) {
+    // 一開始先放大看服務範圍比較方便，但★不鎖死★可以平移/縮放的範圍，
+    // 只是「預設看這裡」，使用者仍可自由拖曳/縮放去看其他地方，另外
+    // 提供「顯示全部」按鈕一鍵縮放到看得到所有資料點的範圍
+    weekHeatmapFocusBounds = L.latLngBounds([22.54, 120.26], [22.75, 120.38]);
+    weekHeatmapMap = L.map('weekHeatmap', { scrollWheelZoom: false }).fitBounds(weekHeatmapFocusBounds);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap',
+      maxZoom: 18
+    }).addTo(weekHeatmapMap);
+  } else {
+    setTimeout(function(){ weekHeatmapMap.invalidateSize(); }, 0);
+  }
+
+  if (!range) { drawHeatmapLayers(byDistrict || [], [], []); return; }
+  gasGet('getGeoPoints', { lineUserId: state.user.lineUserId, startDate: range[0], endDate: range[1] }, function(res) {
+    var geo = (res.ok && res.data.results) ? res.data.results : [];
+    var pending = (res.ok && res.data.pending) ? res.data.pending : [];
+    drawHeatmapLayers(byDistrict || [], geo, pending);
+  }, function() {
+    drawHeatmapLayers(byDistrict || [], [], []); // 精確點載入失敗不影響行政區泡泡，退回全部當「未記錄詳細地址」處理
+  });
+}
+
+// 三種狀態分開標示：藍色小點＝已轉出精確座標；橘色圓圈＝有填詳細地址
+// 但還沒轉出座標（排隊中或轉換失敗）；紅色圓圈＝真的完全沒有填詳細地址
+function drawHeatmapLayers(byDistrict, geoPoints, pending) {
+  var noteEl = document.getElementById('weekHeatmapNote');
+  if (weekHeatmapLayer) weekHeatmapMap.removeLayer(weekHeatmapLayer);
+  if (weekGeoLayer) weekHeatmapMap.removeLayer(weekGeoLayer);
+  if (weekPendingLayer) weekHeatmapMap.removeLayer(weekPendingLayer);
+  weekHeatmapLayer = L.layerGroup().addTo(weekHeatmapMap);
+  weekGeoLayer = L.layerGroup().addTo(weekHeatmapMap);
+  weekPendingLayer = L.layerGroup().addTo(weekHeatmapMap);
+
+  var geoCountByDistrict = {};
+  geoPoints.forEach(function(p) { geoCountByDistrict[p.district] = (geoCountByDistrict[p.district] || 0) + 1; });
+  var pendingCountByDistrict = {};
+  (pending || []).forEach(function(p) { pendingCountByDistrict[p.label] = p.count; });
+
+  var noAddressList = byDistrict.map(function(it) {
+    var count = it.count - (geoCountByDistrict[it.label] || 0) - (pendingCountByDistrict[it.label] || 0);
+    return { label: it.label, count: Math.max(0, count) };
+  }).filter(function(it) { return it.count > 0; });
+  var pendingList = (pending || []).filter(function(it) { return it.count > 0; });
+
+  var maxCount = noAddressList.concat(pendingList).reduce(function(m, it){ return Math.max(m, it.count); }, 0) || 1;
+  var unmatched = [];
+  var bounds = [];
+
+  function drawCircle(it, color, labelSuffix, labelClass, layer) {
+    var coord = DISTRICT_COORDS[it.label];
+    if (!coord) { unmatched.push(it); return; }
+    var radius = 12 + (it.count / maxCount) * 26; // 12~38px，依比例縮放
+    var marker = L.circleMarker(coord, {
+      radius: radius, color: color, weight: 1, fillColor: color, fillOpacity: 0.45
+    }).addTo(layer);
+    marker.bindTooltip(it.label + ' ' + labelSuffix + ' ' + it.count + '筆', {
+      permanent: true, direction: 'top', className: labelClass, offset: [0, -4]
+    });
+    bounds.push(coord);
+  }
+
+  noAddressList.forEach(function(it) { drawCircle(it, '#C0392B', '未記錄詳細地址', 'heatmap-label', weekHeatmapLayer); });
+  pendingList.forEach(function(it) { drawCircle(it, '#D97706', '已填地址待定位', 'heatmap-label heatmap-label-pending', weekPendingLayer); });
+
+  geoPoints.forEach(function(p) {
+    var marker = L.circleMarker([p.lat, p.lng], {
+      radius: 5, color: '#1D6FA5', weight: 1, fillColor: '#1D6FA5', fillOpacity: 0.9
+    }).addTo(weekGeoLayer);
+    marker.bindTooltip(escapeHtml(p.customer_name || '客戶'), { direction: 'top', offset: [0, -4] });
+    bounds.push([p.lat, p.lng]);
+  });
+
+  weekHeatmapAllBounds = bounds.length ? L.latLngBounds(bounds) : null;
+
+  var overlayEl = document.getElementById('weekHeatmapOverlay');
+  var overlayLines = noAddressList.map(function(it) {
+    return '<div style="color:rgba(192,57,43,0.85);text-shadow:0 1px 2px rgba(255,255,255,0.9);">' + escapeHtml(it.label) + ' 未記錄詳細地址 ' + it.count + '人</div>';
+  }).concat(pendingList.map(function(it) {
+    return '<div style="color:rgba(217,119,6,0.85);text-shadow:0 1px 2px rgba(255,255,255,0.9);">' + escapeHtml(it.label) + ' 已填地址待定位 ' + it.count + '人</div>';
+  }));
+  overlayEl.innerHTML = overlayLines.join('');
+
+  noteEl.innerHTML = '藍色小點：已轉出精確座標的個別客戶　橘色圓圈：已填地址但還沒轉出座標（排隊中或轉換失敗，等下次自動轉換或執行 geocodeMissingAddresses()）　紅色圓圈：完全沒有填詳細地址，只知道行政區' +
+    (unmatched.length
+      ? '<br>找不到座標、未顯示在地圖上：' + unmatched.map(function(u){ return escapeHtml(u.label) + '（' + u.count + ' 組）'; }).join('、')
+      : '');
+}
+
+function showAllHeatmapData() {
+  if (!weekHeatmapMap) return;
+  if (weekHeatmapAllBounds) weekHeatmapMap.fitBounds(weekHeatmapAllBounds, { padding: [24, 24] });
+  else showToast('目前沒有資料點可以顯示','error');
+}
+
+function focusHeatmapOnServiceArea() {
+  if (!weekHeatmapMap || !weekHeatmapFocusBounds) return;
+  weekHeatmapMap.fitBounds(weekHeatmapFocusBounds);
+}
+
+function toggleHeatmapFullscreen() {
+  var card = document.getElementById('weekHeatmapCard');
+  if (!document.fullscreenElement) {
+    (card.requestFullscreen || card.webkitRequestFullscreen).call(card);
+  } else {
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  }
+}
+['fullscreenchange', 'webkitfullscreenchange'].forEach(function(evt) {
+  document.addEventListener(evt, function() {
+    if (weekHeatmapMap) setTimeout(function(){ weekHeatmapMap.invalidateSize(); }, 100);
+  });
+});
+
+// 只印地圖那張卡片：靠 body.print-map-only 這個 class 搭配 @media print
+// 的 visibility 規則，把頁面上其他東西都印成空白、只留地圖卡片
+function printHeatmap() {
+  document.body.classList.add('print-map-only');
+  var cleanup = function(){ document.body.classList.remove('print-map-only'); window.onafterprint = null; };
+  window.onafterprint = cleanup;
+  window.print();
+  setTimeout(cleanup, 5000);
+}
+
+// ==================== 本週有望客／客戶接待明細 ====================
+// 本週有望客卡片：業務挑選送出的清單，跨業務彙整
+function loadWeeklyHotPicksCard(range) {
+  var el = document.getElementById('weekHotPicksCard');
+  el.innerHTML = '<div class="empty-state" style="padding:16px 0;"><div class="empty-state-text">載入中…</div></div>';
+  gasGet('getWeeklyHotPicks', { lineUserId: state.user.lineUserId, startDate: range[0], endDate: range[1] }, function(res) {
+    if (!res.ok) { el.innerHTML = '<div style="font-size:12px;color:var(--rust);">載入失敗，請確認 GAS 已部署最新版本</div>'; return; }
+    var list = res.data.results || [];
+    if (!list.length) { el.innerHTML = '<div class="empty-state" style="padding:16px 0;"><div class="empty-state-text">本週尚無業務送出有望客</div></div>'; return; }
+    el.innerHTML = list.map(function(p) {
+      return '<div class="hotpick-card">' +
+        '<div class="hotpick-card-head"><span class="hotpick-card-name">⭐ ' + escapeHtml(p.customer_name) + '</span>' +
+        '<span class="hotpick-card-sales">' + escapeHtml(p.sales_name) + '</span></div>' +
+        (p.note ? '<div class="hotpick-card-note">' + escapeHtml(p.note) + '</div>' : '') +
+      '</div>';
+    }).join('');
+  }, function() { el.innerHTML = '<div style="font-size:12px;color:var(--rust);">網路錯誤</div>'; });
+}
+
+// 客戶接待明細表：跟經理習慣看的紙本表格同一套欄位，一眼看完整週接待
+// 狀況；被業務標記「有望」的那幾列用金色底標出來
+var weeklyReceptionState = { list: [], range: ['', ''] };
+
+function loadWeeklyReceptionTable(range) {
+  var el = document.getElementById('weekReceptionTable');
+  el.innerHTML = '<div class="empty-state" style="padding:16px 0;"><div class="empty-state-text">載入中…</div></div>';
+  gasGet('getWeeklyReceptionList', { lineUserId: state.user.lineUserId, startDate: range[0], endDate: range[1] }, function(res) {
+    if (!res.ok) { el.innerHTML = '<div style="font-size:12px;color:var(--rust);">載入失敗，請確認 GAS 已部署最新版本</div>'; return; }
+    var list = res.data.results || [];
+    weeklyReceptionState = { list: list, range: range };
+    if (!list.length) { el.innerHTML = '<div class="empty-state" style="padding:16px 0;"><div class="empty-state-text">本週尚無客戶資料</div></div>'; return; }
+    el.innerHTML = '<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px;">' +
+      '<button class="btn-mini" onclick="exportWeeklyReceptionExcel()">📊 匯出 Excel</button>' +
+      '<button class="btn-mini" onclick="printWeeklyReception()">🖨 列印</button></div>' +
+      '<div class="recept-wrap"><table class="recept-table">' + receptionTableRowsHTML(list, mdDash) + '</table></div>';
+  }, function() { el.innerHTML = '<div style="font-size:12px;color:var(--rust);">網路錯誤</div>'; });
+}
+
+function revisitCellText(r) {
+  if (r.visit_type !== '回籠') return '初訪';
+  return r.linked_visit_date ? '回籠（關聯 ' + mdDash(r.linked_visit_date) + '）' : '回籠';
+}
+
+function receptionTableRowsHTML(list, dateFmt) {
+  var head = '<tr><th>#</th><th>日期</th><th>姓名</th><th>電話</th><th>區域</th><th>媒體</th><th>職業</th><th>年齡</th><th>棟別</th><th>回籠</th><th>介紹反應</th><th>業務</th></tr>';
+  var body = list.map(function(r) {
+    return '<tr class="' + (r.is_hot_pick ? 'hot' : '') + '">' +
+      '<td>' + r.seq + '</td>' +
+      '<td>' + escapeHtml(dateFmt(r.visit_date) || '') + '</td>' +
+      '<td class="recept-name">' + escapeHtml(r.customer_name || '') + (r.is_hot_pick ? '<span class="recept-star">⭐</span>' : '') + '</td>' +
+      '<td>' + escapeHtml(r.phone || '') + '</td>' +
+      '<td>' + escapeHtml(r.district || '') + '</td>' +
+      '<td>' + escapeHtml(r.source || '') + '</td>' +
+      '<td>' + escapeHtml(r.occupation_industry || '') + '</td>' +
+      '<td>' + escapeHtml(r.age_range || '') + '</td>' +
+      '<td class="wrap-cell">' + escapeHtml(r.introduced_units || '') + '</td>' +
+      '<td>' + escapeHtml(revisitCellText(r)) + '</td>' +
+      '<td class="wrap-cell">' + escapeHtml(r.status_note || '') + '</td>' +
+      '<td>' + escapeHtml(r.sales_name || '') + '</td>' +
+    '</tr>';
+  }).join('');
+  return head + body;
+}
+
+// 匯出 Excel：這個專案是純 HTML、沒有建置工具，改用 HTML 表格包成
+// application/vnd.ms-excel + .xls 副檔名輸出，Excel/Google試算表/Numbers
+// 都會直接當表格匯入，欄位、標題列都會保留，不會有中文亂碼或電話開頭
+// 0 被吃掉的問題
+function exportWeeklyReceptionExcel() {
+  var list = weeklyReceptionState.list;
+  if (!list.length) { showToast('目前沒有資料可以匯出','error'); return; }
+  var range = weeklyReceptionState.range;
+  var title = '華雄天地 ' + mdSlash(range[0]) + '~' + mdSlash(range[1]) + '號訪客資料表';
+  var firstCount = list.filter(function(r){ return r.visit_type === '初訪'; }).length;
+  var revisitCount = list.filter(function(r){ return r.visit_type === '回籠'; }).length;
+  var summaryText = '共接待 ' + list.length + ' 組（初訪 ' + firstCount + ' 組、回籠 ' + revisitCount + ' 組）';
+
+  var html = '<html><head><meta charset="UTF-8"></head><body>' +
+    '<table border="1">' +
+    '<tr><td colspan="12" style="font-weight:bold;font-size:14pt;">' + escapeHtml(title) + '</td></tr>' +
+    receptionTableRowsHTML(list, mdDash) +
+    '<tr><td colspan="12" style="font-weight:bold;">' + escapeHtml(summaryText) + '</td></tr>' +
+    '</table></body></html>';
+
+  var blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = '華雄天地訪客資料表_' + mdDash(range[0]) + '~' + mdDash(range[1]) + '.xls';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+
+// 一鍵列印：開一個新分頁，用列印專用的黑白表格版面，標題註明案場跟
+// 週次區間，開好直接跳出瀏覽器的列印對話框
+function printWeeklyReception() {
+  var list = weeklyReceptionState.list;
+  if (!list.length) { showToast('目前沒有資料可以列印','error'); return; }
+  var range = weeklyReceptionState.range;
+  var title = '華雄天地 ' + mdSlash(range[0]) + '~' + mdSlash(range[1]) + '號訪客資料表';
+  var firstCount = list.filter(function(r){ return r.visit_type === '初訪'; }).length;
+  var revisitCount = list.filter(function(r){ return r.visit_type === '回籠'; }).length;
+  var summaryText = '共接待 ' + list.length + ' 組（初訪 ' + firstCount + ' 組、回籠 ' + revisitCount + ' 組）';
+
+  var html = '<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><title>' + escapeHtml(title) + '</title><style>' +
+    'body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;margin:0;color:#000;}' +
+    '#printContent{display:table;margin:0 auto;padding:16px 20px;box-sizing:border-box;}' +
+    'h1{font-size:20px;text-align:center;margin:0 0 14px;}' +
+    'table{border-collapse:collapse;width:100%;font-size:16px;}' +
+    'th,td{border:1px solid #333;padding:7px 9px;text-align:left;white-space:nowrap;}' +
+    'td.wrap-cell{white-space:normal;max-width:220px;word-break:break-all;}' +
+    'th{background:#eee;}' +
+    '.print-summary{margin-top:16px;font-size:17px;font-weight:600;text-align:right;}' +
+    '@media print{@page{size:A4 landscape;margin:0;}}' +
+    '</style></head><body>' +
+    '<div id="printContent">' +
+    '<h1>' + escapeHtml(title) + '</h1>' +
+    '<table>' + receptionTableRowsHTML(list, mdDash) + '</table>' +
+    '<div class="print-summary">' + escapeHtml(summaryText) + '</div>' +
+    '</div>' +
+    '<script>function fitAndPrint(){' +
+      'var content=document.getElementById("printContent");' +
+      'var pageWidthPx=1080, pageHeightPx=760;' +
+      'var rect=content.getBoundingClientRect();' +
+      'var scale=Math.min(pageWidthPx/rect.width, pageHeightPx/rect.height, 1);' +
+      'if(scale<1){' +
+        'content.style.zoom=scale;' +
+        'for(var i=0;i<3;i++){' +
+          'var r2=content.getBoundingClientRect();' +
+          'if(r2.width<=pageWidthPx+2 && r2.height<=pageHeightPx+2) break;' +
+          'var extra=Math.min(pageWidthPx/r2.width, pageHeightPx/r2.height, 1);' +
+          'content.style.zoom=scale=scale*extra;' +
+        '}' +
+      '}' +
+      'window.print();' +
+    '}' +
+    'fitAndPrint();<\/script>' +
+    '</body></html>';
+
+  var win = window.open('', '_blank');
+  if (!win) { showToast('瀏覽器擋住了新視窗，請允許彈出視窗後再試一次','error'); return; }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.focus();
 }
 
 /* ══ Monthly Report ══ */
