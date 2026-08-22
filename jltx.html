@@ -3140,12 +3140,12 @@ function shortSalesName(name) {
 // dateFmt 讓螢幕上跟列印版可以用不同的日期格式（螢幕用 08-03，列印
 // 表頭已經有週次區間了，列與列之間用同一種格式即可）
 function receptionTableRowsHTML(list, dateFmt) {
-  var head = '<tr><th>#</th><th>日期</th><th>姓名</th><th>電話</th><th>區域</th><th>媒體</th><th>職業</th><th>年齡</th><th>棟別</th><th>回籠</th><th>介紹反應</th><th>業務</th></tr>';
+  var head = '<tr><th>#</th><th class="cell-center">日期</th><th class="cell-center">姓名</th><th>電話</th><th>區域</th><th>媒體</th><th>職業</th><th>年齡</th><th>棟別</th><th>回籠</th><th>介紹反應</th><th>業務</th></tr>';
   var body = list.map(function(r) {
     return '<tr class="' + (r.is_hot_pick ? 'hot' : '') + '">' +
       '<td>' + r.seq + '</td>' +
-      '<td>' + escapeHtml(dateFmt(r.visit_date) || '') + '</td>' +
-      '<td class="recept-name">' + escapeHtml(r.customer_name || '') + (r.is_hot_pick ? '<span class="recept-star">⭐</span>' : '') + '</td>' +
+      '<td class="cell-center">' + escapeHtml(dateFmt(r.visit_date) || '') + '</td>' +
+      '<td class="recept-name cell-center">' + escapeHtml(r.customer_name || '') + (r.is_hot_pick ? '<span class="recept-star">⭐</span>' : '') + '</td>' +
       '<td>' + escapeHtml(r.phone || '') + '</td>' +
       '<td>' + escapeHtml(r.district || '') + '</td>' +
       '<td>' + escapeHtml(r.source || '') + '</td>' +
@@ -3220,15 +3220,18 @@ function printWeeklyReception() {
     // 用 display:table + margin:0 auto 讓內容依自己的實際寬度水平置中，
     // 這是很老牌但最不會被各瀏覽器列印引擎搞怪的置中寫法，不像 flex
     // 置中那樣需要準確量出頁面高度（vh 在列印模式下常常量不準，
-    // 之前用 flex+vh 置中失敗就是這個原因）。左右邊界縮小到 8px，把
+    // 之前用 flex+vh 置中失敗就是這個原因）。主管指定邊界統一縮小到 4px，
     // 橫向空間盡量留給表格，欄位不用擠得那麼窄
-    '#printContent{display:table;margin:0 auto;padding:16px 8px;box-sizing:border-box;}' +
+    '#printContent{display:table;margin:0 auto;padding:4px;box-sizing:border-box;}' +
     'h1{font-size:20px;text-align:center;margin:0 0 14px;}' +
     'table{border-collapse:collapse;width:100%;font-size:16px;}' +
     'thead{display:table-header-group;}' +
     'tr{break-inside:avoid;page-break-inside:avoid;}' +
     'th,td{border:1px solid #333;padding:7px 9px;text-align:left;white-space:nowrap;}' +
-    'td.wrap-cell{white-space:normal;max-width:220px;word-break:break-all;}' +
+    // 「日期」「姓名」欄置中；「介紹反應」欄加大可用寬度讓文字盡量一行
+    // 印完，減少換行、間接省下垂直高度
+    '.cell-center{text-align:center;}' +
+    'td.wrap-cell{white-space:normal;max-width:340px;word-break:break-all;}' +
     'th{background:#eee;}' +
     '.print-summary{margin-top:16px;font-size:17px;font-weight:600;text-align:right;}' +
     '@media print{@page{size:A4 landscape;margin:0;}}' +
