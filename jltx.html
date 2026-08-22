@@ -152,8 +152,9 @@
   .cust-card-name{font-family:'Noto Serif TC',serif;font-size:15px;font-weight:600;}
   .cust-card-date{font-size:11px;color:var(--ink-faint);}
   .cust-card-sales{font-size:12px;color:var(--teal);font-weight:500;margin-bottom:8px;}
-  .cust-card-body{font-size:12px;color:var(--ink-light);line-height:1.7;}
-  .cust-card-body span{margin-right:10px;}
+  .cust-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px 14px;font-size:12px;color:var(--ink-light);line-height:1.6;margin-bottom:4px;}
+  .cust-card-field-label{color:var(--ink-faint);margin-right:3px;}
+  .cust-card-field-empty{color:var(--ink-faint);font-style:italic;}
   .cust-card-note{font-size:12px;color:var(--ink-light);margin-top:6px;padding-top:6px;border-top:1px solid var(--border);line-height:1.5;}
   .cust-card-deal{display:inline-block;margin-top:8px;padding:3px 10px;border-radius:8px;font-size:11px;font-weight:500;}
   .cust-card-deal.done{background:var(--teal-soft);color:#0f6e56;}
@@ -576,6 +577,7 @@
             <label class="chip"><input type="checkbox" name="cust_issue" value="格局座向"><span class="chip-label">格局座向</span></label>
             <label class="chip"><input type="checkbox" name="cust_issue" value="地段環境"><span class="chip-label">地段環境</span></label>
             <label class="chip"><input type="checkbox" name="cust_issue" value="考慮別案"><span class="chip-label">考慮別案</span></label>
+            <label class="chip"><input type="checkbox" name="cust_issue" value="還要多比較其他建案"><span class="chip-label">還要多比較其他建案</span></label>
             <label class="chip"><input type="checkbox" name="cust_issue" value="回去與家人討論"><span class="chip-label">回去與家人討論</span></label>
             <label class="chip"><input type="checkbox" name="cust_issue" value="其他" onchange="toggleOther('cust_issueOtherWrap',this.checked)"><span class="chip-label">其他</span></label>
           </div>
@@ -1545,6 +1547,36 @@ var FIELD_LABELS = {
   introduced_units:'已介紹產品', referrer_name:'介紹人'
 };
 
+// 主管指定的客戶名片格式：每個欄位固定在同一個位置顯示，不管有沒有
+// 填都會出現（沒填的顯示「未填寫」），方便主管每次都在同樣的地方找
+// 同一個欄位，不用因為某些客戶少填幾項就整份卡片跳位
+var CUSTOMER_CARD_FIELDS = [
+  ['phone','電話'], ['gender','性別'], ['marital_status','婚姻狀況'],
+  ['age_range','年齡區間'], ['district','居住區域'], ['visit_type','訪客類別'],
+  ['occupation_industry','客戶職業'], ['purchase_motive','購屋動機'],
+  ['source','來源管道'], ['referrer_name','介紹人'],
+  ['room_types','需求房型'], ['sqft_requirement','坪數需求'],
+  ['issues','客戶癥結點'], ['revisit_plan','預計再訪']
+];
+
+function customerCardFieldsHTML(c) {
+  var cells = CUSTOMER_CARD_FIELDS.map(function(f) {
+    var key = f[0], label = f[1], raw = c[key];
+    var valueHtml;
+    if (key === 'phone' && raw) {
+      valueHtml = '<a style="color:inherit;" href="tel:' + escapeHtml(String(raw)) + '">' + escapeHtml(String(raw)) + '</a>';
+    } else {
+      valueHtml = raw ? escapeHtml(String(raw)) : '<span class="cust-card-field-empty">未填寫</span>';
+    }
+    return '<div><span class="cust-card-field-label">' + label + '：</span>' + valueHtml + '</div>';
+  }).join('');
+  var linked = c.linked_customer_name
+    ? escapeHtml(String(c.linked_customer_name)) + (c.linked_visit_date ? '（' + escapeHtml(String(c.linked_visit_date)) + '）' : '')
+    : '<span class="cust-card-field-empty">未填寫</span>';
+  cells += '<div><span class="cust-card-field-label">回籠關聯：</span>' + linked + '</div>';
+  return '<div class="cust-card-grid">' + cells + '</div>';
+}
+
 function renderMyCustomers() {
   var box = document.getElementById('myCustomerList');
   var bar = document.getElementById('myCustomerFilterBar');
@@ -1604,22 +1636,6 @@ function myCustomerCardHTML(c) {
 
   var dealBadge = '<span class="cust-card-deal ' + badgeClass + '">' + badgeText + (c.deal_unit?' — '+escapeHtml(c.deal_unit):'') + '</span>';
 
-  var fields = [
-    c.phone        ? '📞 <a style="color:inherit;" href="tel:' + escapeHtml(String(c.phone)) + '">' + escapeHtml(String(c.phone)) + '</a>' : '',
-    (c.gender||c.marital_status) ? '🧑 ' + escapeHtml([c.gender,c.marital_status].filter(Boolean).join('／')) : '',
-    c.age_range    ? '🎂 ' + escapeHtml(String(c.age_range))   : '',
-    c.district     ? '📍 ' + escapeHtml(String(c.district))    : '',
-    c.visit_type   ? '🚶 ' + escapeHtml(String(c.visit_type))  : '',
-    c.occupation_industry ? '💼 ' + escapeHtml(String(c.occupation_industry)) : '',
-    c.purchase_motive ? '🏠 ' + escapeHtml(String(c.purchase_motive)) : '',
-    c.source       ? '📣 ' + escapeHtml(String(c.source)) + (c.referrer_name ? '（' + escapeHtml(String(c.referrer_name)) + '）' : '') : '',
-    c.room_types   ? '🛏 ' + escapeHtml(String(c.room_types))  : '',
-    c.sqft_requirement ? '📐 ' + escapeHtml(String(c.sqft_requirement)) : '',
-    c.issues       ? '⚠️ ' + escapeHtml(String(c.issues))      : '',
-    c.revisit_plan ? '📅 再訪：' + escapeHtml(String(c.revisit_plan)) : '',
-    c.linked_customer_name ? '🔗 關聯：' + escapeHtml(String(c.linked_customer_name)) + (c.linked_visit_date?'（'+escapeHtml(String(c.linked_visit_date))+'）':'') : ''
-  ].filter(Boolean);
-
   var editBtn = canEdit
     ? '<button class="deal-btn" style="background:var(--teal);" onclick="openEditCustModal(\'' + escapeHtml(c.customer_id) + '\')">✏️ 修改</button>'
     : '<span style="font-size:11px;color:var(--ink-faint);">已超過14天，無法修改</span>';
@@ -1637,7 +1653,7 @@ function myCustomerCardHTML(c) {
       '<div class="cust-card-name">' + escapeHtml(c.customer_name||'') + '</div>' +
       '<div class="cust-card-date">' + String(c.visit_date||'').substring(0,10) + '</div>' +
     '</div>' +
-    '<div class="cust-card-body">' + fields.map(function(f){ return '<span>'+f+'</span>'; }).join('') + '</div>' +
+    customerCardFieldsHTML(c) +
     (c.status_note ? '<div class="cust-card-note">📝 ' + escapeHtml(String(c.status_note)) + '</div>' : '') +
     dealBadge +
     '<div style="margin-top:8px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">' + editBtn + followBtn + logBtn + deleteBtn + '</div>' +
@@ -1972,21 +1988,6 @@ function recentCustCardHTML(c) {
     ? '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openChangeLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">紀錄</button>'
     : '';
   var followBtn = '<button class="deal-btn" style="background:var(--gold);margin-left:6px;" onclick="openContactLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">📋 追蹤紀錄</button>';
-  var fields = [
-    c.phone            ? '📞 <a style="color:inherit;" href="tel:' + escapeHtml(String(c.phone)) + '">' + escapeHtml(String(c.phone)) + '</a>' : '',
-    (c.gender||c.marital_status) ? '🧑 ' + escapeHtml([c.gender,c.marital_status].filter(Boolean).join('／')) : '',
-    c.age_range        ? '🎂 ' + escapeHtml(String(c.age_range))          : '',
-    c.district         ? '📍 ' + escapeHtml(String(c.district))           : '',
-    c.visit_type       ? '🚶 ' + escapeHtml(String(c.visit_type))         : '',
-    c.occupation_industry ? '💼 ' + escapeHtml(String(c.occupation_industry)) : '',
-    c.purchase_motive  ? '🏠 ' + escapeHtml(String(c.purchase_motive))   : '',
-    c.source           ? '📣 ' + escapeHtml(String(c.source)) + (c.referrer_name ? '（' + escapeHtml(String(c.referrer_name)) + '）' : '') : '',
-    c.room_types       ? '🛏 ' + escapeHtml(String(c.room_types))         : '',
-    c.sqft_requirement ? '📐 ' + escapeHtml(String(c.sqft_requirement))   : '',
-    c.issues           ? '⚠️ ' + escapeHtml(String(c.issues))             : '',
-    c.revisit_plan     ? '📅 再訪：' + escapeHtml(String(c.revisit_plan)) : '',
-    c.linked_customer_name ? '🔗 關聯：' + escapeHtml(String(c.linked_customer_name)) + (c.linked_visit_date?'（'+escapeHtml(String(c.linked_visit_date))+'）':'') : ''
-  ].filter(Boolean);
 
   return '<div class="cust-card">' +
     '<div class="cust-card-head">' +
@@ -1994,7 +1995,7 @@ function recentCustCardHTML(c) {
       '<div class="cust-card-date">' + String(c.visit_date||'').substring(0,10) + '</div>' +
     '</div>' +
     '<div class="cust-card-sales">👤 ' + escapeHtml(c.sales_name||c.created_by_name||'') + '</div>' +
-    '<div class="cust-card-body">' + fields.map(function(f){ return '<span>'+f+'</span>'; }).join('') + '</div>' +
+    customerCardFieldsHTML(c) +
     (c.status_note ? '<div class="cust-card-note">📝 ' + escapeHtml(String(c.status_note)) + '</div>' : '') +
     dealBadge + dealBtn + editDealBtn + refundBtn + followBtn + logBtn +
   '</div>';
@@ -3116,6 +3117,26 @@ function revisitCellText(r) {
   return r.linked_visit_date ? '回籠（關聯 ' + mdDash(r.linked_visit_date) + '）' : '回籠';
 }
 
+// 主管指定的報表格式：「A棟1型3樓」要顯示成「A1/3F」，同一筆多個單位用
+// 「、」分隔（跟 addIntroducedUnit 存資料的分隔符號一樣），格式對不上
+// 的舊資料原樣顯示，不強行轉換避免顯示錯誤內容
+function formatUnitLabel(raw) {
+  return String(raw || '').split('、').map(function(u) {
+    var m = u.match(/^(.)棟(.+)型(\d+)樓$/);
+    return m ? (m[1] + m[2] + '/' + m[3] + 'F') : u;
+  }).join('、');
+}
+
+// 主管指定的報表格式：業務姓名去掉英文暱稱前綴（例如「SKY 陳昭文」的
+// 「SKY 」）跟姓氏，報表版面窄，只留兩個字的名字比較好排版。只處理
+// 三個字的中文姓名，其他長度的姓名保留原樣，避免猜錯姓氏範圍
+function shortSalesName(name) {
+  var s = String(name || '').trim();
+  if (!s) return '';
+  var noNickname = s.replace(/^[A-Za-z]+\s+/, '');
+  return /^[一-龥]{3}$/.test(noNickname) ? noNickname.substring(1) : noNickname;
+}
+
 // dateFmt 讓螢幕上跟列印版可以用不同的日期格式（螢幕用 08-03，列印
 // 表頭已經有週次區間了，列與列之間用同一種格式即可）
 function receptionTableRowsHTML(list, dateFmt) {
@@ -3130,10 +3151,10 @@ function receptionTableRowsHTML(list, dateFmt) {
       '<td>' + escapeHtml(r.source || '') + '</td>' +
       '<td>' + escapeHtml(r.occupation_industry || '') + '</td>' +
       '<td>' + escapeHtml(r.age_range || '') + '</td>' +
-      '<td class="wrap-cell">' + escapeHtml(r.introduced_units || '') + '</td>' +
+      '<td class="wrap-cell">' + escapeHtml(formatUnitLabel(r.introduced_units)) + '</td>' +
       '<td>' + escapeHtml(revisitCellText(r)) + '</td>' +
       '<td class="wrap-cell">' + escapeHtml(r.status_note || '') + '</td>' +
-      '<td>' + escapeHtml(r.sales_name || '') + '</td>' +
+      '<td>' + escapeHtml(shortSalesName(r.sales_name)) + '</td>' +
     '</tr>';
   }).join('');
   return head + body;
