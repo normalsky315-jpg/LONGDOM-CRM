@@ -3157,7 +3157,9 @@ function receptionTableRowsHTML(list, dateFmt) {
       '<td>' + escapeHtml(shortSalesName(r.sales_name)) + '</td>' +
     '</tr>';
   }).join('');
-  return head + body;
+  // 表頭包成 <thead>：搭配列印樣式的 thead{display:table-header-group}，
+  // 資料多到要分頁列印時，瀏覽器會自動在每一頁都重複印出表頭
+  return '<thead>' + head + '</thead><tbody>' + body + '</tbody>';
 }
 
 // 匯出 Excel：這個專案是純 HTML、沒有建置工具，沒辦法引入 SheetJS 這類
@@ -3205,22 +3207,26 @@ function printWeeklyReception() {
   var revisitCount = list.filter(function(r){ return r.visit_type === '回籠'; }).length;
   var summaryText = '共接待 ' + list.length + ' 組（初訪 ' + firstCount + ' 組、回籠 ' + revisitCount + ' 組）';
 
-  // 整份要塞進「一張」A4 橫式，行數/內容長度每週都不一樣沒辦法固定用
-  // 一個字級剛好塞得下，所以改成：先照正常字級把表格畫出來，量實際
-  // 渲染出來的寬高，跟 A4 橫式扣掉邊界後可用的寬高比較，算出一個
-  // <=1 的縮放比例整份等比縮小，確保無論這週有幾筆資料都只印一頁，
-  // 不會被印表機自動分頁切成兩張。fitAndPrint() 這段 script 會在
-  // document.write 完、表格已經在 DOM 裡之後才執行（同步解析），
-  // 縮放完直接觸發列印，不用再讓外層額外等待計算時機
+  // 儘量塞進「一張」A4 橫式：先照正常字級把表格畫出來，量實際渲染出來
+  // 的寬高，跟 A4 橫式扣掉邊界後可用的寬高比較，算出一個縮放比例整份
+  // 等比縮小。但主管要求字級不能縮太小（低於 12px 會看不清楚），所以
+  // 縮放比例設下限 0.75（對應 16px 字級縮到 12px）：這週資料不多的話
+  // 縮一縮就能印一張；資料真的太多、縮到下限還是塞不進一張的話，就不
+  // 再繼續硬縮，改成讓表格自然分頁，印成兩張以上，表頭會在每一頁重複
+  // 出現方便對照（receptionTableRowsHTML 把表頭包成 <thead>，搭配下面
+  // 的 thead{display:table-header-group} 才能讓瀏覽器自動重複表頭）
   var html = '<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><title>' + escapeHtml(title) + '</title><style>' +
     'body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;margin:0;color:#000;}' +
     // 用 display:table + margin:0 auto 讓內容依自己的實際寬度水平置中，
     // 這是很老牌但最不會被各瀏覽器列印引擎搞怪的置中寫法，不像 flex
     // 置中那樣需要準確量出頁面高度（vh 在列印模式下常常量不準，
-    // 之前用 flex+vh 置中失敗就是這個原因）
-    '#printContent{display:table;margin:0 auto;padding:16px 20px;box-sizing:border-box;}' +
+    // 之前用 flex+vh 置中失敗就是這個原因）。左右邊界縮小到 8px，把
+    // 橫向空間盡量留給表格，欄位不用擠得那麼窄
+    '#printContent{display:table;margin:0 auto;padding:16px 8px;box-sizing:border-box;}' +
     'h1{font-size:20px;text-align:center;margin:0 0 14px;}' +
     'table{border-collapse:collapse;width:100%;font-size:16px;}' +
+    'thead{display:table-header-group;}' +
+    'tr{break-inside:avoid;page-break-inside:avoid;}' +
     'th,td{border:1px solid #333;padding:7px 9px;text-align:left;white-space:nowrap;}' +
     'td.wrap-cell{white-space:normal;max-width:220px;word-break:break-all;}' +
     'th{background:#eee;}' +
@@ -3235,24 +3241,13 @@ function printWeeklyReception() {
     '<script>function fitAndPrint(){' +
       'var content=document.getElementById("printContent");' +
       // ★ 用 transform:scale 縮小只是「畫面上看起來變小」，瀏覽器算
-      // 分頁的時候還是照縮放前的完整高度算，內容太高一樣會被切到第
-      // 二頁（實測會出現這個問題）。改用 zoom（Chrome/Edge/Safari 都
-      // 支援，會真的讓瀏覽器照縮小後的尺寸重新排版，分頁才會照縮小
-      // 後的高度計算，才能真正保證印在一張紙上
-      'var pageWidthPx=1080, pageHeightPx=760;' +
+      // 分頁的時候還是照縮放前的完整高度算。改用 zoom（Chrome/Edge/
+      // Safari 都支援），會真的讓瀏覽器照縮小後的尺寸重新排版
+      'var pageWidthPx=1080, pageHeightPx=760, floorScale=0.75;' +
       'var rect=content.getBoundingClientRect();' +
-      'var scale=Math.min(pageWidthPx/rect.width, pageHeightPx/rect.height, 1);' +
-      'if(scale<1){' +
-        'content.style.zoom=scale;' +
-        // zoom 縮小後如果還是量到超出範圍（極端情況，例如單一儲存格
-        // 文字超級長），再多縮一次，最多重試 3 次避免無窮迴圈
-        'for(var i=0;i<3;i++){' +
-          'var r2=content.getBoundingClientRect();' +
-          'if(r2.width<=pageWidthPx+2 && r2.height<=pageHeightPx+2) break;' +
-          'var extra=Math.min(pageWidthPx/r2.width, pageHeightPx/r2.height, 1);' +
-          'content.style.zoom=scale=scale*extra;' +
-        '}' +
-      '}' +
+      'var needed=Math.min(pageWidthPx/rect.width, pageHeightPx/rect.height, 1);' +
+      'var scale=Math.max(needed, floorScale);' +
+      'if(scale<1) content.style.zoom=scale;' +
       'window.print();' +
     '}' +
     'fitAndPrint();<\/script>' +
