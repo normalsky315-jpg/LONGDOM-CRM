@@ -418,7 +418,8 @@
         <div class="feature-card" onclick="route('#/salescontrol')" style="border-top:2px solid var(--teal);">
           <div class="feature-card-icon">🏢</div>
           <div class="feature-card-title">銷售控制表</div>
-          <div class="feature-card-desc">全案戶別銷控狀態</div>
+          <div class="feature-card-desc" id="scPendingDesc">全案戶別銷控狀態</div>
+          <span class="feature-badge hidden" id="scPendingBadge">0</span>
         </div>
         <div class="feature-card hidden" id="reportFeature" onclick="route('#/report')">
           <span class="feature-badge gold">主管</span>
@@ -1006,6 +1007,20 @@
   </div>
 </div>
 
+<!-- 業務端成交階段 Modal -->
+<div class="modal-mask" id="dealStageModal"><div class="modal"><div class="modal-handle"></div><div class="modal-title">成交階段</div><div class="modal-subtitle" id="dealStageSubtitle"></div><input type="hidden" id="ds_custId">
+  <div class="field"><div class="field-label">目前談到哪個階段</div><select class="sel" id="ds_stage" onchange="toggleDealStageFields()">
+    <option value="未成交">未成交</option><option value="已下訂">已下訂</option><option value="已保留">已保留</option>
+  </select></div>
+  <div class="field hidden" id="ds_unitWrap"><div class="field-label">戶別 <span class="req">*</span></div><select class="sel" id="ds_unit"><option value="">請選擇</option></select></div>
+  <div class="field hidden" id="ds_expectedSignWrap"><div class="field-label">預計簽約時間 <span class="req">*</span></div><input class="inp" type="date" id="ds_expectedSignDate"></div>
+  <div class="field hidden" id="ds_reservedUntilWrap"><div class="field-label">保留至 <span class="req">*</span></div><input class="inp" type="date" id="ds_reservedUntil"></div>
+  <div style="display:flex;gap:10px;margin-top:18px;">
+    <button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('dealStageModal')">取消</button>
+    <button class="btn-mini primary" id="dealStageSubmitBtn" style="flex:2;padding:14px;font-weight:600;" onclick="submitDealStage()">儲 存</button>
+  </div>
+</div></div>
+
 <!-- 修改客戶資料 Modal -->
 <div class="modal-mask" id="editCustModal">
   <div class="modal">
@@ -1481,6 +1496,21 @@ function renderHome() {
     document.getElementById('statRevisit').textContent = rows.filter(function(r){ return r.visit_type==='回籠'; }).length;
     document.getElementById('statDeal').textContent    = rows.filter(function(r){ return r.deal_status==='已成交'; }).length;
     if (isAdmin()) renderSalesBreakdown(rows);
+
+    // 業務端已標記已下訂/已保留、但主管正式成交標記還是未成交，代表
+    // 主管還沒處理，在銷售控制表卡片上顯示待確認數量提醒
+    var pending = res.data.filter(function(r) {
+      return r.sales_deal_stage && r.sales_deal_stage !== '未成交' && r.deal_status !== '已成交';
+    }).length;
+    var scBadge = document.getElementById('scPendingBadge');
+    if (pending > 0) {
+      document.getElementById('scPendingDesc').textContent = pending + ' 筆待主管確認';
+      scBadge.textContent = pending; scBadge.style.background = 'var(--rust)'; scBadge.style.color = '#fff';
+      scBadge.classList.remove('hidden');
+    } else {
+      document.getElementById('scPendingDesc').textContent = '全案戶別銷控狀態';
+      scBadge.classList.add('hidden');
+    }
   });
 
   // 今日休假人員
@@ -1616,7 +1646,7 @@ var FIELD_LABELS = {
   status_note:'接待狀況', note:'備註',
   gender:'性別', marital_status:'婚姻狀況', visit_time_slot:'來訪時段',
   sqft_requirement:'坪數需求', room_requirement_note:'房型需求備註',
-  introduced_units:'已介紹產品', referrer_name:'介紹人'
+  introduced_units:'已介紹產品', referrer_name:'介紹人', sales_deal_stage:'成交階段'
 };
 
 // 主管指定的客戶名片格式：每個欄位固定在同一個位置顯示，不管有沒有
@@ -1647,6 +1677,22 @@ function customerCardFieldsHTML(c) {
     : '<span class="cust-card-field-empty">未填寫</span>';
   cells += '<div><span class="cust-card-field-label">回籠關聯：</span>' + linked + '</div>';
   return '<div class="cust-card-grid">' + cells + '</div>';
+}
+
+// 業務端成交階段：跟主管的正式成交標記（deal_status）是兩套並行機制。
+// 業務端已經是已下訂/已保留、但主管的正式成交標記還是未成交，代表
+// 主管還沒處理（可能忘記了），這裡顯示提醒讓雙方都看得到
+function dealStageLineHTML(c) {
+  var stage = c.sales_deal_stage || '未成交';
+  var line = '<div style="font-size:12px;color:var(--ink-light);margin-top:6px;">🏠 成交階段：<b>' + escapeHtml(stage) + '</b>' +
+    (c.sales_deal_unit_label ? '　戶別：' + escapeHtml(c.sales_deal_unit_label) : '') +
+    (stage === '已下訂' && c.expected_sign_date ? '　預計簽約：' + escapeHtml(String(c.expected_sign_date).substring(0,10)) : '') +
+    (stage === '已保留' && c.reserved_until ? '　保留至：' + escapeHtml(String(c.reserved_until).substring(0,10)) : '') +
+  '</div>';
+  if (stage !== '未成交' && c.deal_status !== '已成交') {
+    line += '<div style="font-size:12px;color:var(--rust);margin-top:2px;">⚠️ 業務已標記「' + escapeHtml(stage) + '」，主管尚未確認成交</div>';
+  }
+  return line;
 }
 
 function renderMyCustomers() {
@@ -1727,8 +1773,11 @@ function myCustomerCardHTML(c) {
     '</div>' +
     customerCardFieldsHTML(c) +
     (c.status_note ? '<div class="cust-card-note">📝 ' + escapeHtml(String(c.status_note)) + '</div>' : '') +
+    dealStageLineHTML(c) +
     dealBadge +
-    '<div style="margin-top:8px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">' + editBtn + followBtn + logBtn + deleteBtn + '</div>' +
+    '<div style="margin-top:8px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">' + editBtn +
+      '<button class="deal-btn" style="background:var(--gold);margin-left:6px;" onclick="openDealStageModal(\'' + escapeHtml(c.customer_id) + '\')">🏠 成交階段</button>' +
+      followBtn + logBtn + deleteBtn + '</div>' +
   '</div>';
 }
 
@@ -1738,6 +1787,74 @@ function deleteCustomer(custId) {
     if (res.ok) { showToast('客戶資料已刪除','success'); renderMyCustomers(); }
     else showToast(res.error,'error');
   });
+}
+
+// 業務端成交階段：兩個客戶列表（我的客戶／近7天客戶資料）共用同一個
+// modal，所以查客戶資料要兩邊都找
+function findCustomerById_(custId) {
+  var list = (state.myCustomersRaw || []).concat(state.recentCustomers || []);
+  return list.filter(function(r){ return String(r.customer_id) === String(custId); })[0];
+}
+
+function toggleDealStageFields() {
+  var stage = document.getElementById('ds_stage').value;
+  document.getElementById('ds_unitWrap').classList.toggle('hidden', stage === '未成交');
+  document.getElementById('ds_expectedSignWrap').classList.toggle('hidden', stage !== '已下訂');
+  document.getElementById('ds_reservedUntilWrap').classList.toggle('hidden', stage !== '已保留');
+}
+
+function openDealStageModal(custId) {
+  var c = findCustomerById_(custId);
+  if (!c) { showToast('找不到這筆客戶資料，請重新整理','error'); return; }
+  document.getElementById('ds_custId').value = custId;
+  document.getElementById('dealStageSubtitle').textContent = c.customer_name || '';
+  document.getElementById('ds_stage').value = c.sales_deal_stage || '未成交';
+  document.getElementById('ds_expectedSignDate').value = c.expected_sign_date ? String(c.expected_sign_date).substring(0,10) : '';
+  document.getElementById('ds_reservedUntil').value = c.reserved_until ? String(c.reserved_until).substring(0,10) : '';
+
+  var unitSel = document.getElementById('ds_unit');
+  unitSel.innerHTML = '<option value="">載入中…</option>';
+  gasGet('getSalesControlList', { lineUserId: state.user.lineUserId }, function(res) {
+    if (!res.ok) { unitSel.innerHTML = '<option value="">載入失敗</option>'; return; }
+    // 可選的戶別：還待售的，加上這位客戶自己目前已經連結的那戶（不然
+    // 選單裡會看不到自己選過的戶別）
+    var units = (res.data.results || []).filter(function(u) {
+      return u.status === '待售' || String(u.linked_customer_id) === String(custId);
+    });
+    unitSel.innerHTML = '<option value="">請選擇</option>' + units.map(function(u) {
+      return '<option value="' + u.unit_id + '">' + escapeHtml(u.unit_label) + (u.category==='店面'?'（店面）':'') + '</option>';
+    }).join('');
+    unitSel.value = c.sales_deal_unit_id || '';
+  }, function(){ unitSel.innerHTML = '<option value="">網路錯誤</option>'; });
+
+  toggleDealStageFields();
+  openModal('dealStageModal');
+}
+
+function submitDealStage() {
+  var custId = document.getElementById('ds_custId').value;
+  var stage = document.getElementById('ds_stage').value;
+  var unitId = document.getElementById('ds_unit').value;
+  var expectedSignDate = document.getElementById('ds_expectedSignDate').value;
+  var reservedUntil = document.getElementById('ds_reservedUntil').value;
+  if (stage === '已下訂' && (!unitId || !expectedSignDate)) { showToast('狀態選「已下訂」時，戶別跟預計簽約時間必填','error'); return; }
+  if (stage === '已保留' && (!unitId || !reservedUntil)) { showToast('狀態選「已保留」時，戶別跟保留至日期必填','error'); return; }
+
+  var btn = document.getElementById('dealStageSubmitBtn');
+  if (btn.disabled) return;
+  btn.disabled = true; btn.textContent = '儲 存 中…';
+  gasPost('updateCustomerDealStage', {
+    lineUserId: state.user.lineUserId, customer_id: custId, sales_deal_stage: stage,
+    unit_id: unitId, expected_sign_date: expectedSignDate, reserved_until: reservedUntil
+  }, function(res) {
+    btn.disabled = false; btn.textContent = '儲 存';
+    if (res.ok) {
+      showToast('已更新成交階段','success');
+      closeModal('dealStageModal');
+      if (document.getElementById('viewMyCustomers') && !document.getElementById('viewMyCustomers').classList.contains('hidden')) renderMyCustomers();
+      if (document.getElementById('viewHome') && !document.getElementById('viewHome').classList.contains('hidden')) loadRecentCustomers();
+    } else { showToast(res.error || '儲存失敗','error'); }
+  }, function(){ btn.disabled = false; btn.textContent = '儲 存'; showToast('連線失敗','error'); });
 }
 
 function openEditCustModal(custId) {
@@ -2069,7 +2186,9 @@ function recentCustCardHTML(c) {
     '<div class="cust-card-sales">👤 ' + escapeHtml(c.sales_name||c.created_by_name||'') + '</div>' +
     customerCardFieldsHTML(c) +
     (c.status_note ? '<div class="cust-card-note">📝 ' + escapeHtml(String(c.status_note)) + '</div>' : '') +
+    dealStageLineHTML(c) +
     dealBadge + dealBtn + editDealBtn + refundBtn + followBtn + logBtn +
+    '<button class="deal-btn" style="background:var(--gold);margin-left:6px;" onclick="openDealStageModal(\'' + escapeHtml(c.customer_id) + '\')">🏠 成交階段</button>' +
   '</div>';
 }
 
@@ -3467,6 +3586,7 @@ function salesControlCardHTML(u) {
   var conditionalLine = '';
   if (u.status === '已保留' && u.reserved_until) conditionalLine = '保留至：' + escapeHtml(String(u.reserved_until).substring(0,10));
   else if (u.status === '已收訂' && u.expected_sign_date) conditionalLine = '預計簽約：' + escapeHtml(String(u.expected_sign_date).substring(0,10));
+  if (u.linked_customer_name) conditionalLine += (conditionalLine ? '　' : '') + '客戶：' + escapeHtml(u.linked_customer_name);
 
   var actionBtns = isSales() ? '' :
     '<div style="margin-top:8px;display:flex;gap:6px;">' +
@@ -3476,7 +3596,7 @@ function salesControlCardHTML(u) {
 
   return '<div class="sc-card">' +
     '<div class="sc-card-head">' +
-      '<div class="sc-card-label">' + escapeHtml(u.unit_label||'') + (u.parking_id ? '　🚗 ' + escapeHtml(u.parking_id) : '') + '</div>' +
+      '<div class="sc-card-label">' + escapeHtml(u.unit_label||'') + (u.category==='店面'?'（店面）':'') + (u.parking_id ? '　🚗 ' + escapeHtml(u.parking_id) : '') + '</div>' +
       '<span class="sc-status ' + scStatusClass(u.status) + '">' + escapeHtml(u.status||'') + '</span>' +
     '</div>' +
     (conditionalLine ? '<div style="font-size:12px;color:var(--rust);margin-bottom:4px;">' + conditionalLine + '</div>' : '') +

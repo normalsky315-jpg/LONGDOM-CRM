@@ -1,5 +1,23 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.25
+//  龍登 CRM — 吉隆天曜專用版 v9.26
+//  v9.26 變更：銷售控制表改版，照主管實際使用方式重新設計：
+//    1. 新增 seedSalesControlUnits()：依 2026/7/6 版銷售講義「戶別
+//       規劃表」預先把全案 105 戶（住家104＋店面1）建進 Sales_Control，
+//       坪數帶入講義上的「單戶銷售面積」，價格/狀態留給使用者之後填。
+//       手動在 Apps Script 編輯器執行一次即可，用 unit_label 判斷避免
+//       重複建立，可以放心重複執行
+//    2. Sales_Control 新增 category（住家/店面）、linked_customer_id／
+//       linked_customer_name 欄位，記錄這戶目前連結到哪個客戶
+//    3. 新增業務端成交階段（Customer_Data 新增 sales_deal_stage／
+//       sales_deal_unit_id／sales_deal_unit_label／reserved_until／
+//       expected_sign_date，新增 updateCustomerDealStage API）：業務
+//       自己在客戶資料上填「未成交／已下訂／已保留」，不用等主管，選
+//       已下訂要指定戶別＋預計簽約時間、已保留要指定戶別＋保留至日期。
+//       這是跟主管的正式成交標記（deal_status，updateCustomerDeal）
+//       並行的第二套機制，選了會同步更新 Sales_Control 對應戶別的狀態
+//       跟連結的客戶；同一戶不能同時連結給兩個不同客戶。如果業務端已
+//       經是已下訂/已保留、但主管的正式成交標記還是未成交，代表主管
+//       還沒處理，客戶卡片跟首頁銷售控制表卡片都會顯示提醒
 //  v9.25 變更：
 //    1. 客戶年齡改成實際輸入：登記/編輯表單的「年齡區間」選項改成直接
 //       打實際歲數（例：38），不再讓業務挑「30-39歲」這種區間，資料更
@@ -858,6 +876,7 @@ function doPost(e) {
       case 'updateSalesControlUnit':  return jsonResponse(updateSalesControlUnit(payload));
       case 'deleteSalesControlUnit':  return jsonResponse(deleteSalesControlUnit(payload));
       case 'updateCustomerData':      return jsonResponse(updateCustomerData(payload));
+      case 'updateCustomerDealStage': return jsonResponse(updateCustomerDealStage(payload));
       case 'deleteCustomerData':      return jsonResponse(deleteCustomerData(payload));
       case 'updateCustomerDeal':      return jsonResponse(updateCustomerDeal(payload));
       case 'saveDealDetail':          return jsonResponse(saveDealDetail(payload));
@@ -1246,7 +1265,22 @@ function submitPublicLead(payload) {
 var CUSTOMER_EXTRA_FIELDS = ['gender','marital_status','visit_time_slot',
   'sqft_requirement','room_requirement_note','introduced_units','referrer_name',
   'linked_customer_id','linked_customer_name','linked_visit_date','detailed_address',
-  'geo_lat','geo_lng','age'];
+  'geo_lat','geo_lng','age',
+  'sales_deal_stage','sales_deal_unit_id','sales_deal_unit_label',
+  'reserved_until','expected_sign_date'];
+
+// ★ 業務端成交階段（跟主管的正式成交標記 deal_status 是兩套並行、互相
+// 對照用的機制，不是同一個欄位）：業務自己在客戶資料上填，不用等主管
+// 操作，方便業務隨時記錄「這位客戶談到哪個階段了」：
+//   未成交　→ 預設值，不用填其他資料
+//   已下訂　→ 業務收了訂金，要選戶別＋填預計簽約時間
+//   已保留　→ 業務先幫客戶保留戶別，要選戶別＋填保留至日期
+// 選了已下訂/已保留會同步把 Sales_Control 對應戶別的狀態改成已收訂/
+// 已保留，並記下是哪位客戶（linked_customer_id/name），主管在銷售控制
+// 表就看得到這戶目前談到哪個客戶。如果業務端顯示已下訂/已保留、但
+// 主管的正式成交標記還是未成交，代表主管還沒處理（可能忘記了），前端
+// 客戶卡片會顯示提醒
+var SALES_DEAL_STAGES = ['未成交','已下訂','已保留'];
 
 // 年齡登記方式改成直接打實際歲數（例：38），不再讓業務手動挑「30-39歲」
 // 這種區間——業務常常懶得算客戶實際年齡屬於哪一區間，隨便選一個，資料
@@ -1897,11 +1931,19 @@ function updateCustomerData(payload) {
     }
 
     ensureCustomerExtraColumns();
+    // sales_deal_stage／sales_deal_unit_id／sales_deal_unit_label／
+    // reserved_until／expected_sign_date 不放進這裡的一般欄位編輯——
+    // 這幾個要連動同步 Sales_Control 對應戶別的狀態，而且不同階段有
+    // 不同的必填檢查，改走專用的 updateCustomerDealStage，這裡直接改
+    // 會繞過同步跟檢查
+    var SALES_DEAL_FIELDS_ = ['sales_deal_stage','sales_deal_unit_id','sales_deal_unit_label','reserved_until','expected_sign_date'];
     var editableFields = [
       'visit_date','visit_type','customer_name','phone','district',
       'occupation_industry','purchase_motive','source','room_types',
       'budget','issues','revisit_plan','status_note','note'
-    ].concat(CUSTOMER_EXTRA_FIELDS);
+    ].concat(CUSTOMER_EXTRA_FIELDS.filter(function(f) {
+      return SALES_DEAL_FIELDS_.indexOf(f) < 0;
+    }));
     if (ctx.role !== CONFIG.ROLES.SALES) {
       editableFields = editableFields.concat(['sales_name','sales_line_user_id']);
     }
@@ -1946,6 +1988,110 @@ function updateCustomerData(payload) {
 
     return ok({ customer_id: payload.customer_id, changes_count: changes.length });
   } catch (err) { Logger.log('updateCustomerData error: ' + err); return fail(err.message); }
+}
+
+// 業務端成交階段：業務自己在客戶資料上填「這位客戶談到哪個階段了」，
+// 不用等主管操作。選已下訂/已保留時要指定戶別，並同步把 Sales_Control
+// 對應戶別的狀態、保留至/預計簽約時間、連結的客戶姓名都一起更新，
+// 主管在銷售控制表就能直接看到這戶目前談到哪個客戶。跟主管的正式
+// 成交標記（deal_status，updateCustomerDeal 那支）是兩套並行機制，
+// 不會互相覆蓋——如果業務端已經是已下訂/已保留、但主管的正式成交
+// 標記還是未成交，代表主管還沒處理，這個落差前端會顯示提醒
+function updateCustomerDealStage(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (!payload.customer_id) return fail('customer_id 必填');
+
+    var stage = payload.sales_deal_stage;
+    if (SALES_DEAL_STAGES.indexOf(stage) < 0) return fail('成交階段不正確');
+    if (stage === '已下訂' && (!payload.unit_id || !payload.expected_sign_date)) return fail('狀態選「已下訂」時，戶別跟預計簽約時間必填');
+    if (stage === '已保留' && (!payload.unit_id || !payload.reserved_until)) return fail('狀態選「已保留」時，戶別跟保留至日期必填');
+
+    var customers = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER);
+    var original = null;
+    for (var i = 0; i < customers.length; i++) {
+      if (String(customers[i].customer_id) === String(payload.customer_id)) { original = customers[i]; break; }
+    }
+    if (!original) return fail('找不到客戶資料');
+
+    if (ctx.role === CONFIG.ROLES.SALES) {
+      if (String(original.sales_line_user_id) !== String(ctx.lineUserId) &&
+          String(original.created_by_line_user_id) !== String(ctx.lineUserId)) {
+        return fail('只能修改自己的客戶資料');
+      }
+    }
+
+    ensureSalesControlSheet();
+    var units = readSheetAsObjects(CONFIG.SHEETS.SALES_CONTROL);
+    var unitById = {};
+    units.forEach(function(u) { unitById[u.unit_id] = u; });
+
+    var newUnit = payload.unit_id ? unitById[payload.unit_id] : null;
+    if (payload.unit_id && !newUnit) return fail('找不到選擇的戶別');
+    // 這戶已經被別的客戶談走了（已保留/已收訂/已簽約），不能再指給
+    // 另一個客戶，避免同一戶同時被兩個客戶占用
+    if (newUnit && String(newUnit.linked_customer_id || '') && String(newUnit.linked_customer_id) !== String(payload.customer_id) &&
+        ['已保留','已收訂','已簽約'].indexOf(newUnit.status) >= 0) {
+      return fail('這戶目前已經連結到別的客戶（' + newUnit.linked_customer_name + '），無法重複指定');
+    }
+
+    // 舊戶別如果是這個客戶自己談的、且還在業務端可以取消的狀態（已保留/
+    // 已收訂），先退回待售並清空連結——換戶別或改回未成交都會走到這裡
+    var oldUnitId = original.sales_deal_unit_id;
+    if (oldUnitId && oldUnitId !== payload.unit_id) {
+      var oldUnit = unitById[oldUnitId];
+      if (oldUnit && String(oldUnit.linked_customer_id) === String(payload.customer_id) &&
+          ['已保留','已收訂'].indexOf(oldUnit.status) >= 0) {
+        updateRowById(CONFIG.SHEETS.SALES_CONTROL, 'unit_id', oldUnitId, {
+          status: '待售', reserved_until: '', expected_sign_date: '',
+          linked_customer_id: '', linked_customer_name: '', updated_at: nowTW()
+        });
+      }
+    }
+
+    var reservedUntil = stage === '已保留' ? payload.reserved_until : '';
+    var expectedSignDate = stage === '已下訂' ? payload.expected_sign_date : '';
+
+    updateRowById(CONFIG.SHEETS.CUSTOMER, 'customer_id', payload.customer_id, {
+      sales_deal_stage: stage,
+      sales_deal_unit_id: stage === '未成交' ? '' : (payload.unit_id || ''),
+      sales_deal_unit_label: stage === '未成交' ? '' : (newUnit ? newUnit.unit_label : ''),
+      reserved_until: reservedUntil,
+      expected_sign_date: expectedSignDate,
+      updated_at: nowTW()
+    });
+
+    if (newUnit && stage !== '未成交') {
+      updateRowById(CONFIG.SHEETS.SALES_CONTROL, 'unit_id', newUnit.unit_id, {
+        status: stage === '已下訂' ? '已收訂' : '已保留',
+        reserved_until: reservedUntil,
+        expected_sign_date: expectedSignDate,
+        linked_customer_id: payload.customer_id,
+        linked_customer_name: original.customer_name,
+        updated_at: nowTW()
+      });
+    }
+
+    appendObjectToSheet(CONFIG.SHEETS.CHANGE_LOG, {
+      log_id: genId('CLOG'),
+      customer_id: payload.customer_id,
+      customer_name: original.customer_name,
+      changed_by_line_user_id: ctx.lineUserId,
+      changed_by_name: ctx.displayName,
+      changed_at: nowTW(),
+      changes_json: JSON.stringify([{
+        field: 'sales_deal_stage', before: original.sales_deal_stage || '未成交', after: stage,
+        note: newUnit ? '戶別：' + newUnit.unit_label : ''
+      }])
+    });
+
+    writeAuditLog(ctx.lineUserId, 'UPDATE', CONFIG.SHEETS.CUSTOMER, payload.customer_id,
+      ctx.displayName + ' 更新客戶 ' + original.customer_name + ' 的成交階段為「' + stage + '」' +
+      (newUnit ? '，戶別：' + newUnit.unit_label : ''));
+
+    return ok({ customer_id: payload.customer_id });
+  } catch (err) { Logger.log('updateCustomerDealStage error: ' + err); return fail(err.message); }
 }
 
 // 業務刪除自己建立的客戶資料（14天內，跟修改資料同一個時間限制）
@@ -2612,13 +2758,67 @@ function getWeeklyHotPicks(payload) {
 // 房屋/車位的售價、坪數是業務/主管手動填的，但「銷售總價」「銷售總
 // 坪數」「平均單價」一律由後端計算，不接受前端直接改，避免手動加總
 // 算錯、也避免前端算完傳上來跟後端資料兜不起來
-var SALES_CONTROL_HEADERS = ['unit_id','building','unit_type','floor','unit_label','parking_id',
-  'status','reserved_until','expected_sign_date',
+var SALES_CONTROL_HEADERS = ['unit_id','building','unit_type','floor','unit_label','category','parking_id',
+  'status','reserved_until','expected_sign_date','linked_customer_id','linked_customer_name',
   'house_list_price','house_sqft','house_sale_price','parking_sale_price','parking_sqft',
   'total_sale_price','total_sqft','avg_unit_price',
   'created_at','created_by_line_user_id','created_by_name','updated_at'];
 
 var SALES_CONTROL_STATUSES = ['待售','已保留','已收訂','已簽約','退戶'];
+
+// 依 2026/7/6 版銷售講義「戶別規劃表」整理的全案 105 戶清單（住家 104
+// 戶＋店面 1 戶），floors 是 [起始樓層, 結束樓層]，seedSalesControlUnits()
+// 會展開成一戶一列。sqft 是講義上的「單戶銷售面積」，只用來預填
+// house_sqft 方便使用者少打一步，價格/狀態不在這份清單裡、留給使用者
+// 之後自己填
+var SALES_CONTROL_UNIT_MASTER = [
+  { building: 'B', unit_type: '1', floors: [1, 1],  sqft: 68.14, category: '店面' },
+  { building: 'A', unit_type: '1', floors: [2, 15], sqft: 34.46, category: '住家' },
+  { building: 'A', unit_type: '2', floors: [2, 15], sqft: 36.19, category: '住家' },
+  { building: 'A', unit_type: '3', floors: [2, 15], sqft: 26.20, category: '住家' },
+  { building: 'A', unit_type: '5', floors: [1, 1],  sqft: 34.06, category: '住家' },
+  { building: 'A', unit_type: '5', floors: [2, 15], sqft: 37.83, category: '住家' },
+  { building: 'A', unit_type: '6', floors: [1, 1],  sqft: 32.19, category: '住家' },
+  { building: 'A', unit_type: '6', floors: [2, 15], sqft: 38.35, category: '住家' },
+  { building: 'B', unit_type: '1', floors: [2, 9],  sqft: 24.79, category: '住家' },
+  { building: 'B', unit_type: '2', floors: [2, 9],  sqft: 33.26, category: '住家' },
+  { building: 'B', unit_type: '3', floors: [2, 2],  sqft: 23.52, category: '住家' },
+  { building: 'B', unit_type: '3', floors: [3, 9],  sqft: 26.77, category: '住家' },
+  { building: 'B', unit_type: '5', floors: [2, 9],  sqft: 39.13, category: '住家' }
+];
+
+// 手動在 Apps Script 編輯器執行一次即可，把上面 105 戶的清單建進
+// Sales_Control。用 unit_label 判斷是否已經存在，已經有的戶別不會
+// 重複建立，可以放心重複執行（例如清單有補漏再跑一次）
+function seedSalesControlUnits() {
+  ensureSalesControlSheet();
+  var existingLabels = {};
+  readSheetAsObjects(CONFIG.SHEETS.SALES_CONTROL).forEach(function(r) { existingLabels[r.unit_label] = true; });
+
+  var added = 0;
+  SALES_CONTROL_UNIT_MASTER.forEach(function(group) {
+    for (var floor = group.floors[0]; floor <= group.floors[1]; floor++) {
+      var unitLabel = group.building + group.unit_type + '/' + floor + 'F';
+      if (existingLabels[unitLabel]) continue;
+      appendObjectToSheet(CONFIG.SHEETS.SALES_CONTROL, {
+        unit_id: genId('UNIT'),
+        building: group.building,
+        unit_type: group.unit_type,
+        floor: floor,
+        unit_label: unitLabel,
+        category: group.category,
+        status: '待售',
+        house_sqft: group.sqft,
+        created_at: nowTW(),
+        created_by_name: '系統匯入（銷售講義）',
+        updated_at: nowTW()
+      });
+      existingLabels[unitLabel] = true;
+      added++;
+    }
+  });
+  Logger.log('✓ 完成：新增 ' + added + ' 戶，已存在略過');
+}
 
 function ensureSalesControlSheet() {
   var ss = getCrmSS();
