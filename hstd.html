@@ -895,7 +895,10 @@
       <div class="field"><div class="field-label">型別</div><select class="sel" id="sc_unitType"></select></div>
       <div class="field"><div class="field-label">樓層</div><select class="sel" id="sc_floor"></select></div>
     </div>
-    <div class="field"><div class="field-label">車位編號（選填，例：B1-103）</div><input class="inp" type="text" id="sc_parkingId" placeholder="沒有車位可留空" oninput="updateScPreview()"></div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">車位編號（選填，不只一個請用逗號分隔，例：B1-103, B1-104）</div><input class="inp" type="text" id="sc_parkingId" placeholder="沒有車位可留空" oninput="updateScPreview()"></div>
+      <div class="field"><div class="field-label">車位數量</div><input class="inp" type="number" min="0" id="sc_parkingCount" placeholder="0" oninput="updateScPreview()"></div>
+    </div>
     <div class="field"><div class="field-label">狀態</div><select class="sel" id="sc_status" onchange="toggleScStatusFields()">
       <option value="待售">待售</option><option value="已保留">已保留</option>
       <option value="已收訂">已收訂</option><option value="已簽約">已簽約</option>
@@ -3394,7 +3397,7 @@ function salesControlCardHTML(u) {
 
   return '<div class="sc-card">' +
     '<div class="sc-card-head">' +
-      '<div class="sc-card-label">' + escapeHtml(u.unit_label||'') + (u.parking_id ? '　🚗 ' + escapeHtml(u.parking_id) : '') + '</div>' +
+      '<div class="sc-card-label">' + escapeHtml(u.unit_label||'') + (u.parking_id ? '　🚗 ' + escapeHtml(u.parking_id) + (Number(u.parking_count) > 1 ? '（' + escapeHtml(String(u.parking_count)) + '個車位）' : '') : '') + '</div>' +
       '<span class="sc-status ' + scStatusClass(u.status) + '">' + escapeHtml(u.status||'') + '</span>' +
     '</div>' +
     (conditionalLine ? '<div style="font-size:12px;color:var(--rust);margin-bottom:4px;">' + conditionalLine + '</div>' : '') +
@@ -3459,6 +3462,7 @@ function openSalesControlModal(unitId) {
     document.getElementById('sc_floor').value = u.floor;
     unitFields.forEach(function(id){ document.getElementById(id).disabled = true; }); // 棟別/型別/樓層是戶別的身分，編輯時不給改，要改請刪掉重建
     document.getElementById('sc_parkingId').value = u.parking_id || '';
+    document.getElementById('sc_parkingCount').value = u.parking_count || '';
     document.getElementById('sc_status').value = u.status || '待售';
     document.getElementById('sc_reservedUntil').value = u.reserved_until ? String(u.reserved_until).substring(0,10) : '';
     document.getElementById('sc_expectedSignDate').value = u.expected_sign_date ? String(u.expected_sign_date).substring(0,10) : '';
@@ -3473,6 +3477,7 @@ function openSalesControlModal(unitId) {
     document.getElementById('sc_building').value = 'A';
     populateScTypeSelect();
     document.getElementById('sc_parkingId').value = '';
+    document.getElementById('sc_parkingCount').value = '';
     document.getElementById('sc_status').value = '待售';
     document.getElementById('sc_reservedUntil').value = '';
     document.getElementById('sc_expectedSignDate').value = '';
@@ -3522,6 +3527,7 @@ function submitSalesControlUnit() {
     unit_type: document.getElementById('sc_unitType').value,
     floor: document.getElementById('sc_floor').value,
     parking_id: document.getElementById('sc_parkingId').value.trim(),
+    parking_count: document.getElementById('sc_parkingCount').value,
     status: status,
     reserved_until: reservedUntil,
     expected_sign_date: expectedSignDate,
