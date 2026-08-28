@@ -212,20 +212,29 @@
   .sc-status.refund{background:var(--rust-soft);color:var(--rust);}
   .sc-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px 14px;font-size:12px;color:var(--ink-light);line-height:1.6;margin:8px 0;}
   .sc-card-field-label{color:var(--ink-faint);margin-right:3px;}
-  .sc-drill-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
-  .sc-drill-btn{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:16px 8px;text-align:center;cursor:pointer;transition:border-color 0.15s;}
-  .sc-drill-btn:active{border-color:var(--teal);}
-  .sc-drill-btn-title{font-family:'Noto Serif TC',serif;font-size:18px;font-weight:700;color:var(--ink);}
-  .sc-drill-btn-sub{font-size:11px;color:var(--ink-faint);margin-top:4px;line-height:1.5;}
-  .sc-floor-btn{border-radius:10px;padding:14px 8px;text-align:center;cursor:pointer;font-weight:700;font-size:15px;border:1.5px solid transparent;}
-  .sc-floor-btn .sc-floor-status{display:block;font-size:10px;font-weight:500;margin-top:3px;}
-  .sc-floor-btn.forsale{background:var(--teal-soft);color:#0f6e56;}
-  .sc-floor-btn.reserved{background:var(--gold-soft);color:#8A6D3F;}
-  .sc-floor-btn.booked{background:#FBEAD1;color:#95500C;}
-  .sc-floor-btn.signed{background:var(--ink);color:#fff;}
-  .sc-floor-btn.refund{background:var(--rust-soft);color:var(--rust);}
-  .sc-breadcrumb{font-size:13px;color:var(--ink-faint);margin-bottom:12px;display:flex;align-items:center;gap:6px;}
-  .sc-breadcrumb a{color:var(--teal);text-decoration:none;font-weight:600;}
+  /* 銷控表格子圖：最上面一列戶別、最左邊一欄樓層，格子顏色代表狀態
+     （主管指定：可售=綠、已下訂=橘、已簽約=紅），仿紙本銷控表看法 */
+  .sc-grid-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--ink-light);margin:10px 0;}
+  .sc-legend-dot{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:4px;vertical-align:-1px;}
+  .sc-legend-dot.forsale{background:#2E9E5B;}
+  .sc-legend-dot.booked{background:#E8821E;}
+  .sc-legend-dot.signed{background:#D0342C;}
+  .sc-legend-dot.reserved{background:#D9A017;}
+  .sc-legend-dot.refund{background:#8A8AA0;}
+  .sc-grid-scroll{overflow-x:auto;background:var(--surface);border:1px solid var(--border);border-radius:12px;}
+  .sc-grid-table{border-collapse:collapse;width:100%;}
+  .sc-grid-table th{position:sticky;top:0;background:var(--ink);color:#fff;font-size:12px;font-weight:600;padding:8px 6px;text-align:center;white-space:nowrap;z-index:2;}
+  .sc-grid-table th:first-child{position:sticky;left:0;z-index:3;background:var(--ink);}
+  .sc-grid-table td{padding:0;text-align:center;border:1px solid var(--border);min-width:52px;}
+  .sc-grid-table td.sc-floor-label{position:sticky;left:0;background:var(--surface);font-size:12px;font-weight:600;color:var(--ink-light);white-space:nowrap;padding:8px 6px;z-index:1;}
+  .sc-grid-cell{display:block;width:100%;height:100%;min-height:44px;padding:6px 2px;cursor:pointer;font-size:11px;font-weight:700;color:#fff;line-height:1.4;}
+  .sc-grid-cell.empty{background:var(--cream);cursor:default;}
+  .sc-grid-cell.forsale{background:#2E9E5B;}
+  .sc-grid-cell.booked{background:#E8821E;}
+  .sc-grid-cell.signed{background:#D0342C;}
+  .sc-grid-cell.reserved{background:#D9A017;}
+  .sc-grid-cell.refund{background:#8A8AA0;}
+  .sc-grid-cell .sc-grid-cell-note{display:block;font-size:9px;font-weight:500;opacity:0.9;}
   .deal-btn{margin-top:8px;padding:7px 14px;font-size:12px;background:var(--ink);color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:inherit;}
 
   /* Form */
@@ -820,10 +829,21 @@
         <button class="btn-mini" id="scViewModeBtn" onclick="toggleSalesControlViewMode()">📋 全部清單</button>
       </div>
 
-      <!-- 依戶別瀏覽（預設）：先選棟別 → 再選戶別 → 再選樓層 → 進入編輯 -->
+      <!-- 銷控表格子圖（預設）：最上面一列是戶別、最左邊一欄是樓層，
+           格子顏色代表狀態，點格子直接進去編輯，仿照紙本銷控表的看法 -->
       <div id="scDrillView">
-        <div class="sc-breadcrumb" id="scBreadcrumb"></div>
-        <div class="sc-drill-grid" id="scDrillGrid"></div>
+        <div class="list-tabs" id="scGridBuildingTabs">
+          <div class="list-tab active" data-building="A" onclick="switchScGridBuilding(this)">A棟</div>
+          <div class="list-tab" data-building="B" onclick="switchScGridBuilding(this)">B棟</div>
+        </div>
+        <div class="sc-grid-legend">
+          <span><i class="sc-legend-dot forsale"></i>可售</span>
+          <span><i class="sc-legend-dot booked"></i>已下訂</span>
+          <span><i class="sc-legend-dot signed"></i>已簽約</span>
+          <span><i class="sc-legend-dot reserved"></i>已保留</span>
+          <span><i class="sc-legend-dot refund"></i>退戶</span>
+        </div>
+        <div class="sc-grid-scroll"><table class="sc-grid-table" id="scGridTable"></table></div>
       </div>
 
       <!-- 全部清單（舊版篩選清單，保留給需要跨戶別看狀態統計的情境） -->
@@ -1178,9 +1198,7 @@ var state = {
   scStatusFilter: 'all',
   scBuildingFilter: 'all',
   scViewMode: 'drill',
-  scDrillLevel: 'building',
-  scDrillBuilding: null,
-  scDrillUnitType: null
+  scGridBuilding: 'A'
 };
 
 // ★ 吉隆天曜專屬：居住行政區選項對照案場自己的紙本「訪客服務表」，
@@ -3575,9 +3593,6 @@ function scStatusClass(status) {
 
 function renderSalesControl() {
   document.getElementById('scAddFab').classList.toggle('hidden', isSales());
-  state.scDrillLevel = 'building';
-  state.scDrillBuilding = null;
-  state.scDrillUnitType = null;
   loadSalesControlList();
 }
 
@@ -3589,12 +3604,13 @@ function loadSalesControlList() {
   }, function(){ showToast('網路錯誤，請再試一次','error'); });
 }
 
-// 主管反應原本的清單排版太難找了，改成主要用「先選棟別→再選戶別→
-// 再選樓層」的方式瀏覽（比較貼近紙本銷控表的使用習慣），原本的狀態/
-// 棟別篩選清單保留成「全部清單」模式，需要跨戶別看統計時還是找得到
+// 主管反應原本的清單排版太難找了，改成銷控表格子圖（最上面一列戶別、
+// 最左邊一欄樓層，格子顏色代表狀態），比較貼近紙本銷控表的看法。原本
+// 的狀態/棟別篩選清單保留成「全部清單」模式，需要跨戶別看統計時還是
+// 找得到
 function toggleSalesControlViewMode() {
   state.scViewMode = state.scViewMode === 'drill' ? 'list' : 'drill';
-  document.getElementById('scViewModeBtn').textContent = state.scViewMode === 'drill' ? '📋 全部清單' : '🏢 依戶別瀏覽';
+  document.getElementById('scViewModeBtn').textContent = state.scViewMode === 'drill' ? '📋 全部清單' : '🔲 格子圖';
   renderSalesControlView();
 }
 
@@ -3602,7 +3618,7 @@ function renderSalesControlView() {
   var isDrill = state.scViewMode === 'drill';
   document.getElementById('scDrillView').classList.toggle('hidden', !isDrill);
   document.getElementById('scListView').classList.toggle('hidden', isDrill);
-  if (isDrill) renderScDrill(); else renderSalesControlList();
+  if (isDrill) renderScGrid(); else renderSalesControlList();
 }
 
 function switchSalesControlStatusTab(el) {
@@ -3618,81 +3634,45 @@ function switchSalesControlBuildingTab(el) {
   renderSalesControlList();
 }
 
-// 依戶別瀏覽：先選棟別 → 再選戶別 → 再選樓層 → 點樓層直接進去編輯，
-// 比較貼近主管習慣看紙本銷控表（棟別/戶別/樓層）的方式，不用在一長串
-// 105 戶的清單裡面找
-function renderScDrill() {
-  if (state.scDrillLevel === 'unittype') return renderScDrillUnitTypeLevel();
-  if (state.scDrillLevel === 'floor') return renderScDrillFloorLevel();
-  return renderScDrillBuildingLevel();
+function switchScGridBuilding(el) {
+  document.querySelectorAll('#scGridBuildingTabs .list-tab').forEach(function(t){ t.classList.remove('active'); });
+  el.classList.add('active');
+  state.scGridBuilding = el.dataset.building;
+  renderScGrid();
 }
 
-function renderScDrillBuildingLevel() {
-  document.getElementById('scBreadcrumb').innerHTML = '選擇棟別';
-  var grid = document.getElementById('scDrillGrid');
-  grid.style.gridTemplateColumns = 'repeat(2,1fr)';
-  grid.innerHTML = ['A','B'].map(function(b) {
-    var units = state.salesControlRaw.filter(function(u){ return u.building === b; });
-    var forsale = units.filter(function(u){ return u.status === '待售'; }).length;
-    return '<div class="sc-drill-btn" onclick="scDrillToBuilding(\'' + b + '\')">' +
-      '<div class="sc-drill-btn-title">' + b + '棟</div>' +
-      '<div class="sc-drill-btn-sub">共 ' + units.length + ' 戶　待售 ' + forsale + '</div>' +
-    '</div>';
-  }).join('');
-}
+// 銷控表格子圖：最上面一列是戶別、最左邊一欄是樓層，格子顏色代表狀態
+// （可售=綠／已下訂=橘／已簽約=紅／已保留=黃／退戶=灰），點格子直接
+// 進去編輯。A棟／B棟樓層範圍跟戶別都不一樣，分開各自一張表
+function renderScGrid() {
+  var building = state.scGridBuilding;
+  var units = state.salesControlRaw.filter(function(u){ return u.building === building; });
 
-function scDrillToBuilding(b) {
-  state.scDrillBuilding = b;
-  state.scDrillLevel = 'unittype';
-  renderScDrill();
-}
-
-function scDrillBack(level) {
-  state.scDrillLevel = level;
-  renderScDrill();
-}
-
-function renderScDrillUnitTypeLevel() {
-  var b = state.scDrillBuilding;
-  document.getElementById('scBreadcrumb').innerHTML =
-    '<a href="javascript:void(0)" onclick="scDrillBack(\'building\')">‹ 選擇棟別</a>　›　' + b + '棟，選擇戶別';
-  var units = state.salesControlRaw.filter(function(u){ return u.building === b; });
   var types = [];
   units.forEach(function(u){ if (types.indexOf(u.unit_type) < 0) types.push(u.unit_type); });
   types.sort();
-  var grid = document.getElementById('scDrillGrid');
-  grid.style.gridTemplateColumns = 'repeat(3,1fr)';
-  grid.innerHTML = types.map(function(t) {
-    var typeUnits = units.filter(function(u){ return u.unit_type === t; });
-    var forsale = typeUnits.filter(function(u){ return u.status === '待售'; }).length;
-    return '<div class="sc-drill-btn" onclick="scDrillToUnitType(\'' + t + '\')">' +
-      '<div class="sc-drill-btn-title">' + b + t + '</div>' +
-      '<div class="sc-drill-btn-sub">共 ' + typeUnits.length + ' 戶　待售 ' + forsale + '</div>' +
-    '</div>';
-  }).join('');
-}
 
-function scDrillToUnitType(t) {
-  state.scDrillUnitType = t;
-  state.scDrillLevel = 'floor';
-  renderScDrill();
-}
+  var floors = [];
+  units.forEach(function(u){ if (floors.indexOf(Number(u.floor)) < 0) floors.push(Number(u.floor)); });
+  floors.sort(function(a,b){ return b - a; }); // 樓層高到低，由上到下，跟看大樓立面圖的習慣一致
 
-function renderScDrillFloorLevel() {
-  var b = state.scDrillBuilding, t = state.scDrillUnitType;
-  document.getElementById('scBreadcrumb').innerHTML =
-    '<a href="javascript:void(0)" onclick="scDrillBack(\'building\')">‹ 選擇棟別</a>　›　' +
-    '<a href="javascript:void(0)" onclick="scDrillBack(\'unittype\')">' + b + '棟</a>　›　' + b + t + '，選擇樓層';
-  var units = state.salesControlRaw.filter(function(u){ return u.building === b && u.unit_type === t; });
-  units.sort(function(a,c){ return Number(a.floor) - Number(c.floor); });
-  var grid = document.getElementById('scDrillGrid');
-  grid.style.gridTemplateColumns = 'repeat(4,1fr)';
-  grid.innerHTML = units.map(function(u) {
-    return '<div class="sc-floor-btn ' + scStatusClass(u.status) + '" onclick="openSalesControlModal(\'' + escapeHtml(u.unit_id) + '\')">' +
-      u.floor + 'F' + (u.category==='店面' ? '（店面）' : '') +
-      '<span class="sc-floor-status">' + escapeHtml(u.status) + '</span>' +
-    '</div>';
+  var unitByKey = {};
+  units.forEach(function(u){ unitByKey[u.unit_type + '|' + u.floor] = u; });
+
+  var headHtml = '<tr><th>樓層＼戶別</th>' + types.map(function(t){ return '<th>' + building + t + '</th>'; }).join('') + '</tr>';
+  var bodyHtml = floors.map(function(f) {
+    var cells = types.map(function(t) {
+      var u = unitByKey[t + '|' + f];
+      if (!u) return '<td><span class="sc-grid-cell empty"></span></td>';
+      return '<td><span class="sc-grid-cell ' + scStatusClass(u.status) + '" onclick="openSalesControlModal(\'' + escapeHtml(u.unit_id) + '\')">' +
+        (u.category === '店面' ? '店面' : f + 'F') +
+        '<span class="sc-grid-cell-note">' + escapeHtml(u.status) + '</span>' +
+      '</span></td>';
+    }).join('');
+    return '<tr><td class="sc-floor-label">' + f + 'F</td>' + cells + '</tr>';
   }).join('');
+
+  document.getElementById('scGridTable').innerHTML = headHtml + bodyHtml;
 }
 
 function renderSalesControlList() {
