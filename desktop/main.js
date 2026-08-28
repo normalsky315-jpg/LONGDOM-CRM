@@ -1,80 +1,33 @@
 /* 龍登 CRM — Windows 桌面軟體（Electron 主程序）
  *
- * 設計：
- *  - 網頁內容打包在軟體內（app/ 目錄），非連外部網站。
- *  - 以內建本機 HTTP 伺服器（127.0.0.1 隨機埠）提供內容，
- *    讓頁面有穩定的 http origin，對後端（GAS）的請求行為與正式站一致。
- *  - 啟動時清除 Service Worker / 快取儲存，避免軟體更新後顯示舊版；
- *    但保留 localStorage，讓使用者的登入 session 跨啟動保留。
- *  - 資料同步仍需網路（客戶資料在 Google Sheets / GAS），此為既有架構。
+ * 做法：以獨立視窗載入正式站（longdomcrm.realestatesky315.workers.dev），
+ * 連線行為、LINE 登入、UI 皆與使用者平常在瀏覽器/LINE 使用時一致，且永遠最新。
+ * 外觀為獨立軟體（自有圖示、視窗、精簡選單，無瀏覽器網址列）。
+ *
+ * 啟動先顯示本機選單頁（launcher.html）選擇案場（華雄天地 / 吉隆天曜），
+ * 點選後於同一視窗載入對應正式站頁面。LINE 登入的 OAuth 導向於視窗內完成，
+ * 登入 token 由網站儲存在該來源的 localStorage，跨啟動保留登入。
  */
-const { app, BrowserWindow, Menu, shell, session } = require('electron');
-const http = require('http');
-const fs = require('fs');
+const { app, BrowserWindow, Menu, shell } = require('electron');
 const path = require('path');
 
-const APP_DIR = path.join(__dirname, 'app');
-const MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.webmanifest': 'application/manifest+json; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.png': 'image/png',
-  '.webp': 'image/webp',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon',
-};
+const SITE_HOST = 'longdomcrm.realestatesky315.workers.dev';
+const HOME_FILE = path.join(__dirname, 'launcher.html');
 
-let serverPort = 0;
+let mainWindow;
 
-function startLocalServer() {
-  return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => {
-      try {
-        let urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
-        if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
-        // 阻擋目錄跳脫
-        const filePath = path.normalize(path.join(APP_DIR, urlPath));
-        if (!filePath.startsWith(APP_DIR)) {
-          res.writeHead(403);
-          res.end('Forbidden');
-          return;
-        }
-        fs.readFile(filePath, (err, data) => {
-          if (err) {
-            res.writeHead(404);
-            res.end('Not found');
-            return;
-          }
-          res.writeHead(200, { 'Content-Type': MIME[path.extname(filePath)] || 'application/octet-stream' });
-          res.end(data);
-        });
-      } catch (e) {
-        res.writeHead(500);
-        res.end('Server error');
-      }
-    });
-    server.on('error', reject);
-    // 綁定本機隨機埠
-    server.listen(0, '127.0.0.1', () => {
-      serverPort = server.address().port;
-      resolve(serverPort);
-    });
-  });
+function loadHome() {
+  if (mainWindow) mainWindow.loadFile(HOME_FILE);
 }
 
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 430,
     height: 900,
     minWidth: 360,
     minHeight: 600,
     title: '龍登 CRM',
     backgroundColor: '#1A1A2E',
-    autoHideMenuBar: true, // 隱藏選單列，避免像瀏覽器
     icon: path.join(__dirname, 'build', 'icon.png'),
     webPreferences: {
       contextIsolation: true,
@@ -82,8 +35,13 @@ function createWindow() {
     },
   });
 
-  // 外部連結（如導航 App、Google Maps）改用系統瀏覽器開啟，不在軟體視窗內開網頁
-  win.webContents.setWindowOpenHandler(({ url }) => {
+  // 分頁/新視窗開啟行為：
+  //  - 自家網站與 LINE 登入頁 → 在應用內開啟（登入流程需要）
+  //  - 其他外部連結（地圖、導航、電話）→ 交給系統瀏覽器
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/\.line\.me/i.test(url) || url.indexOf(SITE_HOST) !== -1) {
+      return { action: 'allow' };
+    }
     if (/^https?:/i.test(url)) {
       shell.openExternal(url);
       return { action: 'deny' };
@@ -91,28 +49,42 @@ function createWindow() {
     return { action: 'allow' };
   });
 
-  win.loadURL(`http://127.0.0.1:${serverPort}/index.html`);
-  return win;
+  loadHome();
 }
 
-app.whenReady().then(async () => {
-  // 移除預設選單（File/Edit/View…），讓外觀像獨立軟體而非瀏覽器
-  Menu.setApplicationMenu(null);
+function buildMenu() {
+  const template = [
+    {
+      label: '功能',
+      submenu: [
+        { label: '切換案場（回首頁）', click: loadHome },
+        {
+          label: '重新整理',
+          accelerator: 'CmdOrCtrl+R',
+          click: () => mainWindow && mainWindow.webContents.reload(),
+        },
+        {
+          label: '上一頁',
+          accelerator: 'Alt+Left',
+          click: () => {
+            if (mainWindow && mainWindow.webContents.canGoBack()) mainWindow.webContents.goBack();
+          },
+        },
+        { type: 'separator' },
+        { label: '結束', role: 'quit' },
+      ],
+    },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
 
-  // 清除 SW/快取（保留 localStorage 登入 session）
-  try {
-    await session.defaultSession.clearStorageData({
-      storages: ['serviceworkers', 'cachestorage', 'shadercache'],
-    });
-  } catch (e) { /* 忽略 */ }
+// 使用標準 Chrome User-Agent（移除 Electron 標記），避免 LINE 登入等 OAuth 頁
+// 因偵測到嵌入式/非標準瀏覽器而拒絕。Electron 31 對應 Chromium 126。
+app.userAgentFallback =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
-  try {
-    await startLocalServer();
-  } catch (e) {
-    // 埠啟動失敗時仍嘗試以 file:// 開啟（退化路徑）
-    console.error('local server failed:', e);
-  }
-
+app.whenReady().then(() => {
+  buildMenu();
   createWindow();
 
   app.on('activate', () => {

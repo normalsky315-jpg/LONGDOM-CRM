@@ -6,9 +6,8 @@
   "author": "龍登國際",
   "main": "main.js",
   "scripts": {
-    "sync": "node scripts/sync-web.js",
-    "start": "npm run sync && electron .",
-    "build:win": "npm run sync && electron-builder --win --x64",
+    "start": "electron .",
+    "build:win": "electron-builder --win --x64",
     "dist": "npm run build:win"
   },
   "devDependencies": {
@@ -23,7 +22,7 @@
     },
     "files": [
       "main.js",
-      "app/**/*",
+      "launcher.html",
       "build/icon.png"
     ],
     "win": {

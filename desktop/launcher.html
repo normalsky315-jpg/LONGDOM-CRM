@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>龍登 CRM</title>
+<style>
+  :root{ --ink:#1A1A2E; --gold:#C9A84C; }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-user-select:none;user-select:none;}
+  html,body{height:100%;}
+  body{
+    background:var(--ink);color:#fff;
+    font-family:'Noto Serif TC','Microsoft JhengHei','PingFang TC',sans-serif;font-weight:300;
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:32px 24px;text-align:center;
+  }
+  .brand{font-size:24px;font-weight:700;letter-spacing:3px;margin-bottom:4px;}
+  .brand-en{font-size:10px;letter-spacing:3px;color:rgba(255,255,255,.35);margin-bottom:6px;}
+  .tag{font-size:11px;letter-spacing:4px;color:var(--gold);margin-bottom:40px;}
+  .cards{width:100%;max-width:360px;display:flex;flex-direction:column;gap:14px;}
+  .card{
+    display:flex;align-items:center;gap:14px;text-decoration:none;color:#fff;cursor:pointer;
+    background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.12);border-radius:14px;
+    padding:18px 20px;transition:border-color .2s,background .2s,transform .1s;
+  }
+  .card:hover{border-color:var(--gold);background:rgba(201,168,76,.08);}
+  .card:active{transform:scale(.98);}
+  .card-dot{width:10px;height:10px;border-radius:50%;background:var(--gold);flex-shrink:0;}
+  .card-body{flex:1;text-align:left;}
+  .card-name{font-size:17px;font-weight:700;letter-spacing:1px;}
+  .card-sub{font-size:11px;color:rgba(255,255,255,.4);letter-spacing:1px;margin-top:2px;}
+  .card-arrow{color:var(--gold);font-size:18px;}
+  .foot{margin-top:36px;font-size:10px;letter-spacing:2px;color:rgba(255,255,255,.25);}
+</style>
+</head>
+<body>
+  <div class="brand">龍登國際</div>
+  <div class="brand-en">LONGDOM INTERNATIONAL</div>
+  <div class="tag">CRM 系統入口</div>
+  <div class="cards">
+    <a class="card" href="https://longdomcrm.realestatesky315.workers.dev/hstd.html">
+      <span class="card-dot"></span>
+      <span class="card-body">
+        <span class="card-name">華雄天地</span>
+        <span class="card-sub">HSTD · 銷售管理系統</span>
+      </span>
+      <span class="card-arrow">→</span>
+    </a>
+    <a class="card" href="https://longdomcrm.realestatesky315.workers.dev/jltx.html">
+      <span class="card-dot"></span>
+      <span class="card-body">
+        <span class="card-name">吉隆天曜</span>
+        <span class="card-sub">JLTX · 銷售管理系統</span>
+      </span>
+      <span class="card-arrow">→</span>
+    </a>
+  </div>
+  <div class="foot">龍登國際 LONGDOM</div>
+</body>
+</html>
