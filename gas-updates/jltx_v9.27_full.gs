@@ -1,5 +1,27 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.26
+//  龍登 CRM — 吉隆天曜專用版 v9.27
+//  v9.27 變更：把主管正式的「標記成交」流程跟銷售控制表串起來：
+//    1. 標記成交 Modal 的「成交戶別」改成跟銷售控制表新增戶別同一套
+//       棟別／型別／樓層三個下拉選單去對應唯一的 unit_id，不再讓使用
+//       者手打（避免 A3/8F 這種每個人打法不一樣、對不起來的問題）。
+//       Deal_Detail 新增 unit_id 欄位存這個對應關係，saveDealDetail
+//       改成用 unit_id 去 Sales_Control 反查 unit_label 存回 unit 欄位
+//    2. 標記成交 Modal 拿掉房屋底價／車位底價／溢價折價／成交價這幾
+//       個銷售數字欄位——這些數字之後統一在銷售控制表填，避免同一件
+//       事兩邊都要打一次、數字對不起來。saveDealDetail 原本就有把這
+//       些欄位預設成 0 的邏輯，前端不送這些欄位不影響既有資料
+//    3. 新增 syncSalesControlFromDeal_()：saveDealDetail 存檔成功後，
+//       自動把成交戶別對應的 Sales_Control 狀態同步過去（待簽約→已
+//       收訂、已簽約→已簽約），並寫入 linked_customer_id／
+//       linked_customer_name。markDealDetailRefund 標記退戶時，也會
+//       把對應的 Sales_Control 戶別狀態改回退戶
+//    4. Sales_Control 拿掉「房屋開價」欄位（house_list_price）——這個
+//       數字不重要，改用「房屋售價」即可，前端表單/卡片也一併拿掉
+//    5. 修正銷售總價／銷售總坪數的算法：不管有沒有車位都直接把房屋
+//       實際市價＋車位售價（房屋坪數＋車位坪數）加起來，不再限定「有
+//       填車位編號才加車位」；平均單價維持原本的有車/無車分開算，只
+//       是判斷「有沒有車位」的依據改成看車位售價/車位坪數是否有數字，
+//       不再看車位編號欄位
 //  v9.26 變更：銷售控制表改版，照主管實際使用方式重新設計：
 //    1. 新增 seedSalesControlUnits()：依 2026/7/6 版銷售講義「戶別
 //       規劃表」預先把全案 105 戶（住家104＋店面1）建進 Sales_Control，
@@ -1473,7 +1495,7 @@ function updateCustomerDeal(payload) {
 // 訂金、簽約狀態（待簽約/已簽約）、預定簽約日期。跟 Customer_Data 的
 // deal_status/deal_unit（客戶卡片上的小標籤）是互補關係：Customer_Data
 // 存快速狀態，這裡存完整交易細節，兩者用 customer_id 對起來。
-var DEAL_DETAIL_HEADERS = ['deal_id','customer_id','customer_name','project_name','unit',
+var DEAL_DETAIL_HEADERS = ['deal_id','customer_id','customer_name','project_name','unit','unit_id',
   'house_base_price','parking_base_price','premium','deal_price','deposit_amount',
   'contract_status','expected_sign_date','signed_date','salesperson','sales_line_user_id',
   'created_by_line_user_id','status','refund_reason','refund_date','created_at','created_by','updated_at'];
@@ -1499,6 +1521,24 @@ function ensureDealDetailSheet() {
     sh.getRange(1, existing.length + 1, 1, missing.length).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
   }
   return sh;
+}
+
+// 主管標記成交／編輯成交明細時，把選到的戶別同步連結回 Sales_Control：
+// 待簽約 → 銷控狀態改「已收訂」；已簽約 → 銷控狀態改「已簽約」。銷控表
+// 那邊才是價格/坪數這些進階數字唯一該填的地方，這裡只負責連結跟狀態
+function syncSalesControlFromDeal_(unitId, contractStatus, customerId, customerName) {
+  if (!unitId) return;
+  ensureSalesControlSheet();
+  var unit = readSheetAsObjects(CONFIG.SHEETS.SALES_CONTROL).filter(function(u){ return u.unit_id === unitId; })[0];
+  if (!unit) return;
+  var scStatus = contractStatus === '已簽約' ? '已簽約' : '已收訂';
+  updateRowById(CONFIG.SHEETS.SALES_CONTROL, 'unit_id', unitId, {
+    status: scStatus,
+    linked_customer_id: customerId || '',
+    linked_customer_name: customerName || '',
+    reserved_until: '',
+    updated_at: nowTW()
+  });
 }
 
 // 新增或更新一筆成交明細。有帶 deal_id 就是更新（會先讀出原本的資料當底，
@@ -1533,12 +1573,23 @@ function saveDealDetail(payload) {
       ? (+payload.deal_price || 0) : (housePrice + parkPrice + premium);
     var contractStatus = pick('contract_status', '待簽約') === '已簽約' ? '已簽約' : '待簽約';
 
+    // 戶別改成從銷售控制表選（unit_id），不再讓使用者手打文字——手打
+    // 每個人格式都不一樣（A3/8F、A棟3型8樓…），選的話戶別文字統一由
+    // Sales_Control 的 unit_label 帶出來，兩邊資料才連得起來
+    var unitId = pick('unit_id', '');
+    var unitLabel = pick('unit', '');
+    if (unitId) {
+      var scUnit = readSheetAsObjects(CONFIG.SHEETS.SALES_CONTROL).filter(function(u){ return u.unit_id === unitId; })[0];
+      if (scUnit) unitLabel = scUnit.unit_label;
+    }
+
     var row = {
       deal_id:              existing ? existing.deal_id : genId('DEAL'),
       customer_id:          pick('customer_id', ''),
       customer_name:        pick('customer_name', ''),
       project_name:         base.project_name || ctx.projectName || '',
-      unit:                 pick('unit', ''),
+      unit:                 unitLabel,
+      unit_id:              unitId,
       house_base_price:     housePrice,
       parking_base_price:   parkPrice,
       premium:              premium,
@@ -1567,6 +1618,7 @@ function saveDealDetail(payload) {
     writeAuditLog(ctx.lineUserId, existing ? 'UPDATE' : 'CREATE', CONFIG.SHEETS.DEAL_DETAIL, row.deal_id,
       ctx.displayName + ' 記錄成交明細：' + row.unit + ' / ' + row.customer_name);
     dwSyncDeal_(row); // Supabase 雙寫（失敗不影響上面的 Sheets 寫入結果）
+    syncSalesControlFromDeal_(row.unit_id, row.contract_status, row.customer_id, row.customer_name);
     return ok(row);
   } catch (err) { return fail(err.message); }
 }
@@ -1594,13 +1646,22 @@ function markDealDetailRefund(payload) {
     if (!ctx) return fail('未授權');
     if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限，需主管以上');
     if (!payload.deal_id) return fail('deal_id 必填');
-    var found = updateRowById(CONFIG.SHEETS.DEAL_DETAIL, 'deal_id', payload.deal_id, {
+
+    var deal = readSheetAsObjects(CONFIG.SHEETS.DEAL_DETAIL).filter(function(r){ return String(r.deal_id) === String(payload.deal_id); })[0];
+    if (!deal) return fail('找不到成交明細');
+
+    updateRowById(CONFIG.SHEETS.DEAL_DETAIL, 'deal_id', payload.deal_id, {
       status: '退戶',
       refund_reason: payload.reason || '',
       refund_date: todayTW(),
       updated_at: nowTW()
     });
-    if (!found) return fail('找不到成交明細');
+    // 退戶後把連結的戶別也一起改回「退戶」，讓銷控表看得出這戶又空出來了
+    if (deal.unit_id) {
+      updateRowById(CONFIG.SHEETS.SALES_CONTROL, 'unit_id', deal.unit_id, {
+        status: '退戶', updated_at: nowTW()
+      });
+    }
     writeAuditLog(ctx.lineUserId, 'UPDATE', CONFIG.SHEETS.DEAL_DETAIL, payload.deal_id,
       ctx.displayName + ' 標記成交明細退戶：' + payload.deal_id);
     return ok({ deal_id: payload.deal_id });
@@ -2760,7 +2821,7 @@ function getWeeklyHotPicks(payload) {
 // 算錯、也避免前端算完傳上來跟後端資料兜不起來
 var SALES_CONTROL_HEADERS = ['unit_id','building','unit_type','floor','unit_label','category','parking_id',
   'status','reserved_until','expected_sign_date','linked_customer_id','linked_customer_name',
-  'house_list_price','house_sqft','house_sale_price','parking_sale_price','parking_sqft',
+  'house_sqft','house_sale_price','parking_sale_price','parking_sqft',
   'total_sale_price','total_sqft','avg_unit_price',
   'created_at','created_by_line_user_id','created_by_name','updated_at'];
 
@@ -2849,10 +2910,13 @@ function computeSalesControlDerived_(row) {
   var houseSqft = Number(row.house_sqft) || 0;
   var parkingSalePrice = Number(row.parking_sale_price) || 0;
   var parkingSqft = Number(row.parking_sqft) || 0;
-  var hasParking = !!String(row.parking_id || '').trim();
-
-  var totalSalePrice = houseSalePrice + (hasParking ? parkingSalePrice : 0);
-  var totalSqft = houseSqft + (hasParking ? parkingSqft : 0);
+  // 銷售總價／總坪數不用判斷有沒有車位，直接房屋+車位相加就好——沒
+  // 填車位的話車位售價/坪數本來就是 0，加了也不影響結果
+  var totalSalePrice = houseSalePrice + parkingSalePrice;
+  var totalSqft = houseSqft + parkingSqft;
+  // 平均單價才需要分「有沒有車位」兩種算法：沒車位就是房屋售價/房屋
+  // 坪數；有車位（車位售價或坪數任一有填）就改成銷售總價/銷售總坪數
+  var hasParking = parkingSalePrice > 0 || parkingSqft > 0;
   var avgBase = hasParking ? totalSalePrice : houseSalePrice;
   var avgDivisor = hasParking ? totalSqft : houseSqft;
   var avgUnitPrice = avgDivisor ? Math.round((avgBase / avgDivisor) * 100) / 100 : 0;
@@ -2911,7 +2975,6 @@ function appendSalesControlUnit(payload) {
       status: status,
       reserved_until: status === '已保留' ? payload.reserved_until : '',
       expected_sign_date: status === '已收訂' ? payload.expected_sign_date : '',
-      house_list_price: payload.house_list_price || '',
       house_sqft: payload.house_sqft || '',
       house_sale_price: payload.house_sale_price || '',
       parking_sale_price: payload.parking_sale_price || '',
@@ -2968,7 +3031,6 @@ function updateSalesControlUnit(payload) {
       reserved_until: reservedUntil,
       expected_sign_date: expectedSignDate,
       parking_id: merged.parking_id,
-      house_list_price: payload.house_list_price !== undefined ? payload.house_list_price : original.house_list_price,
       house_sqft: merged.house_sqft,
       house_sale_price: merged.house_sale_price,
       parking_sale_price: merged.parking_sale_price,
