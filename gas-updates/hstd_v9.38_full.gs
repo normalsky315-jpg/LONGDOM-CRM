@@ -1,5 +1,31 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.37
+//  龍登 CRM — 華雄天地專用版 v9.38
+//  v9.38 變更：新增銷售控制表（Sales_Control），並把「標記成交」串連
+//  起來——跟吉隆天曜（jltx_v9.27_full.gs）同一次功能同步過來：
+//    1. 新增 Sales_Control 分頁：全案戶別銷控狀態，狀態分待售／已保留／
+//       已收訂／已簽約／退戶，已保留要填保留至日期、已收訂要填預計簽約
+//       時間。房屋/車位售價坪數手動填，銷售總價／銷售總坪數／平均單價
+//       一律後端計算（不含車：房屋售價÷房屋坪數；有車位：銷售總價÷
+//       (房屋坪數+車位坪數)，有沒有車位的判斷依據是車位售價/坪數有沒
+//       有填數字，不是看車位編號），不接受前端直接改。全角色都能看，只有
+//       manager/admin 能新增/編輯/刪除。新增 getSalesControlList／
+//       appendSalesControlUnit／updateSalesControlUnit／deleteSalesControlUnit，
+//       doGet/doPost 都已接上路由，首頁新增「銷售控制表」卡片
+//    2. 新增 seedSalesControlUnitsHstd()：依使用者提供的樓層配置圖（29層
+//       雙塔）整理出 SALES_CONTROL_UNIT_MASTER_HSTD 清單，手動在 Apps
+//       Script 編輯器執行一次即可把全案 281 戶（2F～29F，A棟／B棟各樓
+//       層可售型別不同）預先建進 Sales_Control。用 unit_label 判斷避免
+//       重複建立，可以放心重複執行
+//    3. 標記成交串連銷售控制表：Deal_Detail 新增 unit_id 欄位；成交戶別
+//       改成跟銷售控制表新增戶別同一套棟別/型別/樓層下拉選單去對應
+//       unit_id，不再讓使用者手打；標記成交 Modal 拿掉房屋底價/車位
+//       底價/溢價折價/成交價這些數字欄位，統一在銷售控制表填。
+//       saveDealDetail 存檔成功後自動同步 Sales_Control 對應戶別的狀態
+//       （待簽約→已收訂、已簽約→已簽約）跟連結客戶；markDealDetailRefund
+//       標記退戶時也會把對應戶別狀態改回退戶
+//    ★ 天地的棟別/樓層不是簡單矩形（跟吉隆天曜不同，A棟越高樓層可售
+//      型別越少），前端型別/樓層下拉改成直接從已載入的銷控資料動態
+//      算出來，不是寫死的固定公式，才能對應這種不規則的樓層配置
 //  v9.37 變更：把吉隆天曜（jltx）已經有、但天地還沒有的功能同步過來：
 //    1. 客戶資料表新增 gender／marital_status／visit_time_slot／
 //       sqft_requirement／room_requirement_note／referrer_name／
@@ -469,7 +495,8 @@ const CONFIG = {
     CONTACT_LOG:    'Contact_Log',
     RESERVATION:    'Reservation',
     CONFIG_OPTIONS: 'Config_Options',
-    WEEKLY_HOT_PICKS: 'Weekly_Hot_Picks'
+    WEEKLY_HOT_PICKS: 'Weekly_Hot_Picks',
+    SALES_CONTROL:  'Sales_Control'
   },
 
   ROLES:  { SALES: 'sales', MANAGER: 'manager', ADMIN: 'admin' },
@@ -495,7 +522,7 @@ const CONFIG = {
 var DATE_ONLY_FIELDS  = ['visit_date','leave_date','report_date','due_date','note_date',
                           'expected_sign_date','signed_date','refund_date',
                           'contact_date','next_followup_date','scheduled_date',
-                          'week_start','week_end'];
+                          'week_start','week_end','reserved_until'];
 var DATETIME_FIELDS   = ['created_at','updated_at','last_login_at','completed_at','changed_at','timestamp','submitted_at'];
 var TEXT_FORCE_FIELDS = ['phone'];
 
@@ -833,6 +860,14 @@ function doGet(e) {
         return jsonResponse(deleteCalendarNote(payload));
       case 'generateWeeklyLeaveReport':
         return jsonResponse(generateWeeklyLeaveReport(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
+      case 'getSalesControlList':
+        return jsonResponse(getSalesControlList(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
+      case 'appendSalesControlUnit':
+        return jsonResponse(appendSalesControlUnit(payload));
+      case 'updateSalesControlUnit':
+        return jsonResponse(updateSalesControlUnit(payload));
+      case 'deleteSalesControlUnit':
+        return jsonResponse(deleteSalesControlUnit(payload));
       default:
         return jsonResponse({ ok: false, error: '未知 action: ' + action });
     }
@@ -900,6 +935,10 @@ function doPost(e) {
       case 'rejectUser':              return jsonResponse(rejectUser(payload));
       case 'appendLeave':             return jsonResponse(appendLeave(payload));
       case 'deleteLeave':             return jsonResponse(deleteLeave(payload));
+      case 'getSalesControlList':     return jsonResponse(getSalesControlList(payload));
+      case 'appendSalesControlUnit':  return jsonResponse(appendSalesControlUnit(payload));
+      case 'updateSalesControlUnit':  return jsonResponse(updateSalesControlUnit(payload));
+      case 'deleteSalesControlUnit':  return jsonResponse(deleteSalesControlUnit(payload));
       default:
         return jsonResponse({ ok: false, error: '未知 action: ' + action });
     }
@@ -1476,7 +1515,7 @@ function updateCustomerDeal(payload) {
 // 訂金、簽約狀態（待簽約/已簽約）、預定簽約日期。跟 Customer_Data 的
 // deal_status/deal_unit（客戶卡片上的小標籤）是互補關係：Customer_Data
 // 存快速狀態，這裡存完整交易細節，兩者用 customer_id 對起來。
-var DEAL_DETAIL_HEADERS = ['deal_id','customer_id','customer_name','project_name','unit',
+var DEAL_DETAIL_HEADERS = ['deal_id','customer_id','customer_name','project_name','unit','unit_id',
   'house_base_price','parking_base_price','premium','deal_price','deposit_amount',
   'contract_status','expected_sign_date','signed_date','salesperson','sales_line_user_id',
   'created_by_line_user_id','status','refund_reason','refund_date','created_at','created_by','updated_at'];
@@ -1502,6 +1541,24 @@ function ensureDealDetailSheet() {
     sh.getRange(1, existing.length + 1, 1, missing.length).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
   }
   return sh;
+}
+
+// 主管標記成交／編輯成交明細時，把選到的戶別同步連結回 Sales_Control：
+// 待簽約 → 銷控狀態改「已收訂」；已簽約 → 銷控狀態改「已簽約」。銷控表
+// 那邊才是價格/坪數這些進階數字唯一該填的地方，這裡只負責連結跟狀態
+function syncSalesControlFromDeal_(unitId, contractStatus, customerId, customerName) {
+  if (!unitId) return;
+  ensureSalesControlSheet();
+  var unit = readSheetAsObjects(CONFIG.SHEETS.SALES_CONTROL).filter(function(u){ return u.unit_id === unitId; })[0];
+  if (!unit) return;
+  var scStatus = contractStatus === '已簽約' ? '已簽約' : '已收訂';
+  updateRowById(CONFIG.SHEETS.SALES_CONTROL, 'unit_id', unitId, {
+    status: scStatus,
+    linked_customer_id: customerId || '',
+    linked_customer_name: customerName || '',
+    reserved_until: '',
+    updated_at: nowTW()
+  });
 }
 
 // 新增或更新一筆成交明細。有帶 deal_id 就是更新（會先讀出原本的資料當底，
@@ -1536,12 +1593,23 @@ function saveDealDetail(payload) {
       ? (+payload.deal_price || 0) : (housePrice + parkPrice + premium);
     var contractStatus = pick('contract_status', '待簽約') === '已簽約' ? '已簽約' : '待簽約';
 
+    // 戶別改成從銷售控制表選（unit_id），不再讓使用者手打文字——手打
+    // 每個人格式都不一樣（A3/8F、A棟3型8樓…），選的話戶別文字統一由
+    // Sales_Control 的 unit_label 帶出來，兩邊資料才連得起來
+    var unitId = pick('unit_id', '');
+    var unitLabel = pick('unit', '');
+    if (unitId) {
+      var scUnit = readSheetAsObjects(CONFIG.SHEETS.SALES_CONTROL).filter(function(u){ return u.unit_id === unitId; })[0];
+      if (scUnit) unitLabel = scUnit.unit_label;
+    }
+
     var row = {
       deal_id:              existing ? existing.deal_id : genId('DEAL'),
       customer_id:          pick('customer_id', ''),
       customer_name:        pick('customer_name', ''),
       project_name:         base.project_name || ctx.projectName || '',
-      unit:                 pick('unit', ''),
+      unit:                 unitLabel,
+      unit_id:              unitId,
       house_base_price:     housePrice,
       parking_base_price:   parkPrice,
       premium:              premium,
@@ -1569,6 +1637,7 @@ function saveDealDetail(payload) {
 
     writeAuditLog(ctx.lineUserId, existing ? 'UPDATE' : 'CREATE', CONFIG.SHEETS.DEAL_DETAIL, row.deal_id,
       ctx.displayName + ' 記錄成交明細：' + row.unit + ' / ' + row.customer_name);
+    syncSalesControlFromDeal_(row.unit_id, row.contract_status, row.customer_id, row.customer_name);
     return ok(row);
   } catch (err) { return fail(err.message); }
 }
@@ -1596,16 +1665,306 @@ function markDealDetailRefund(payload) {
     if (!ctx) return fail('未授權');
     if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限，需主管以上');
     if (!payload.deal_id) return fail('deal_id 必填');
-    var found = updateRowById(CONFIG.SHEETS.DEAL_DETAIL, 'deal_id', payload.deal_id, {
+
+    var deal = readSheetAsObjects(CONFIG.SHEETS.DEAL_DETAIL).filter(function(r){ return String(r.deal_id) === String(payload.deal_id); })[0];
+    if (!deal) return fail('找不到成交明細');
+
+    updateRowById(CONFIG.SHEETS.DEAL_DETAIL, 'deal_id', payload.deal_id, {
       status: '退戶',
       refund_reason: payload.reason || '',
       refund_date: todayTW(),
       updated_at: nowTW()
     });
-    if (!found) return fail('找不到成交明細');
+    // 退戶後把連結的戶別也一起改回「退戶」，讓銷控表看得出這戶又空出來了
+    if (deal.unit_id) {
+      updateRowById(CONFIG.SHEETS.SALES_CONTROL, 'unit_id', deal.unit_id, {
+        status: '退戶', updated_at: nowTW()
+      });
+    }
     writeAuditLog(ctx.lineUserId, 'UPDATE', CONFIG.SHEETS.DEAL_DETAIL, payload.deal_id,
       ctx.displayName + ' 標記成交明細退戶：' + payload.deal_id);
     return ok({ deal_id: payload.deal_id });
+  } catch (err) { return fail(err.message); }
+}
+
+// ==================== 銷售控制表（戶別銷控） ====================
+// ★ 華雄天地專屬：全案戶別銷控狀態總表，跟吉隆天曜（jltx）同一套邏輯，
+// 直接沿用實作，兩案場程式碼保持一致。狀態只有 5 種：
+//   待售　→ 還沒開始談的戶別（預設值）
+//   已保留　→ 業務幫客戶留著，需要填「保留至」日期，通常過期要改回待售
+//   已收訂　→ 已收訂金，需要填「預計簽約時間」
+//   已簽約　→ 正式簽約成交，之後原則上不會再變，除非退戶
+//   退戶　→ 已簽約後解約，戶別要重新開放銷售
+// 房屋/車位的售價、坪數是業務/主管手動填的，但「銷售總價」「銷售總
+// 坪數」「平均單價」一律由後端計算，不接受前端直接改
+var SALES_CONTROL_HEADERS = ['unit_id','building','unit_type','floor','unit_label','category','parking_id',
+  'status','reserved_until','expected_sign_date','linked_customer_id','linked_customer_name',
+  'house_sqft','house_sale_price','parking_sale_price','parking_sqft',
+  'total_sale_price','total_sqft','avg_unit_price',
+  'created_at','created_by_line_user_id','created_by_name','updated_at'];
+
+var SALES_CONTROL_STATUSES = ['待售','已保留','已收訂','已簽約','退戶'];
+
+// 依使用者提供的樓層配置圖（29層雙塔，A棟／B棟）整理的全案戶別清單。
+// 跟吉隆天曜不同，天地的棟別/樓層不是簡單矩形（每個樓層區間可售的
+// 型別都不一樣，A棟越高樓層型別越少、B棟到24樓以上也開始減少型別），
+// 所以用「樓層區間＋這個區間有哪些型別」逐段列出，seedSalesControlUnitsHstd()
+// 會展開成一戶一列：
+//   2F：只有 B棟 1/2/3 型（3戶，A棟2F是交誼廳，不對外銷售）
+//   3F～17F：A棟／B棟都是 1/2/3/5/6/7 型（各6戶，共12戶/層）
+//   18F～23F：A棟縮減成 1/2/3/5 型（4戶），B棟維持 1/2/3/5/6/7型（6戶）
+//   24F：A棟／B棟都縮減成 1/2/3/5 型（各4戶）
+//   25F～29F：A棟只剩 1/2 型（2戶，大坪數），B棟維持 1/2/3/5 型（4戶）
+var SALES_CONTROL_UNIT_MASTER_HSTD = [
+  { building: 'B', unit_type: '1', floors: [2, 2],   category: '住家' },
+  { building: 'B', unit_type: '2', floors: [2, 2],   category: '住家' },
+  { building: 'B', unit_type: '3', floors: [2, 2],   category: '住家' },
+  { building: 'A', unit_type: '1', floors: [3, 17],  category: '住家' },
+  { building: 'A', unit_type: '2', floors: [3, 17],  category: '住家' },
+  { building: 'A', unit_type: '3', floors: [3, 17],  category: '住家' },
+  { building: 'A', unit_type: '5', floors: [3, 17],  category: '住家' },
+  { building: 'A', unit_type: '6', floors: [3, 17],  category: '住家' },
+  { building: 'A', unit_type: '7', floors: [3, 17],  category: '住家' },
+  { building: 'B', unit_type: '1', floors: [3, 17],  category: '住家' },
+  { building: 'B', unit_type: '2', floors: [3, 17],  category: '住家' },
+  { building: 'B', unit_type: '3', floors: [3, 17],  category: '住家' },
+  { building: 'B', unit_type: '5', floors: [3, 17],  category: '住家' },
+  { building: 'B', unit_type: '6', floors: [3, 17],  category: '住家' },
+  { building: 'B', unit_type: '7', floors: [3, 17],  category: '住家' },
+  { building: 'A', unit_type: '1', floors: [18, 23], category: '住家' },
+  { building: 'A', unit_type: '2', floors: [18, 23], category: '住家' },
+  { building: 'A', unit_type: '3', floors: [18, 23], category: '住家' },
+  { building: 'A', unit_type: '5', floors: [18, 23], category: '住家' },
+  { building: 'B', unit_type: '1', floors: [18, 23], category: '住家' },
+  { building: 'B', unit_type: '2', floors: [18, 23], category: '住家' },
+  { building: 'B', unit_type: '3', floors: [18, 23], category: '住家' },
+  { building: 'B', unit_type: '5', floors: [18, 23], category: '住家' },
+  { building: 'B', unit_type: '6', floors: [18, 23], category: '住家' },
+  { building: 'B', unit_type: '7', floors: [18, 23], category: '住家' },
+  { building: 'A', unit_type: '1', floors: [24, 24], category: '住家' },
+  { building: 'A', unit_type: '2', floors: [24, 24], category: '住家' },
+  { building: 'A', unit_type: '3', floors: [24, 24], category: '住家' },
+  { building: 'A', unit_type: '5', floors: [24, 24], category: '住家' },
+  { building: 'B', unit_type: '1', floors: [24, 24], category: '住家' },
+  { building: 'B', unit_type: '2', floors: [24, 24], category: '住家' },
+  { building: 'B', unit_type: '3', floors: [24, 24], category: '住家' },
+  { building: 'B', unit_type: '5', floors: [24, 24], category: '住家' },
+  { building: 'A', unit_type: '1', floors: [25, 29], category: '住家' },
+  { building: 'A', unit_type: '2', floors: [25, 29], category: '住家' },
+  { building: 'B', unit_type: '1', floors: [25, 29], category: '住家' },
+  { building: 'B', unit_type: '2', floors: [25, 29], category: '住家' },
+  { building: 'B', unit_type: '3', floors: [25, 29], category: '住家' },
+  { building: 'B', unit_type: '5', floors: [25, 29], category: '住家' }
+];
+
+// 手動在 Apps Script 編輯器執行一次即可，把上面清單展開成全案戶別
+// （共 281 戶）建進 Sales_Control。用 unit_label 判斷是否已經存在，
+// 已經有的戶別不會重複建立，可以放心重複執行
+function seedSalesControlUnitsHstd() {
+  ensureSalesControlSheet();
+  var existingLabels = {};
+  readSheetAsObjects(CONFIG.SHEETS.SALES_CONTROL).forEach(function(r) { existingLabels[r.unit_label] = true; });
+
+  var added = 0;
+  SALES_CONTROL_UNIT_MASTER_HSTD.forEach(function(group) {
+    for (var floor = group.floors[0]; floor <= group.floors[1]; floor++) {
+      var unitLabel = group.building + group.unit_type + '/' + floor + 'F';
+      if (existingLabels[unitLabel]) continue;
+      appendObjectToSheet(CONFIG.SHEETS.SALES_CONTROL, {
+        unit_id: genId('UNIT'),
+        building: group.building,
+        unit_type: group.unit_type,
+        floor: floor,
+        unit_label: unitLabel,
+        category: group.category,
+        status: '待售',
+        created_at: nowTW(),
+        created_by_name: '系統匯入（樓層配置圖）',
+        updated_at: nowTW()
+      });
+      existingLabels[unitLabel] = true;
+      added++;
+    }
+  });
+  Logger.log('✓ 完成：新增 ' + added + ' 戶，已存在略過');
+}
+
+function ensureSalesControlSheet() {
+  var ss = getCrmSS();
+  var name = CONFIG.SHEETS.SALES_CONTROL;
+  var sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    sh.getRange(1,1,1,SALES_CONTROL_HEADERS.length).setValues([SALES_CONTROL_HEADERS]);
+    sh.getRange(1,1,1,SALES_CONTROL_HEADERS.length).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
+    sh.setFrozenRows(1);
+    Logger.log('✓ Sales_Control 分頁已建立');
+    return sh;
+  }
+  var existing = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+  var missing = SALES_CONTROL_HEADERS.filter(function(h){ return existing.indexOf(h) < 0; });
+  if (missing.length) {
+    sh.getRange(1, existing.length + 1, 1, missing.length).setValues([missing]);
+    sh.getRange(1, existing.length + 1, 1, missing.length).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
+  }
+  return sh;
+}
+
+// 銷售總價／銷售總坪數／平均單價一律後端算，跟吉隆天曜同一套算法：
+// 銷售總價/總坪數不管有沒有車位都直接房屋+車位相加；平均單價才分
+// 「有沒有車位」兩種算法：沒車位是房屋售價/房屋坪數，有車位（車位
+// 售價或坪數任一有填）就改成銷售總價/銷售總坪數
+function computeSalesControlDerived_(row) {
+  var houseSalePrice = Number(row.house_sale_price) || 0;
+  var houseSqft = Number(row.house_sqft) || 0;
+  var parkingSalePrice = Number(row.parking_sale_price) || 0;
+  var parkingSqft = Number(row.parking_sqft) || 0;
+  var totalSalePrice = houseSalePrice + parkingSalePrice;
+  var totalSqft = houseSqft + parkingSqft;
+  var hasParking = parkingSalePrice > 0 || parkingSqft > 0;
+  var avgBase = hasParking ? totalSalePrice : houseSalePrice;
+  var avgDivisor = hasParking ? totalSqft : houseSqft;
+  var avgUnitPrice = avgDivisor ? Math.round((avgBase / avgDivisor) * 100) / 100 : 0;
+
+  return { total_sale_price: totalSalePrice, total_sqft: totalSqft, avg_unit_price: avgUnitPrice };
+}
+
+// 狀態關聯的必填欄位檢查：已保留要填保留至、已收訂要填預計簽約時間
+function validateSalesControlStatus_(status, reservedUntil, expectedSignDate) {
+  if (SALES_CONTROL_STATUSES.indexOf(status) < 0) return '狀態不正確';
+  if (status === '已保留' && !reservedUntil) return '狀態選「已保留」時，保留至日期必填';
+  if (status === '已收訂' && !expectedSignDate) return '狀態選「已收訂」時，預計簽約時間必填';
+  return null;
+}
+
+// 銷控表全案共用，任何角色（含業務）都看得到；只有 manager/admin 才能
+// 新增/編輯/刪除
+function getSalesControlList(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+
+    ensureSalesControlSheet();
+    var rows = readSheetAsObjects(CONFIG.SHEETS.SALES_CONTROL);
+    rows.sort(function(a, b) {
+      if (a.building !== b.building) return String(a.building).localeCompare(String(b.building));
+      if (Number(a.floor) !== Number(b.floor)) return Number(a.floor) - Number(b.floor);
+      return String(a.unit_type).localeCompare(String(b.unit_type));
+    });
+
+    return ok({ results: rows });
+  } catch (err) { return fail(err.message); }
+}
+
+function appendSalesControlUnit(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限，需主管以上');
+    if (!payload.building || !payload.unit_type || !payload.floor) return fail('棟別/型別/樓層必填');
+
+    var status = payload.status || '待售';
+    var validateErr = validateSalesControlStatus_(status, payload.reserved_until, payload.expected_sign_date);
+    if (validateErr) return fail(validateErr);
+
+    ensureSalesControlSheet();
+    var unitId = genId('UNIT');
+    var row = {
+      unit_id: unitId,
+      building: payload.building,
+      unit_type: payload.unit_type,
+      floor: payload.floor,
+      unit_label: payload.building + payload.unit_type + '/' + payload.floor + 'F',
+      category: payload.category || '住家',
+      parking_id: payload.parking_id || '',
+      status: status,
+      reserved_until: status === '已保留' ? payload.reserved_until : '',
+      expected_sign_date: status === '已收訂' ? payload.expected_sign_date : '',
+      house_sqft: payload.house_sqft || '',
+      house_sale_price: payload.house_sale_price || '',
+      parking_sale_price: payload.parking_sale_price || '',
+      parking_sqft: payload.parking_sqft || '',
+      created_at: nowTW(),
+      created_by_line_user_id: ctx.lineUserId,
+      created_by_name: ctx.displayName,
+      updated_at: nowTW()
+    };
+    var derived = computeSalesControlDerived_(row);
+    row.total_sale_price = derived.total_sale_price;
+    row.total_sqft = derived.total_sqft;
+    row.avg_unit_price = derived.avg_unit_price;
+
+    appendObjectToSheet(CONFIG.SHEETS.SALES_CONTROL, row);
+    writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.SALES_CONTROL, unitId,
+      ctx.displayName + ' 新增銷控戶別: ' + row.unit_label);
+    return ok({ unit_id: unitId });
+  } catch (err) { return fail(err.message); }
+}
+
+function updateSalesControlUnit(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限，需主管以上');
+    if (!payload.unit_id) return fail('unit_id 必填');
+
+    ensureSalesControlSheet();
+    var rows = readSheetAsObjects(CONFIG.SHEETS.SALES_CONTROL);
+    var original = null;
+    for (var i = 0; i < rows.length; i++) {
+      if (String(rows[i].unit_id) === String(payload.unit_id)) { original = rows[i]; break; }
+    }
+    if (!original) return fail('找不到這個戶別');
+
+    var status = payload.status || original.status;
+    var reservedUntil = status === '已保留' ? payload.reserved_until : '';
+    var expectedSignDate = status === '已收訂' ? payload.expected_sign_date : '';
+    var validateErr = validateSalesControlStatus_(status, reservedUntil, expectedSignDate);
+    if (validateErr) return fail(validateErr);
+
+    var merged = {
+      house_sale_price:   payload.house_sale_price   !== undefined ? payload.house_sale_price   : original.house_sale_price,
+      house_sqft:          payload.house_sqft          !== undefined ? payload.house_sqft          : original.house_sqft,
+      parking_sale_price: payload.parking_sale_price !== undefined ? payload.parking_sale_price : original.parking_sale_price,
+      parking_sqft:        payload.parking_sqft        !== undefined ? payload.parking_sqft        : original.parking_sqft,
+      parking_id:          payload.parking_id          !== undefined ? payload.parking_id          : original.parking_id
+    };
+    var derived = computeSalesControlDerived_(merged);
+
+    var updates = {
+      status: status,
+      reserved_until: reservedUntil,
+      expected_sign_date: expectedSignDate,
+      parking_id: merged.parking_id,
+      house_sqft: merged.house_sqft,
+      house_sale_price: merged.house_sale_price,
+      parking_sale_price: merged.parking_sale_price,
+      parking_sqft: merged.parking_sqft,
+      total_sale_price: derived.total_sale_price,
+      total_sqft: derived.total_sqft,
+      avg_unit_price: derived.avg_unit_price,
+      updated_at: nowTW()
+    };
+    updateRowById(CONFIG.SHEETS.SALES_CONTROL, 'unit_id', payload.unit_id, updates);
+    writeAuditLog(ctx.lineUserId, 'UPDATE', CONFIG.SHEETS.SALES_CONTROL, payload.unit_id,
+      ctx.displayName + ' 修改銷控戶別 ' + original.unit_label + '，狀態：' + status);
+    return ok({ unit_id: payload.unit_id });
+  } catch (err) { return fail(err.message); }
+}
+
+function deleteSalesControlUnit(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+    if (ctx.role === CONFIG.ROLES.SALES) return fail('無權限，需主管以上');
+    if (!payload.unit_id) return fail('unit_id 必填');
+
+    var result = deleteRowById(CONFIG.SHEETS.SALES_CONTROL, 'unit_id', payload.unit_id);
+    if (result.notFound) return fail('找不到這個戶別');
+
+    writeAuditLog(ctx.lineUserId, 'DELETE', CONFIG.SHEETS.SALES_CONTROL, payload.unit_id,
+      ctx.displayName + ' 刪除銷控戶別 ' + (result.row ? result.row.unit_label : payload.unit_id));
+    return ok({ unit_id: payload.unit_id });
   } catch (err) { return fail(err.message); }
 }
 
