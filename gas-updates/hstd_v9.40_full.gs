@@ -1,5 +1,13 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.39
+//  龍登 CRM — 華雄天地專用版 v9.40
+//  v9.40 變更：修正 SALES_CONTROL_UNIT_MASTER_HSTD 戶數算錯的問題——
+//  使用者確認全案正確總戶數是 279 戶（不是 281 戶），原因是 14F 有中繼
+//  水箱佔用該位置，A3/14F、B3/14F 這兩戶實際上不存在。把 A/B 兩棟 3型
+//  原本 3F～17F 一整段的樓層範圍拆成 3F～13F ＋ 15F～17F 兩段，14F 直接
+//  跳過。★ seedSalesControlUnitsHstd() 只會補新戶別、不會刪除已建立
+//  的舊戶別：如果先前已經執行過舊版清單、Sales_Control 裡已經有
+//  A3/14F、B3/14F 這兩筆資料，麻煩到試算表手動刪掉這兩列；如果還沒
+//  執行過，直接跑這個新版就會是正確的 279 戶
 //  v9.39 變更：CONFIG.INDUSTRIES 把「公教軍警」拆成「公教」／「軍人」／
 //  「警察」三個獨立選項（主管反應軍人跟警察是不同族群，混在一起不好
 //  統計）。★ 這個陣列只是 Config_Options 分頁第一次建立時的種子資料，
@@ -1717,7 +1725,8 @@ var SALES_CONTROL_STATUSES = ['待售','已保留','已收訂','已簽約','退�
 // 所以用「樓層區間＋這個區間有哪些型別」逐段列出，seedSalesControlUnitsHstd()
 // 會展開成一戶一列：
 //   2F：只有 B棟 1/2/3 型（3戶，A棟2F是交誼廳，不對外銷售）
-//   3F～17F：A棟／B棟都是 1/2/3/5/6/7 型（各6戶，共12戶/層）
+//   3F～17F：A棟／B棟都是 1/2/3/5/6/7 型（各6戶，共12戶/層），但 14F
+//     因為有中繼水箱佔用該位置，A3/B3 這兩戶在 14F 不存在（少2戶）
 //   18F～23F：A棟縮減成 1/2/3/5 型（4戶），B棟維持 1/2/3/5/6/7型（6戶）
 //   24F：A棟／B棟都縮減成 1/2/3/5 型（各4戶）
 //   25F～29F：A棟只剩 1/2 型（2戶，大坪數），B棟維持 1/2/3/5 型（4戶）
@@ -1727,13 +1736,15 @@ var SALES_CONTROL_UNIT_MASTER_HSTD = [
   { building: 'B', unit_type: '3', floors: [2, 2],   category: '住家' },
   { building: 'A', unit_type: '1', floors: [3, 17],  category: '住家' },
   { building: 'A', unit_type: '2', floors: [3, 17],  category: '住家' },
-  { building: 'A', unit_type: '3', floors: [3, 17],  category: '住家' },
+  { building: 'A', unit_type: '3', floors: [3, 13],  category: '住家' },
+  { building: 'A', unit_type: '3', floors: [15, 17], category: '住家' }, // 14F 中繼水箱，A3 這戶不存在
   { building: 'A', unit_type: '5', floors: [3, 17],  category: '住家' },
   { building: 'A', unit_type: '6', floors: [3, 17],  category: '住家' },
   { building: 'A', unit_type: '7', floors: [3, 17],  category: '住家' },
   { building: 'B', unit_type: '1', floors: [3, 17],  category: '住家' },
   { building: 'B', unit_type: '2', floors: [3, 17],  category: '住家' },
-  { building: 'B', unit_type: '3', floors: [3, 17],  category: '住家' },
+  { building: 'B', unit_type: '3', floors: [3, 13],  category: '住家' },
+  { building: 'B', unit_type: '3', floors: [15, 17], category: '住家' }, // 14F 中繼水箱，B3 這戶不存在
   { building: 'B', unit_type: '5', floors: [3, 17],  category: '住家' },
   { building: 'B', unit_type: '6', floors: [3, 17],  category: '住家' },
   { building: 'B', unit_type: '7', floors: [3, 17],  category: '住家' },
@@ -1764,7 +1775,7 @@ var SALES_CONTROL_UNIT_MASTER_HSTD = [
 ];
 
 // 手動在 Apps Script 編輯器執行一次即可，把上面清單展開成全案戶別
-// （共 281 戶）建進 Sales_Control。用 unit_label 判斷是否已經存在，
+// （共 279 戶）建進 Sales_Control。用 unit_label 判斷是否已經存在，
 // 已經有的戶別不會重複建立，可以放心重複執行
 function seedSalesControlUnitsHstd() {
   ensureSalesControlSheet();
