@@ -1,5 +1,14 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.40
+//  龍登 CRM — 華雄天地專用版 v9.41
+//  v9.41 變更：銷售控制表新增「車位數量」欄位（parking_count），因應
+//  有些房型會配一個以上車位的情況：
+//    1. Sales_Control 新增 parking_count 欄位，appendSalesControlUnit／
+//       updateSalesControlUnit 都已接上讀寫
+//    2. 車位售價／車位坪數維持原本的用法——填「這戶全部車位加總」的
+//       金額/坪數，不管有幾個車位，銷售總價/總坪數/平均單價的算法不受
+//       影響（本來就是直接加總）；車位編號欄位允許填多個（用逗號分隔）
+//    3. 前端新增「車位數量」輸入框，銷控表卡片會顯示車位數（超過1個
+//       才會特別標示，例如「🚗 B1-103, B1-104（2個車位）」）
 //  v9.40 變更：修正 SALES_CONTROL_UNIT_MASTER_HSTD 戶數算錯的問題——
 //  使用者確認全案正確總戶數是 279 戶（不是 281 戶），原因是 14F 有中繼
 //  水箱佔用該位置，A3/14F、B3/14F 這兩戶實際上不存在。把 A/B 兩棟 3型
@@ -1711,7 +1720,7 @@ function markDealDetailRefund(payload) {
 //   退戶　→ 已簽約後解約，戶別要重新開放銷售
 // 房屋/車位的售價、坪數是業務/主管手動填的，但「銷售總價」「銷售總
 // 坪數」「平均單價」一律由後端計算，不接受前端直接改
-var SALES_CONTROL_HEADERS = ['unit_id','building','unit_type','floor','unit_label','category','parking_id',
+var SALES_CONTROL_HEADERS = ['unit_id','building','unit_type','floor','unit_label','category','parking_id','parking_count',
   'status','reserved_until','expected_sign_date','linked_customer_id','linked_customer_name',
   'house_sqft','house_sale_price','parking_sale_price','parking_sqft',
   'total_sale_price','total_sqft','avg_unit_price',
@@ -1894,6 +1903,7 @@ function appendSalesControlUnit(payload) {
       unit_label: payload.building + payload.unit_type + '/' + payload.floor + 'F',
       category: payload.category || '住家',
       parking_id: payload.parking_id || '',
+      parking_count: payload.parking_count || (payload.parking_id ? 1 : 0),
       status: status,
       reserved_until: status === '已保留' ? payload.reserved_until : '',
       expected_sign_date: status === '已收訂' ? payload.expected_sign_date : '',
@@ -1944,7 +1954,8 @@ function updateSalesControlUnit(payload) {
       house_sqft:          payload.house_sqft          !== undefined ? payload.house_sqft          : original.house_sqft,
       parking_sale_price: payload.parking_sale_price !== undefined ? payload.parking_sale_price : original.parking_sale_price,
       parking_sqft:        payload.parking_sqft        !== undefined ? payload.parking_sqft        : original.parking_sqft,
-      parking_id:          payload.parking_id          !== undefined ? payload.parking_id          : original.parking_id
+      parking_id:          payload.parking_id          !== undefined ? payload.parking_id          : original.parking_id,
+      parking_count:       payload.parking_count       !== undefined ? payload.parking_count       : original.parking_count
     };
     var derived = computeSalesControlDerived_(merged);
 
@@ -1953,6 +1964,7 @@ function updateSalesControlUnit(payload) {
       reserved_until: reservedUntil,
       expected_sign_date: expectedSignDate,
       parking_id: merged.parking_id,
+      parking_count: merged.parking_count,
       house_sqft: merged.house_sqft,
       house_sale_price: merged.house_sale_price,
       parking_sale_price: merged.parking_sale_price,
