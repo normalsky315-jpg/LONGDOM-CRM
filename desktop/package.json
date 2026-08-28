@@ -1,0 +1,46 @@
+{
+  "name": "longdom-crm-desktop",
+  "productName": "龍登 CRM",
+  "version": "1.0.0",
+  "description": "龍登國際 CRM 桌面軟體（華雄天地 / 吉隆天曜）",
+  "author": "龍登國際",
+  "main": "main.js",
+  "scripts": {
+    "sync": "node scripts/sync-web.js",
+    "start": "npm run sync && electron .",
+    "build:win": "npm run sync && electron-builder --win --x64",
+    "dist": "npm run build:win"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.longdom.crm",
+    "productName": "龍登 CRM",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "app/**/*",
+      "build/icon.png"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "龍登 CRM"
+    }
+  }
+}

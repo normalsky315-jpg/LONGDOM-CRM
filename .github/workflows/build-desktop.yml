@@ -1,0 +1,49 @@
+name: 打包 Windows 桌面軟體
+
+# 手動觸發，或推送 v* 標籤時建置。
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/longdom-crm-optimization-yz7fma
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: 取出程式碼
+        uses: actions/checkout@v4
+
+      - name: 安裝 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安裝相依套件
+        working-directory: desktop
+        run: npm install
+
+      - name: 打包 Windows 安裝檔（.exe）
+        working-directory: desktop
+        run: npm run build:win
+        env:
+          # 不做程式碼簽署（未購買憑證）；使用者首次安裝 Windows 會顯示未知發行者警告，屬正常。
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: 上傳安裝檔為 Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: longdom-crm-windows
+          path: |
+            desktop/dist/*.exe
+          if-no-files-found: error
+
+      - name: 推送標籤時，建立 Release 並附上安裝檔
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: desktop/dist/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
