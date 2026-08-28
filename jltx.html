@@ -212,6 +212,20 @@
   .sc-status.refund{background:var(--rust-soft);color:var(--rust);}
   .sc-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px 14px;font-size:12px;color:var(--ink-light);line-height:1.6;margin:8px 0;}
   .sc-card-field-label{color:var(--ink-faint);margin-right:3px;}
+  .sc-drill-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  .sc-drill-btn{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:16px 8px;text-align:center;cursor:pointer;transition:border-color 0.15s;}
+  .sc-drill-btn:active{border-color:var(--teal);}
+  .sc-drill-btn-title{font-family:'Noto Serif TC',serif;font-size:18px;font-weight:700;color:var(--ink);}
+  .sc-drill-btn-sub{font-size:11px;color:var(--ink-faint);margin-top:4px;line-height:1.5;}
+  .sc-floor-btn{border-radius:10px;padding:14px 8px;text-align:center;cursor:pointer;font-weight:700;font-size:15px;border:1.5px solid transparent;}
+  .sc-floor-btn .sc-floor-status{display:block;font-size:10px;font-weight:500;margin-top:3px;}
+  .sc-floor-btn.forsale{background:var(--teal-soft);color:#0f6e56;}
+  .sc-floor-btn.reserved{background:var(--gold-soft);color:#8A6D3F;}
+  .sc-floor-btn.booked{background:#FBEAD1;color:#95500C;}
+  .sc-floor-btn.signed{background:var(--ink);color:#fff;}
+  .sc-floor-btn.refund{background:var(--rust-soft);color:var(--rust);}
+  .sc-breadcrumb{font-size:13px;color:var(--ink-faint);margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+  .sc-breadcrumb a{color:var(--teal);text-decoration:none;font-weight:600;}
   .deal-btn{margin-top:8px;padding:7px 14px;font-size:12px;background:var(--ink);color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:inherit;}
 
   /* Form */
@@ -802,21 +816,34 @@
   <div id="viewSalesControl" class="view hidden">
     <div class="app-header"><div class="header-row"><button class="header-back" onclick="route('#/home')">‹</button><div class="header-title">銷售控制表</div><div style="width:36px;"></div></div></div>
     <div class="list-wrap">
-      <div class="list-tabs" id="scStatusTabs">
-        <div class="list-tab active" data-status="all" onclick="switchSalesControlStatusTab(this)">全部</div>
-        <div class="list-tab" data-status="待售" onclick="switchSalesControlStatusTab(this)">待售</div>
-        <div class="list-tab" data-status="已保留" onclick="switchSalesControlStatusTab(this)">已保留</div>
-        <div class="list-tab" data-status="已收訂" onclick="switchSalesControlStatusTab(this)">已收訂</div>
-        <div class="list-tab" data-status="已簽約" onclick="switchSalesControlStatusTab(this)">已簽約</div>
-        <div class="list-tab" data-status="退戶" onclick="switchSalesControlStatusTab(this)">退戶</div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+        <button class="btn-mini" id="scViewModeBtn" onclick="toggleSalesControlViewMode()">📋 全部清單</button>
       </div>
-      <div class="list-tabs" id="scBuildingTabs" style="margin-top:8px;">
-        <div class="list-tab active" data-building="all" onclick="switchSalesControlBuildingTab(this)">全部棟別</div>
-        <div class="list-tab" data-building="A" onclick="switchSalesControlBuildingTab(this)">A棟</div>
-        <div class="list-tab" data-building="B" onclick="switchSalesControlBuildingTab(this)">B棟</div>
+
+      <!-- 依戶別瀏覽（預設）：先選棟別 → 再選戶別 → 再選樓層 → 進入編輯 -->
+      <div id="scDrillView">
+        <div class="sc-breadcrumb" id="scBreadcrumb"></div>
+        <div class="sc-drill-grid" id="scDrillGrid"></div>
       </div>
-      <div id="scSummary" style="font-size:12px;color:var(--ink-faint);margin:10px 0;"></div>
-      <div id="salesControlList"></div>
+
+      <!-- 全部清單（舊版篩選清單，保留給需要跨戶別看狀態統計的情境） -->
+      <div id="scListView" class="hidden">
+        <div class="list-tabs" id="scStatusTabs">
+          <div class="list-tab active" data-status="all" onclick="switchSalesControlStatusTab(this)">全部</div>
+          <div class="list-tab" data-status="待售" onclick="switchSalesControlStatusTab(this)">待售</div>
+          <div class="list-tab" data-status="已保留" onclick="switchSalesControlStatusTab(this)">已保留</div>
+          <div class="list-tab" data-status="已收訂" onclick="switchSalesControlStatusTab(this)">已收訂</div>
+          <div class="list-tab" data-status="已簽約" onclick="switchSalesControlStatusTab(this)">已簽約</div>
+          <div class="list-tab" data-status="退戶" onclick="switchSalesControlStatusTab(this)">退戶</div>
+        </div>
+        <div class="list-tabs" id="scBuildingTabs" style="margin-top:8px;">
+          <div class="list-tab active" data-building="all" onclick="switchSalesControlBuildingTab(this)">全部棟別</div>
+          <div class="list-tab" data-building="A" onclick="switchSalesControlBuildingTab(this)">A棟</div>
+          <div class="list-tab" data-building="B" onclick="switchSalesControlBuildingTab(this)">B棟</div>
+        </div>
+        <div id="scSummary" style="font-size:12px;color:var(--ink-faint);margin:10px 0;"></div>
+        <div id="salesControlList"></div>
+      </div>
     </div>
     <button class="fab hidden" id="scAddFab" onclick="openSalesControlModal()">+</button>
   </div>
@@ -828,7 +855,7 @@
       <div class="field"><div class="field-label">型別</div><select class="sel" id="sc_unitType"></select></div>
       <div class="field"><div class="field-label">樓層</div><select class="sel" id="sc_floor"></select></div>
     </div>
-    <div class="field"><div class="field-label">車位編號（選填，例：B1-103）</div><input class="inp" type="text" id="sc_parkingId" placeholder="沒有車位可留空"></div>
+    <div class="field"><div class="field-label">車位編號（選填，例：B1-103）</div><input class="inp" type="text" id="sc_parkingId" placeholder="沒有車位可留空" oninput="updateScPreview()"></div>
     <div class="field"><div class="field-label">狀態</div><select class="sel" id="sc_status" onchange="toggleScStatusFields()">
       <option value="待售">待售</option><option value="已保留">已保留</option>
       <option value="已收訂">已收訂</option><option value="已簽約">已簽約</option>
@@ -836,15 +863,20 @@
     </select></div>
     <div class="field hidden" id="sc_reservedUntilWrap"><div class="field-label">保留至 <span class="req">*</span></div><input class="inp" type="date" id="sc_reservedUntil"></div>
     <div class="field hidden" id="sc_expectedSignWrap"><div class="field-label">預計簽約時間 <span class="req">*</span></div><input class="inp" type="date" id="sc_expectedSignDate"></div>
+    <div class="field"><div class="field-label">房屋開價</div><input class="inp" type="number" id="sc_houseListPrice" placeholder="萬元"></div>
     <div class="field-row">
-      <div class="field"><div class="field-label">房屋開價</div><input class="inp" type="number" id="sc_houseListPrice" placeholder="萬元"></div>
-      <div class="field"><div class="field-label">房屋坪數</div><input class="inp" type="number" id="sc_houseSqft" placeholder="坪"></div>
+      <div class="field"><div class="field-label">房屋售價</div><input class="inp" type="number" id="sc_houseSalePrice" placeholder="萬元" oninput="updateScPreview()"></div>
+      <div class="field"><div class="field-label">車位售價</div><input class="inp" type="number" id="sc_parkingSalePrice" placeholder="萬元" oninput="updateScPreview()"></div>
     </div>
     <div class="field-row">
-      <div class="field"><div class="field-label">房屋售價</div><input class="inp" type="number" id="sc_houseSalePrice" placeholder="萬元"></div>
-      <div class="field"><div class="field-label">車位售價</div><input class="inp" type="number" id="sc_parkingSalePrice" placeholder="萬元"></div>
+      <div class="field"><div class="field-label">房屋坪數（預設帶入）</div><input class="inp" type="number" id="sc_houseSqft" placeholder="坪" oninput="updateScPreview()"></div>
+      <div class="field"><div class="field-label">車位坪數</div><input class="inp" type="number" id="sc_parkingSqft" placeholder="坪" oninput="updateScPreview()"></div>
     </div>
-    <div class="field"><div class="field-label">車位坪數</div><input class="inp" type="number" id="sc_parkingSqft" placeholder="坪"></div>
+    <div class="field" style="background:var(--cream);border-radius:8px;padding:10px 12px;">
+      <div class="field-label">銷售總價（自動計算）</div>
+      <div id="scPreviewTotal" style="font-size:16px;font-weight:700;color:var(--ink);">—</div>
+      <div id="scPreviewAvg" style="font-size:12px;color:var(--ink-faint);margin-top:2px;">—</div>
+    </div>
     <div style="display:flex;gap:10px;margin-top:18px;">
       <button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('salesControlModal')">取消</button>
       <button class="btn-mini primary" id="scSubmitBtn" style="flex:2;padding:14px;font-weight:600;" onclick="submitSalesControlUnit()">建 立 戶 別</button>
@@ -1144,7 +1176,11 @@ var state = {
   myCustomerFilterSales: 'all',
   salesControlRaw: [],
   scStatusFilter: 'all',
-  scBuildingFilter: 'all'
+  scBuildingFilter: 'all',
+  scViewMode: 'drill',
+  scDrillLevel: 'building',
+  scDrillBuilding: null,
+  scDrillUnitType: null
 };
 
 // ★ 吉隆天曜專屬：居住行政區選項對照案場自己的紙本「訪客服務表」，
@@ -3539,17 +3575,34 @@ function scStatusClass(status) {
 
 function renderSalesControl() {
   document.getElementById('scAddFab').classList.toggle('hidden', isSales());
+  state.scDrillLevel = 'building';
+  state.scDrillBuilding = null;
+  state.scDrillUnitType = null;
   loadSalesControlList();
 }
 
 function loadSalesControlList() {
-  var box = document.getElementById('salesControlList');
-  box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">載入中…</div></div>';
   gasGet('getSalesControlList', { lineUserId: state.user.lineUserId }, function(res) {
-    if (!res.ok) { box.innerHTML = '<div style="font-size:12px;color:var(--rust);padding:10px 0;">載入失敗：' + escapeHtml(res.error||'') + '</div>'; return; }
+    if (!res.ok) { showToast('載入失敗：' + (res.error||''),'error'); return; }
     state.salesControlRaw = res.data.results || [];
-    renderSalesControlList();
-  }, function(){ box.innerHTML = '<div style="font-size:12px;color:var(--rust);padding:10px 0;">網路錯誤，請再試一次</div>'; });
+    renderSalesControlView();
+  }, function(){ showToast('網路錯誤，請再試一次','error'); });
+}
+
+// 主管反應原本的清單排版太難找了，改成主要用「先選棟別→再選戶別→
+// 再選樓層」的方式瀏覽（比較貼近紙本銷控表的使用習慣），原本的狀態/
+// 棟別篩選清單保留成「全部清單」模式，需要跨戶別看統計時還是找得到
+function toggleSalesControlViewMode() {
+  state.scViewMode = state.scViewMode === 'drill' ? 'list' : 'drill';
+  document.getElementById('scViewModeBtn').textContent = state.scViewMode === 'drill' ? '📋 全部清單' : '🏢 依戶別瀏覽';
+  renderSalesControlView();
+}
+
+function renderSalesControlView() {
+  var isDrill = state.scViewMode === 'drill';
+  document.getElementById('scDrillView').classList.toggle('hidden', !isDrill);
+  document.getElementById('scListView').classList.toggle('hidden', isDrill);
+  if (isDrill) renderScDrill(); else renderSalesControlList();
 }
 
 function switchSalesControlStatusTab(el) {
@@ -3563,6 +3616,83 @@ function switchSalesControlBuildingTab(el) {
   el.classList.add('active');
   state.scBuildingFilter = el.dataset.building;
   renderSalesControlList();
+}
+
+// 依戶別瀏覽：先選棟別 → 再選戶別 → 再選樓層 → 點樓層直接進去編輯，
+// 比較貼近主管習慣看紙本銷控表（棟別/戶別/樓層）的方式，不用在一長串
+// 105 戶的清單裡面找
+function renderScDrill() {
+  if (state.scDrillLevel === 'unittype') return renderScDrillUnitTypeLevel();
+  if (state.scDrillLevel === 'floor') return renderScDrillFloorLevel();
+  return renderScDrillBuildingLevel();
+}
+
+function renderScDrillBuildingLevel() {
+  document.getElementById('scBreadcrumb').innerHTML = '選擇棟別';
+  var grid = document.getElementById('scDrillGrid');
+  grid.style.gridTemplateColumns = 'repeat(2,1fr)';
+  grid.innerHTML = ['A','B'].map(function(b) {
+    var units = state.salesControlRaw.filter(function(u){ return u.building === b; });
+    var forsale = units.filter(function(u){ return u.status === '待售'; }).length;
+    return '<div class="sc-drill-btn" onclick="scDrillToBuilding(\'' + b + '\')">' +
+      '<div class="sc-drill-btn-title">' + b + '棟</div>' +
+      '<div class="sc-drill-btn-sub">共 ' + units.length + ' 戶　待售 ' + forsale + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function scDrillToBuilding(b) {
+  state.scDrillBuilding = b;
+  state.scDrillLevel = 'unittype';
+  renderScDrill();
+}
+
+function scDrillBack(level) {
+  state.scDrillLevel = level;
+  renderScDrill();
+}
+
+function renderScDrillUnitTypeLevel() {
+  var b = state.scDrillBuilding;
+  document.getElementById('scBreadcrumb').innerHTML =
+    '<a href="javascript:void(0)" onclick="scDrillBack(\'building\')">‹ 選擇棟別</a>　›　' + b + '棟，選擇戶別';
+  var units = state.salesControlRaw.filter(function(u){ return u.building === b; });
+  var types = [];
+  units.forEach(function(u){ if (types.indexOf(u.unit_type) < 0) types.push(u.unit_type); });
+  types.sort();
+  var grid = document.getElementById('scDrillGrid');
+  grid.style.gridTemplateColumns = 'repeat(3,1fr)';
+  grid.innerHTML = types.map(function(t) {
+    var typeUnits = units.filter(function(u){ return u.unit_type === t; });
+    var forsale = typeUnits.filter(function(u){ return u.status === '待售'; }).length;
+    return '<div class="sc-drill-btn" onclick="scDrillToUnitType(\'' + t + '\')">' +
+      '<div class="sc-drill-btn-title">' + b + t + '</div>' +
+      '<div class="sc-drill-btn-sub">共 ' + typeUnits.length + ' 戶　待售 ' + forsale + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function scDrillToUnitType(t) {
+  state.scDrillUnitType = t;
+  state.scDrillLevel = 'floor';
+  renderScDrill();
+}
+
+function renderScDrillFloorLevel() {
+  var b = state.scDrillBuilding, t = state.scDrillUnitType;
+  document.getElementById('scBreadcrumb').innerHTML =
+    '<a href="javascript:void(0)" onclick="scDrillBack(\'building\')">‹ 選擇棟別</a>　›　' +
+    '<a href="javascript:void(0)" onclick="scDrillBack(\'unittype\')">' + b + '棟</a>　›　' + b + t + '，選擇樓層';
+  var units = state.salesControlRaw.filter(function(u){ return u.building === b && u.unit_type === t; });
+  units.sort(function(a,c){ return Number(a.floor) - Number(c.floor); });
+  var grid = document.getElementById('scDrillGrid');
+  grid.style.gridTemplateColumns = 'repeat(4,1fr)';
+  grid.innerHTML = units.map(function(u) {
+    return '<div class="sc-floor-btn ' + scStatusClass(u.status) + '" onclick="openSalesControlModal(\'' + escapeHtml(u.unit_id) + '\')">' +
+      u.floor + 'F' + (u.category==='店面' ? '（店面）' : '') +
+      '<span class="sc-floor-status">' + escapeHtml(u.status) + '</span>' +
+    '</div>';
+  }).join('');
 }
 
 function renderSalesControlList() {
@@ -3671,7 +3801,28 @@ function openSalesControlModal(unitId) {
     ['sc_houseListPrice','sc_houseSqft','sc_houseSalePrice','sc_parkingSalePrice','sc_parkingSqft'].forEach(function(id){ document.getElementById(id).value = ''; });
   }
   toggleScStatusFields();
+  updateScPreview();
   openModal('salesControlModal');
+}
+
+// 跟後端 computeSalesControlDerived_ 同一套算法，讓使用者填價格/坪數
+// 的時候就能即時看到銷售總價/平均單價，不用存檔後才看得到。實際存檔
+// 的計算結果還是以後端算的為準，這裡純粹是輸入當下的預覽
+function updateScPreview() {
+  var houseSalePrice = Number(document.getElementById('sc_houseSalePrice').value) || 0;
+  var houseSqft = Number(document.getElementById('sc_houseSqft').value) || 0;
+  var parkingSalePrice = Number(document.getElementById('sc_parkingSalePrice').value) || 0;
+  var parkingSqft = Number(document.getElementById('sc_parkingSqft').value) || 0;
+  var hasParking = !!document.getElementById('sc_parkingId').value.trim();
+
+  var totalSalePrice = houseSalePrice + (hasParking ? parkingSalePrice : 0);
+  var totalSqft = houseSqft + (hasParking ? parkingSqft : 0);
+  var avgBase = hasParking ? totalSalePrice : houseSalePrice;
+  var avgDivisor = hasParking ? totalSqft : houseSqft;
+  var avgUnitPrice = avgDivisor ? Math.round((avgBase / avgDivisor) * 100) / 100 : 0;
+
+  document.getElementById('scPreviewTotal').textContent = totalSalePrice ? totalSalePrice + ' 萬（' + totalSqft + ' 坪）' : '—';
+  document.getElementById('scPreviewAvg').textContent = avgUnitPrice ? '平均單價：' + avgUnitPrice + ' 萬/坪' + (hasParking ? '（含車位坪數）' : '') : '—';
 }
 
 function submitSalesControlUnit() {
