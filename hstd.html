@@ -13,16 +13,129 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
+  /* ══ 華雄天地 Lakeside Design Tokens ══
+     以澄清湖畔的湖水／天空意象為底：霧白背景、深湖藍為主色、湖水藍
+     為互動強調色、香檳金只做極少量的尊榮點綴（VIP／成交／保留戶）。
+     沿用既有變數命名（--cream/--ink/--teal…）只調整色值本身，讓全站
+     既有元件不用改一行 CSS 就套上新色系；新增的語意化命名
+     （--primary/--lake/--muted…）是給後續分階段重構元件時使用的別名，
+     現階段內容跟舊命名的值完全一致，不會造成任何視覺落差 */
   :root {
-    --cream:#FAF8F4; --ink:#1A1A2E; --ink-light:#4A4A6A; --ink-faint:#8A8AA0;
-    --gold:#C9A84C; --gold-soft:#F4EBC8; --rust:#C0392B; --rust-soft:#FBEAE7;
-    --teal:#1D9E75; --teal-soft:#E1F5EE; --surface:#FFFFFF;
-    --border:#E8E4DC; --border-strong:#D5CFC0;
+    --cream:#F5F8FA; --ink:#123B5D; --ink-light:#3F6478; --ink-faint:#6C7F89;
+    --gold:#B9A16B; --gold-soft:#F4EFE4; --rust:#C85C5C; --rust-soft:#F8E9E9;
+    --teal:#24789A; --teal-soft:#DCEEF3; --surface:#FFFFFF;
+    --border:#DCE6EA; --border-strong:#C3D2D8;
+
+    /* 語意化別名（供之後分階段重構元件使用，跟 .ui-* 元件庫共用同一套
+       命名，值目前對齊舊變數，不會造成視覺落差） */
+    --background: var(--cream);
+    --bg: var(--cream);
+    --foreground: var(--ink);
+    --text: #152936;
+    --text-muted: var(--ink-faint);
+    --primary: var(--ink);
+    --primary-hover: #194E73;
+    --primary-foreground: #FFFFFF;
+    --secondary: var(--teal);
+    --secondary-foreground: #FFFFFF;
+    --lake: var(--teal);
+    --lake-light: #8BBBC8;
+    --lake-soft: var(--teal-soft);
+    --surface-soft: #F8FBFC;
+    --surface-glass: rgba(255,255,255,.82);
+    --muted: #EDF3F5;
+    --muted-foreground: var(--ink-faint);
+    --accent: #8BBBC8;
+    --success: #3A8B73;
+    --warning: #D3A653;
+    --danger: var(--rust);
+    --radius: 14px;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --shadow-sm: 0 1px 3px rgba(18,59,93,.06);
+    --shadow-md: 0 6px 20px rgba(18,59,93,.08);
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
   html,body{width:100%;height:100%;overflow:hidden;}
   body{background:var(--cream);font-family:'Noto Sans TC',sans-serif;font-weight:300;color:var(--ink);}
   body.font-large{zoom:1.25;}
+
+  /* ══════════════════════════════════════════════════════════════
+     .ui-* 元件庫（Lakeside Design System — Phase 2）
+     以 shadcn/ui 的視覺語言（Card／Button／Badge／Input…）當參考，用
+     純 HTML/CSS/Vanilla JS 實作，不引入 React 或任何建置工具。這些
+     class 目前是「新增」的，尚未套用在既有畫面上——之後每個畫面的
+     改版都是在既有 class 後面「加」這些 class（例如
+     class="feature-card ui-card"），不會刪掉任何既有 class/id，
+     JS 依賴的 selector 完全不受影響。
+     ══════════════════════════════════════════════════════════════ */
+
+  /* Card */
+  .ui-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);}
+  .ui-card-soft{background:var(--surface-soft);border:1px solid var(--border);border-radius:var(--radius-lg);}
+  .ui-card-pad{padding:16px;}
+  .ui-card-action{cursor:pointer;transition:box-shadow 150ms ease,transform 150ms ease;}
+  .ui-card-action:active{transform:scale(0.98);box-shadow:var(--shadow-sm);}
+
+  /* Button */
+  .ui-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 18px;border-radius:var(--radius-md);border:1.5px solid transparent;font-family:'Noto Sans TC',sans-serif;font-size:14px;font-weight:500;cursor:pointer;transition:background 150ms ease,border-color 150ms ease,opacity 150ms ease,transform 150ms ease;}
+  .ui-button:active{transform:scale(0.98);}
+  .ui-button:disabled{opacity:0.5;cursor:not-allowed;transform:none;}
+  .ui-button-primary{background:var(--primary);color:#fff;}
+  .ui-button-primary:hover{background:var(--primary-hover);}
+  .ui-button-secondary{background:#fff;color:var(--primary);border-color:var(--border);}
+  .ui-button-secondary:hover{border-color:var(--lake);}
+  .ui-button-ghost{background:transparent;color:var(--text-muted);}
+  .ui-button-ghost:hover{background:var(--muted);color:var(--text);}
+  .ui-button-danger{background:var(--danger);color:#fff;}
+
+  /* Badge */
+  .ui-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;line-height:1.6;}
+  .ui-badge-neutral{background:var(--muted);color:var(--text-muted);}
+  .ui-badge-lake{background:var(--lake-soft);color:var(--lake);}
+  .ui-badge-gold{background:var(--gold-soft);color:#8A6D3F;}
+  .ui-badge-success{background:#E3F1EC;color:var(--success);}
+  .ui-badge-warning{background:var(--gold-soft);color:var(--warning);}
+  .ui-badge-danger{background:var(--rust-soft);color:var(--danger);}
+
+  /* Input / Select */
+  .ui-input,.ui-select{width:100%;min-height:44px;padding:10px 14px;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-md);font-family:'Noto Sans TC',sans-serif;font-size:14px;color:var(--text);transition:border-color 150ms ease;}
+  .ui-input:focus,.ui-select:focus{outline:none;border-color:var(--lake);}
+  .ui-input::placeholder{color:var(--text-muted);}
+  .ui-select{-webkit-appearance:none;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2324789A' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
+
+  /* Dialog / Sheet（跟既有 .modal-mask/.modal 是同一種疊層邏輯，只是
+     换一套視覺，可以之後在既有 modal 上加這些 class 使用） */
+  .ui-dialog-mask{position:fixed;inset:0;background:rgba(21,41,54,0.4);z-index:200;}
+  .ui-dialog{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);}
+  .ui-sheet{background:var(--surface);border-radius:var(--radius-lg) var(--radius-lg) 0 0;box-shadow:0 -8px 30px rgba(18,59,93,.12);}
+
+  /* Tabs */
+  .ui-tabs{display:flex;gap:4px;background:var(--muted);border-radius:var(--radius-md);padding:4px;}
+  .ui-tab{flex:1;text-align:center;padding:8px;border-radius:8px;font-size:13px;color:var(--text-muted);cursor:pointer;transition:background 150ms ease,color 150ms ease;}
+  .ui-tab.active{background:var(--surface);color:var(--primary);font-weight:600;box-shadow:var(--shadow-sm);}
+
+  /* Table */
+  .ui-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .ui-table th{text-align:left;padding:10px 12px;color:var(--text-muted);font-weight:500;border-bottom:1px solid var(--border);}
+  .ui-table td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text);}
+  .ui-table tr:last-child td{border-bottom:none;}
+  /* Mobile：table 轉成 card/list，避免橫向滑動 */
+  @media (max-width:640px){
+    .ui-table-responsive thead{display:none;}
+    .ui-table-responsive,.ui-table-responsive tbody,.ui-table-responsive tr,.ui-table-responsive td{display:block;width:100%;}
+    .ui-table-responsive tr{margin-bottom:10px;border:1px solid var(--border);border-radius:var(--radius-md);padding:8px 12px;}
+    .ui-table-responsive td{border-bottom:none;padding:4px 0;display:flex;justify-content:space-between;gap:12px;}
+    .ui-table-responsive td::before{content:attr(data-label);color:var(--text-muted);font-weight:500;}
+  }
+
+  /* Skeleton */
+  .ui-skeleton{background:linear-gradient(90deg,var(--muted) 25%,#E4EDF0 37%,var(--muted) 63%);background-size:400% 100%;animation:ui-skeleton-shine 1.4s ease infinite;border-radius:var(--radius-sm);}
+  @keyframes ui-skeleton-shine{0%{background-position:100% 50%;}100%{background-position:0 50%;}}
+
+  /* Toast */
+  .ui-toast{position:fixed;left:50%;bottom:max(24px,env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--primary);color:#fff;padding:12px 20px;border-radius:var(--radius-md);font-size:13px;box-shadow:var(--shadow-md);z-index:400;}
 
   /* ── Screen 系統：fixed 全螢幕疊層 ── */
   .screen{
@@ -53,40 +166,51 @@
   }
 
   /* Loading */
-  #loadingScreen{display:none;flex-direction:column;align-items:center;justify-content:center;background:#F2EAD8 url('assets/login-bg.webp') center/cover no-repeat;color:#4A3A24;}
+  #loadingScreen{display:none;flex-direction:column;align-items:center;justify-content:center;background:var(--bg,#F5F8FA) url('assets/login-bg.webp') center/cover no-repeat;color:var(--primary);position:relative;}
+  #loadingScreen::before{content:'';position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(165deg,#123B5D,#24789A 55%,#4D9DB8);
+    mix-blend-mode:color;opacity:0.85;}
+  #loadingScreen>*{position:relative;z-index:1;}
   #loadingScreen.active{display:flex;}
-  .spinner{width:32px;height:32px;border:3px solid rgba(139,110,66,0.2);border-top-color:#8A6D3F;border-radius:50%;animation:spin 0.7s linear infinite;}
+  .spinner{width:32px;height:32px;border:3px solid var(--lake-soft);border-top-color:var(--lake);border-radius:50%;animation:spin 0.7s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
-  .loading-text{margin-top:16px;font-size:10px;letter-spacing:4px;color:rgba(74,58,36,0.5);}
+  .loading-text{margin-top:16px;font-size:10px;letter-spacing:4px;color:rgba(21,41,54,0.55);}
 
   /* Login */
-  #loginScreen{background:#F2EAD8 url('assets/login-bg.webp') center/cover no-repeat;display:none;flex-direction:column;padding:0 28px;padding-top:max(60px,env(safe-area-inset-top));padding-bottom:max(40px,env(safe-area-inset-bottom));min-height:100%;position:relative;}
-  #loginScreen::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.55),rgba(255,255,255,0.15) 40%,rgba(255,255,255,0.55));pointer-events:none;}
+  #loginScreen{background:var(--bg,#F5F8FA) url('assets/login-bg.webp') center/cover no-repeat;display:none;flex-direction:column;padding:0 28px;padding-top:max(60px,env(safe-area-inset-top));padding-bottom:max(40px,env(safe-area-inset-bottom));min-height:100%;position:relative;}
+  /* 原本的背景圖是暖金色調的玻璃水紋。第一版用半透明淺藍疊在暖色圖片
+     上，藍＋金會混出濁綠色，所以改用 mix-blend-mode:color——這個混合
+     模式只取代圖片的色相/飽和度、保留原本明暗層次，才能把「金」乾淨
+     地換成「湖水藍」，不會產生中間色 */
+  #loginScreen::before{content:'';position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(165deg,#123B5D,#24789A 55%,#4D9DB8);
+    mix-blend-mode:color;opacity:0.85;}
   #loginScreen>*{position:relative;z-index:1;}
   #loginScreen.active{display:flex;}
   .login-logo{display:flex;align-items:center;gap:16px;margin-bottom:40px;}
   .login-logo img{width:60px;height:60px;flex-shrink:0;object-fit:contain;}
   .login-logo-text{display:flex;flex-direction:column;gap:3px;}
-  .login-brand{font-family:'Noto Serif TC',serif;font-size:19px;font-weight:700;color:#4A3A24;letter-spacing:1px;}
-  .login-brand-en{font-size:10px;font-weight:400;color:rgba(74,58,36,0.55);letter-spacing:2.5px;}
-  .login-tag{font-size:10px;letter-spacing:3px;color:#A8875A;margin-bottom:10px;}
-  .login-title{font-family:'Noto Serif TC',serif;font-size:30px;font-weight:700;color:#4A3A24;line-height:1.3;margin-bottom:8px;}
-  .login-subtitle{font-size:13px;color:rgba(74,58,36,0.5);margin-bottom:8px;}
-  .login-subtitle-en{font-size:11px;color:rgba(74,58,36,0.5);line-height:1.5;margin-bottom:28px;}
-  .login-divider{height:1px;background:rgba(74,58,36,0.12);margin-bottom:28px;}
-  .login-user{display:flex;align-items:center;gap:10px;font-size:13px;color:rgba(74,58,36,0.6);margin-bottom:20px;min-height:24px;}
-  .login-user-avatar{width:28px;height:28px;border-radius:50%;background:rgba(168,135,90,0.2);color:#8A6D3F;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;}
+  .login-brand{font-family:'Noto Serif TC',serif;font-size:19px;font-weight:700;color:var(--primary,#123B5D);letter-spacing:1px;}
+  .login-brand-en{font-size:10px;font-weight:400;color:rgba(21,41,54,0.55);letter-spacing:2.5px;}
+  .login-tag{font-size:10px;letter-spacing:3px;color:var(--gold,#B9A16B);margin-bottom:10px;}
+  .login-title{font-family:'Noto Serif TC',serif;font-size:30px;font-weight:700;color:var(--primary,#123B5D);line-height:1.3;margin-bottom:8px;}
+  .login-subtitle{font-size:13px;color:rgba(21,41,54,0.55);margin-bottom:8px;}
+  .login-subtitle-en{font-size:11px;color:rgba(21,41,54,0.5);line-height:1.5;margin-bottom:28px;}
+  .login-divider{height:1px;background:rgba(108,127,137,0.25);margin-bottom:28px;}
+  .login-user{display:flex;align-items:center;gap:10px;font-size:13px;color:rgba(21,41,54,0.65);margin-bottom:20px;min-height:24px;}
+  .login-user-avatar{width:28px;height:28px;border-radius:50%;background:var(--lake-soft,#DCEEF3);color:var(--lake,#24789A);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;}
   .login-project-wrap{margin-bottom:14px;}
-  .login-project-label{font-size:12px;color:rgba(74,58,36,0.5);margin-bottom:6px;}
-  .login-project-sel{width:100%;padding:13px 18px;background:rgba(255,255,255,0.55);border:1.5px solid rgba(139,110,66,0.25);border-radius:10px;font-family:'Noto Sans TC',sans-serif;font-size:14px;color:rgba(74,58,36,0.85);-webkit-appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238A6D3F' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
-  .login-project-sel option{background:#fff;color:#4A3A24;}
-  .login-input{width:100%;padding:15px 18px;background:rgba(255,255,255,0.55);border:1.5px solid rgba(139,110,66,0.25);border-radius:10px;font-family:'Noto Sans TC',sans-serif;font-size:16px;font-weight:400;color:#4A3A24;margin-bottom:14px;-webkit-appearance:none;transition:border-color 0.2s;}
-  .login-input:focus{outline:none;border-color:#8A6D3F;background:rgba(255,255,255,0.75);}
-  .login-input::placeholder{color:rgba(74,58,36,0.4);}
-  .login-btn{width:100%;padding:16px;background:#8A6D3F;border:none;border-radius:10px;font-family:'Noto Serif TC',serif;font-size:15px;font-weight:700;color:#fff;letter-spacing:2px;cursor:pointer;transition:opacity 0.2s,transform 0.1s;margin-bottom:12px;}
+  .login-project-label{font-size:12px;color:rgba(21,41,54,0.55);margin-bottom:6px;}
+  .login-project-sel{width:100%;padding:13px 18px;background:rgba(255,255,255,0.65);border:1.5px solid rgba(36,120,154,0.28);border-radius:10px;font-family:'Noto Sans TC',sans-serif;font-size:14px;color:rgba(21,41,54,0.9);-webkit-appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2324789A' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
+  .login-project-sel option{background:#fff;color:var(--primary,#123B5D);}
+  .login-input{width:100%;padding:15px 18px;background:rgba(255,255,255,0.65);border:1.5px solid rgba(36,120,154,0.28);border-radius:10px;font-family:'Noto Sans TC',sans-serif;font-size:16px;font-weight:400;color:var(--primary,#123B5D);margin-bottom:14px;-webkit-appearance:none;transition:border-color 0.2s;}
+  .login-input:focus{outline:none;border-color:var(--lake,#24789A);background:rgba(255,255,255,0.85);}
+  .login-input::placeholder{color:rgba(21,41,54,0.4);}
+  .login-btn{width:100%;padding:16px;background:var(--primary,#123B5D);border:none;border-radius:10px;font-family:'Noto Serif TC',serif;font-size:15px;font-weight:700;color:#fff;letter-spacing:2px;cursor:pointer;transition:opacity 0.2s,transform 0.1s,background 0.2s;margin-bottom:12px;}
   .login-btn:active{transform:scale(0.98);opacity:0.9;}
+  .login-btn:hover{background:var(--primary-hover,#194E73);}
   .login-btn:disabled{opacity:0.5;cursor:not-allowed;}
-  .login-error{font-size:13px;color:#e74c3c;min-height:20px;text-align:center;transition:opacity 0.2s;opacity:0;}
+  .login-error{font-size:13px;color:var(--danger,#C85C5C);min-height:20px;text-align:center;transition:opacity 0.2s;opacity:0;}
   .login-error.show{opacity:1;}
 
   /* Pending */
@@ -111,24 +235,29 @@
   .header-title{font-family:'Noto Serif TC',serif;font-size:16px;font-weight:600;color:#4A3A24;flex:1;text-align:center;}
 
   /* Home */
-  .home-hero{background:#F2EAD8 url('assets/login-bg.webp') center/cover no-repeat;position:relative;padding:0 20px 26px;padding-top:max(16px,env(safe-area-inset-top));}
-  .home-hero::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.5),rgba(255,255,255,0.2) 60%,rgba(255,255,255,0.55));pointer-events:none;}
+  .home-hero{background:var(--bg,#F5F8FA) url('assets/login-bg.webp') center/cover no-repeat;position:relative;padding:0 20px 26px;padding-top:max(16px,env(safe-area-inset-top));}
+  /* 跟 Login 同一張背景圖、同一套修正：mix-blend-mode:color 把暖金色
+     圖片乾淨地換成湖水藍，半透明疊加會混出濁綠色 */
+  .home-hero::before{content:'';position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(165deg,#123B5D,#24789A 55%,#4D9DB8);
+    mix-blend-mode:color;opacity:0.85;}
   .home-hero>*{position:relative;z-index:1;}
-  .home-tag{font-size:9px;letter-spacing:3px;color:#A8875A;margin-bottom:8px;padding-top:16px;display:flex;align-items:center;gap:8px;}
+  .home-tag{font-size:9px;letter-spacing:3px;color:var(--gold);margin-bottom:8px;padding-top:16px;display:flex;align-items:center;gap:8px;}
   .home-tag img{width:22px;height:22px;object-fit:contain;}
-  .home-greeting{font-family:'Noto Serif TC',serif;font-size:22px;font-weight:700;color:#4A3A24;margin-bottom:6px;}
-  .home-context{display:flex;align-items:center;gap:8px;font-size:12px;color:rgba(74,58,36,0.55);}
+  .home-greeting{font-family:'Noto Serif TC',serif;font-size:22px;font-weight:700;color:var(--primary);margin-bottom:6px;}
+  .home-context{display:flex;align-items:center;gap:8px;font-size:12px;color:rgba(21,41,54,0.6);}
   .role-badge{display:inline-block;padding:2px 9px;border-radius:10px;font-size:10px;font-weight:500;letter-spacing:0.5px;}
-  .role-badge.sales{background:rgba(139,110,66,0.18);color:#8A6D3F;}
-  .role-badge.manager{background:rgba(29,158,117,0.2);color:var(--teal);}
-  .role-badge.admin{background:rgba(192,57,43,0.2);color:#e74c3c;}
+  .role-badge.sales{background:var(--gold-soft);color:#8A6D3F;}
+  .role-badge.manager{background:var(--lake-soft);color:var(--lake);}
+  .role-badge.admin{background:var(--rust-soft);color:var(--danger);}
   .home-content{padding:16px;}
   .section-tag{font-size:10px;letter-spacing:2.5px;color:var(--ink-faint);margin-bottom:12px;margin-top:4px;}
   .feature-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
-  .feature-card{background:var(--surface);border-radius:12px;border:1px solid var(--border);padding:16px 14px;cursor:pointer;position:relative;overflow:hidden;transition:transform 0.15s;box-shadow:0 2px 6px rgba(26,26,46,0.05);}
+  .feature-card{background:var(--surface);border-radius:var(--radius-lg,14px);border:1px solid var(--border);padding:16px 14px;cursor:pointer;position:relative;overflow:hidden;transition:transform 150ms ease,box-shadow 150ms ease;box-shadow:var(--shadow-sm);}
   .feature-card:active{transform:scale(0.97);}
-  .feature-card-icon{font-size:24px;margin-bottom:8px;}
-  .feature-card-title{font-family:'Noto Serif TC',serif;font-size:14px;font-weight:600;margin-bottom:3px;}
+  .feature-card-icon{width:36px;height:36px;border-radius:10px;background:var(--lake-soft);color:var(--lake);display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
+  .feature-card-icon svg{width:19px;height:19px;}
+  .feature-card-title{font-family:'Noto Serif TC',serif;font-size:14px;font-weight:600;margin-bottom:3px;color:var(--text);}
   .feature-card-desc{font-size:11px;color:var(--ink-faint);}
   .feature-card.task::after,.feature-card.maint::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;}
   .feature-card.task::after{background:var(--gold);}
@@ -136,8 +265,13 @@
   .feature-badge{position:absolute;top:10px;right:10px;background:var(--rust);color:#fff;font-size:10px;font-weight:600;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px;}
   .feature-badge.gold{background:var(--gold);color:var(--ink);}
   .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
-  .stat-card{background:var(--surface);border-radius:10px;border:1px solid var(--border);padding:14px 10px;text-align:center;}
-  .stat-num{font-family:'Noto Serif TC',serif;font-size:26px;font-weight:700;}
+  .stat-card{background:var(--surface);border-radius:var(--radius-lg,14px);border:1px solid var(--border);box-shadow:var(--shadow-sm);padding:16px 10px;text-align:center;}
+  .stat-icon{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;}
+  .stat-icon svg{width:16px;height:16px;}
+  .stat-icon-lake{background:var(--lake-soft);color:var(--lake);}
+  .stat-icon-gold{background:var(--gold-soft);color:#8A6D3F;}
+  .stat-icon-success{background:#E3F1EC;color:var(--success);}
+  .stat-num{font-family:'Noto Serif TC',serif;font-size:26px;font-weight:700;color:var(--text);}
   .stat-label{font-size:10px;color:var(--ink-faint);letter-spacing:1px;margin-top:3px;}
   .logout-btn{width:100%;padding:14px;background:transparent;border:1px solid var(--border-strong);border-radius:10px;font-family:'Noto Sans TC',sans-serif;font-size:13px;color:var(--ink-faint);cursor:pointer;margin-top:10px;}
 
@@ -417,55 +551,55 @@
       <div class="section-tag">主要功能</div>
       <div class="feature-grid">
         <div class="feature-card" onclick="route('#/customer')">
-          <div class="feature-card-icon">👤</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20c0-3.5 2.5-6 5.5-6s5.5 2.5 5.5 6"/><path d="M18 8v5M15.5 10.5h5"/></svg></div>
           <div class="feature-card-title">客戶登記</div>
           <div class="feature-card-desc">新增訪客資料</div>
         </div>
         <div class="feature-card" onclick="route('#/mycustomers')" style="border-top:2px solid var(--teal);">
-          <div class="feature-card-icon">📁</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a1.5 1.5 0 0 1 1.5-1.5h4l2 2h8A1.5 1.5 0 0 1 20 9v8A1.5 1.5 0 0 1 18.5 18.5h-15A1.5 1.5 0 0 1 3 17V7Z"/></svg></div>
           <div class="feature-card-title">我的客戶</div>
           <div class="feature-card-desc" id="myCustomerDesc">全部歷史紀錄</div>
         </div>
         <div class="feature-card" onclick="route('#/reservation')" style="border-top:2px solid var(--gold);">
-          <div class="feature-card-icon">📆</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg></div>
           <div class="feature-card-title">預約賞屋</div>
           <div class="feature-card-desc" id="reservationDesc">尚無待到訪預約</div>
         </div>
         <div class="feature-card task" onclick="route('#/task')">
-          <div class="feature-card-icon">📋</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="4.5" width="13" height="16" rx="1.8"/><rect x="9" y="3" width="6" height="3" rx="1"/><path d="M9 11h6M9 14.5h6M9 18h4"/></svg></div>
           <div class="feature-card-title">任務系統</div>
           <div class="feature-card-desc" id="taskCountDesc">查看待辦</div>
           <span class="feature-badge hidden" id="taskBadge">0</span>
         </div>
         <div class="feature-card" onclick="route('#/weeklypick')" style="border-top:2px solid var(--rust);">
-          <div class="feature-card-icon">⭐</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l2.6 5.4 5.9.7-4.4 4.1 1.1 5.9-5.2-2.9-5.2 2.9 1.1-5.9-4.4-4.1 5.9-.7Z"/></svg></div>
           <div class="feature-card-title">本週有望客</div>
           <div class="feature-card-desc">勾選並送出給主管</div>
         </div>
         <div class="feature-card" onclick="route('#/salescontrol')" style="border-top:2px solid var(--teal);">
-          <div class="feature-card-icon">🏢</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3.5" width="10" height="17" rx="1"/><path d="M9 7.5h2M9 11h2M9 14.5h2M15 10v10.5h4V13a1 1 0 0 0-1-1h-3Z"/></svg></div>
           <div class="feature-card-title">銷售控制表</div>
           <div class="feature-card-desc">全案戶別銷控狀態</div>
         </div>
         <div class="feature-card hidden" id="reportFeature" onclick="route('#/report')">
           <span class="feature-badge gold">主管</span>
-          <div class="feature-card-icon">📊</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M12 20V4M20 20v-7"/></svg></div>
           <div class="feature-card-title">銷售日報</div>
           <div class="feature-card-desc">提交今日業績</div>
         </div>
         <div class="feature-card maint" onclick="route('#/maint')">
-          <div class="feature-card-icon">🔧</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2-2Z"/></svg></div>
           <div class="feature-card-title">維修通報</div>
           <div class="feature-card-desc">案場問題回報</div>
         </div>
         <div class="feature-card hidden" id="userMgmtFeature" onclick="route('#/users')" style="border-top:2px solid var(--ink);">
           <span class="feature-badge" style="background:var(--ink-light);">管理</span>
-          <div class="feature-card-icon">👥</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c0-3 2.5-5.3 5.5-5.3s5.5 2.3 5.5 5.3"/><circle cx="17" cy="8.5" r="2.4"/><path d="M15.5 13.3c2.5.3 4.5 2.3 4.5 5.2"/></svg></div>
           <div class="feature-card-title">使用者管理</div>
           <div class="feature-card-desc" id="pendingCountDesc">審核新成員</div>
         </div>
         <div class="feature-card" onclick="route('#/leave')" style="border-top:2px solid var(--gold);grid-column:1/-1;">
-          <div class="feature-card-icon">📅</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><circle cx="8.5" cy="14" r="1"/><circle cx="12" cy="14" r="1"/><circle cx="15.5" cy="14" r="1"/></svg></div>
           <div class="feature-card-title">假表排班</div>
           <div class="feature-card-desc" id="todayLeaveDesc">今日休假：載入中…</div>
         </div>
@@ -489,9 +623,9 @@
       <div class="section-tag"><span id="statCumulativePrefix">累積接待共</span> <span id="statCumulative">—</span> 組</div>
       <div class="section-tag" style="margin-top:6px;">本月接待共 <span id="statTotal">—</span> 組</div>
       <div class="stat-grid">
-        <div class="stat-card"><div class="stat-num" id="statFirst">—</div><div class="stat-label">初訪</div></div>
-        <div class="stat-card"><div class="stat-num" id="statRevisit">—</div><div class="stat-label">回籠</div></div>
-        <div class="stat-card"><div class="stat-num" id="statDeal">—</div><div class="stat-label">成交</div></div>
+        <div class="stat-card"><div class="stat-icon stat-icon-lake"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.3"/><path d="M5.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5"/></svg></div><div class="stat-num" id="statFirst">—</div><div class="stat-label">初訪</div></div>
+        <div class="stat-card"><div class="stat-icon stat-icon-gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 13.6-5.7L20 8M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13.6 5.7L4 16M4 20v-4h4"/></svg></div><div class="stat-num" id="statRevisit">—</div><div class="stat-label">回籠</div></div>
+        <div class="stat-card"><div class="stat-icon stat-icon-success"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M8.3 12.3l2.4 2.4 5-5.4"/></svg></div><div class="stat-num" id="statDeal">—</div><div class="stat-label">成交</div></div>
       </div>
       <!-- 本週各業務接待統計（主管/admin 才顯示）：初訪／回籠／成交
            三項都拆開顯示，方便看每個業務這週的接待跟成交狀況 -->
