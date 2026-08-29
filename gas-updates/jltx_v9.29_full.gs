@@ -1,5 +1,16 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.28
+//  龍登 CRM — 吉隆天曜專用版 v9.29
+//  v9.29 變更：修正銷售控制表儲存修改一直跳「未知 action:
+//  updateSalesControlUnit」的問題。★ 這是真正的程式碼漏洞，不是部署
+//  沒更新的問題：前端的 gasPost()（見 jltx.html）為了避免瀏覽器 CORS
+//  預檢，實際上是把 POST 偽裝成帶 payload 參數的 GET 請求送出，所以
+//  gasPost() 呼叫的每一個 action，都一定要同時出現在 doGet() 的
+//  switch 裡才會被接到——只放在 doPost() 裡是接不到的，因為請求其實
+//  從來沒有真的用 POST 方法送達。之前新增 appendSalesControlUnit／
+//  updateSalesControlUnit／deleteSalesControlUnit／
+//  updateCustomerDealStage 時只加進了 doPost()，這次補進 doGet()。
+//  順手用腳本比對過 jltx.html 裡所有 gasPost() 呼叫的 action，確認
+//  現在每一個都在 doGet() 裡有對應的 case，不會再有漏網之魚
 //  v9.28 變更：CONFIG.INDUSTRIES 把「公教軍警」拆成「公教」／「軍人」／
 //  「警察」三個獨立選項（主管反應軍人跟警察是不同族群，混在一起不好
 //  統計）。★ 這個陣列只是 Config_Options 分頁第一次建立時的種子資料，
@@ -775,6 +786,12 @@ function doGet(e) {
         }));
       case 'getSalesControlList':
         return jsonResponse(getSalesControlList(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
+      case 'appendSalesControlUnit':
+        return jsonResponse(appendSalesControlUnit(payload));
+      case 'updateSalesControlUnit':
+        return jsonResponse(updateSalesControlUnit(payload));
+      case 'deleteSalesControlUnit':
+        return jsonResponse(deleteSalesControlUnit(payload));
       case 'getMonthlyVisitorBreakdown':
         return jsonResponse(getMonthlyVisitorBreakdown(payload.lineUserId ? payload : {
           lineUserId: e.parameter.lineUserId, month: e.parameter.month
@@ -797,6 +814,8 @@ function doGet(e) {
         return jsonResponse(submitPublicLead(payload));
       case 'updateCustomerDeal':
         return jsonResponse(updateCustomerDeal(payload));
+      case 'updateCustomerDealStage':
+        return jsonResponse(updateCustomerDealStage(payload));
       case 'saveDealDetail':
         return jsonResponse(saveDealDetail(payload));
       case 'getDealDetailByCustomer':
