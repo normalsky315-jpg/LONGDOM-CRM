@@ -1,5 +1,13 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.41
+//  龍登 CRM — 華雄天地專用版 v9.42
+//  v9.42 變更：補上 doGet() 漏掉的一個 action（submitWeeklyHotPicks）。
+//  ★ 前端的 gasPost()（見 hstd.html）為了避免瀏覽器 CORS 預檢，實際
+//  上是把 POST 偽裝成帶 payload 參數的 GET 請求送出，所以 gasPost()
+//  呼叫的每一個 action 都要同時出現在 doGet() 的 switch 裡才會被接
+//  到，只放在 doPost() 裡是接不到的。這次順手用腳本比對過 hstd.html
+//  裡所有 gasPost() 呼叫的 action，確認現在每一個都在 doGet() 裡有
+//  對應的 case（銷售控制表的 append/update/delete 這次盤點過，本來
+//  就兩邊都有，不受影響）
 //  v9.41 變更：銷售控制表新增「車位數量」欄位（parking_count），因應
 //  有些房型會配一個以上車位的情況：
 //    1. Sales_Control 新增 parking_count 欄位，appendSalesControlUnit／
@@ -803,6 +811,8 @@ function doGet(e) {
         return jsonResponse(verifyAccess(payload));
       case 'appendCustomerData':
         return jsonResponse(appendCustomerData(payload));
+      case 'submitWeeklyHotPicks':
+        return jsonResponse(submitWeeklyHotPicks(payload));
       case 'updateCustomerDeal':
         return jsonResponse(updateCustomerDeal(payload));
       case 'saveDealDetail':
