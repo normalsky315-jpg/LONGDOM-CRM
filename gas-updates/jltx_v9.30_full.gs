@@ -1,5 +1,12 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.29
+//  龍登 CRM — 吉隆天曜專用版 v9.30
+//  v9.30 變更：下週休假通報格式改版，照主管指定的格式：
+//    1. 拿掉每行的「休假人員」字樣，改成日期(星期)後面直接接姓名
+//    2. 沒有人休假的日期整行省略——不管平日或假日，只要那天沒人排休
+//       就不出現在通報裡（原本假日沒人休假才會省略，平日沒人休假還是
+//       會列出「無」，這次統一都省略）
+//    3. 如果整週都沒人排休，訊息內容顯示「本週無人排休」，不會變成
+//       只剩標題後面空白
 //  v9.29 變更：修正銷售控制表儲存修改一直跳「未知 action:
 //  updateSalesControlUnit」的問題。★ 這是真正的程式碼漏洞，不是部署
 //  沒更新的問題：前端的 gasPost()（見 jltx.html）為了避免瀏覽器 CORS
@@ -3759,21 +3766,20 @@ function generateWeeklyLeaveReport(payload) {
 
     var wd = ['日','一','二','三','四','五','六'];
     var lines = [];
-    days.forEach(function(d, idx) {
+    days.forEach(function(d) {
       var ds = Utilities.formatDate(d, CONFIG.TIMEZONE, 'yyyy-MM-dd');
-      var isWeekend = idx >= 5;
       var names = rows.filter(function(r) {
         return String(r.leave_date).substring(0, 10) === ds;
       }).map(function(r) { return r.display_name; });
 
-      if (isWeekend && !names.length) return;
+      if (!names.length) return; // 沒有人休假的日期整行省略，平日假日一律不列
 
       var label = d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate() + '(' + wd[d.getDay()] + ')';
-      lines.push(label + '　休假人員　' + (names.length ? names.join(' ') : '無'));
+      lines.push(label + '　' + names.join(' '));
     });
 
     var rangeLabel = Utilities.formatDate(days[0], CONFIG.TIMEZONE, 'yyyy/M/d') + '~' + Utilities.formatDate(days[6], CONFIG.TIMEZONE, 'yyyy/M/d');
-    var msg = '案場：' + CONFIG.PROJECT_NAME + '\n📋 下週休假通報（' + rangeLabel + '）\n\n' + lines.join('\n');
+    var msg = '案場：' + CONFIG.PROJECT_NAME + '\n📋 下週休假通報（' + rangeLabel + '）\n\n' + (lines.length ? lines.join('\n') : '本週無人排休');
 
     var pushed = sendLinePushToAll(msg);
 

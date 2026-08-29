@@ -1,5 +1,12 @@
 // ============================================================
-//  龍登 CRM — 華雄天地專用版 v9.42
+//  龍登 CRM — 華雄天地專用版 v9.43
+//  v9.43 變更：下週休假通報格式改版，跟吉隆天曜（jltx_v9.30）同一次
+//  一起改，兩案場格式保持一致：
+//    1. 拿掉每行的「休假人員」字樣，改成日期(星期)後面直接接姓名
+//    2. 沒有人休假的日期整行省略——不管平日或假日都一樣，原本假日
+//       沒人休假才會省略、平日沒人休假還是會列出「無」，這次統一都
+//       省略
+//    3. 如果整週都沒人排休，訊息內容顯示「本週無人排休」
 //  v9.42 變更：補上 doGet() 漏掉的一個 action（submitWeeklyHotPicks）。
 //  ★ 前端的 gasPost()（見 hstd.html）為了避免瀏覽器 CORS 預檢，實際
 //  上是把 POST 偽裝成帶 payload 參數的 GET 請求送出，所以 gasPost()
@@ -3620,21 +3627,20 @@ function generateWeeklyLeaveReport(payload) {
 
     var wd = ['日','一','二','三','四','五','六'];
     var lines = [];
-    days.forEach(function(d, idx) {
+    days.forEach(function(d) {
       var ds = Utilities.formatDate(d, CONFIG.TIMEZONE, 'yyyy-MM-dd');
-      var isWeekend = idx >= 5;
       var names = rows.filter(function(r) {
         return String(r.leave_date).substring(0, 10) === ds;
       }).map(function(r) { return r.display_name; });
 
-      if (isWeekend && !names.length) return;
+      if (!names.length) return; // 沒有人休假的日期整行省略，平日假日一律不列
 
       var label = d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate() + '(' + wd[d.getDay()] + ')';
-      lines.push(label + '　休假人員　' + (names.length ? names.join(' ') : '無'));
+      lines.push(label + '　' + names.join(' '));
     });
 
     var rangeLabel = Utilities.formatDate(days[0], CONFIG.TIMEZONE, 'yyyy/M/d') + '~' + Utilities.formatDate(days[6], CONFIG.TIMEZONE, 'yyyy/M/d');
-    var msg = '案場：' + CONFIG.PROJECT_NAME + '\n📋 下週休假通報（' + rangeLabel + '）\n\n' + lines.join('\n');
+    var msg = '案場：' + CONFIG.PROJECT_NAME + '\n📋 下週休假通報（' + rangeLabel + '）\n\n' + (lines.length ? lines.join('\n') : '本週無人排休');
 
     var pushed = sendLinePushToAll(msg);
 
