@@ -174,9 +174,13 @@
 
   /* Login */
   #loginScreen{background:var(--bg,#F5F8FA) url('assets/login-bg.webp') center/cover no-repeat;display:none;flex-direction:column;padding:0 28px;padding-top:max(60px,env(safe-area-inset-top));padding-bottom:max(40px,env(safe-area-inset-bottom));min-height:100%;position:relative;}
-  /* 原本的背景圖是暖金色調的玻璃水紋，疊一層淡湖水藍色調，讓同一張圖
-     視覺上轉向「湖水」而不是「香檳金」，不用換圖片素材 */
-  #loginScreen::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(220,238,243,0.7),rgba(245,248,250,0.35) 40%,rgba(245,248,250,0.75)),linear-gradient(160deg,rgba(36,120,154,0.10),rgba(18,59,93,0.04));pointer-events:none;}
+  /* 原本的背景圖是暖金色調的玻璃水紋。第一版用半透明淺藍疊在暖色圖片
+     上，藍＋金會混出濁綠色，所以改用 mix-blend-mode:color——這個混合
+     模式只取代圖片的色相/飽和度、保留原本明暗層次，才能把「金」乾淨
+     地換成「湖水藍」，不會產生中間色 */
+  #loginScreen::before{content:'';position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(165deg,#123B5D,#24789A 55%,#4D9DB8);
+    mix-blend-mode:color;opacity:0.85;}
   #loginScreen>*{position:relative;z-index:1;}
   #loginScreen.active{display:flex;}
   .login-logo{display:flex;align-items:center;gap:16px;margin-bottom:40px;}
