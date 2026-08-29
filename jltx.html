@@ -2251,20 +2251,38 @@ function toggleDealSignDate() {
 // 跟銷售控制表新增戶別用的同一套棟別/型別/樓層邏輯（SC_UNIT_TYPES_ALL），
 // 選出來的戶別才會跟 Sales_Control 是同一戶，不會因為手打格式不一致
 // 而兜不起來
+// ★ 修正：型別/樓層下拉原本用 SC_UNIT_TYPES_ALL + 固定樓層範圍（A 1~15、
+// B 1~9）算出來的，但實際銷售控制表的樓層並不是每個型別都從1樓開始
+// （例如 A1/A2/A3、B2/B5 實際上是從2樓才開始有，B3 是3樓才開始），
+// 選到這種「表格上看起來存在、但銷控表其實沒有這戶」的組合，確認成交
+// 或編輯既有成交明細時就會出現「找不到這個戶別」。改成跟銷售控制表
+// 新增戶別一樣，直接從已載入的 state.salesControlRaw 動態算出這個棟別
+// 實際有哪些型別、這個型別實際蓋在哪些樓層，保證選得到的組合一定
+// 在 Sales_Control 裡找得到
 function populateDealTypeSelect() {
   var building = document.getElementById('deal_building').value;
   var typeSel = document.getElementById('deal_unitType');
-  var types = SC_UNIT_TYPES_ALL.filter(function(t){ return !(building === 'B' && t === '6'); });
+  var types = [];
+  (state.salesControlRaw || []).forEach(function(u) {
+    if (u.building === building && types.indexOf(u.unit_type) < 0) types.push(u.unit_type);
+  });
+  types.sort();
   typeSel.innerHTML = types.map(function(t){ return '<option value="' + t + '">' + t + '型</option>'; }).join('');
   populateDealFloorSelect();
 }
 function populateDealFloorSelect() {
   var building = document.getElementById('deal_building').value;
+  var unitType = document.getElementById('deal_unitType').value;
   var floorSel = document.getElementById('deal_floor');
-  var maxFloor = building === 'A' ? 15 : 9;
-  var opts = '';
-  for (var f = 1; f <= maxFloor; f++) opts += '<option value="' + f + '">' + f + '樓</option>';
-  floorSel.innerHTML = opts;
+  var floors = [];
+  (state.salesControlRaw || []).forEach(function(u) {
+    if (u.building === building && u.unit_type === unitType) {
+      var f = Number(u.floor);
+      if (floors.indexOf(f) < 0) floors.push(f);
+    }
+  });
+  floors.sort(function(a,b){ return a - b; });
+  floorSel.innerHTML = floors.map(function(f){ return '<option value="' + f + '">' + f + '樓</option>'; }).join('');
 }
 
 // dealModal 用選的棟別/型別/樓層去 state.salesControlRaw 找對應的
