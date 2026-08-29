@@ -255,7 +255,8 @@
   .feature-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
   .feature-card{background:var(--surface);border-radius:var(--radius-lg,14px);border:1px solid var(--border);padding:16px 14px;cursor:pointer;position:relative;overflow:hidden;transition:transform 150ms ease,box-shadow 150ms ease;box-shadow:var(--shadow-sm);}
   .feature-card:active{transform:scale(0.97);}
-  .feature-card-icon{font-size:24px;margin-bottom:8px;}
+  .feature-card-icon{width:36px;height:36px;border-radius:10px;background:var(--lake-soft);color:var(--lake);display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
+  .feature-card-icon svg{width:19px;height:19px;}
   .feature-card-title{font-family:'Noto Serif TC',serif;font-size:14px;font-weight:600;margin-bottom:3px;color:var(--text);}
   .feature-card-desc{font-size:11px;color:var(--ink-faint);}
   .feature-card.task::after,.feature-card.maint::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;}
@@ -264,8 +265,13 @@
   .feature-badge{position:absolute;top:10px;right:10px;background:var(--rust);color:#fff;font-size:10px;font-weight:600;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px;}
   .feature-badge.gold{background:var(--gold);color:var(--ink);}
   .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
-  .stat-card{background:var(--surface);border-radius:10px;border:1px solid var(--border);padding:14px 10px;text-align:center;}
-  .stat-num{font-family:'Noto Serif TC',serif;font-size:26px;font-weight:700;}
+  .stat-card{background:var(--surface);border-radius:var(--radius-lg,14px);border:1px solid var(--border);box-shadow:var(--shadow-sm);padding:16px 10px;text-align:center;}
+  .stat-icon{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;}
+  .stat-icon svg{width:16px;height:16px;}
+  .stat-icon-lake{background:var(--lake-soft);color:var(--lake);}
+  .stat-icon-gold{background:var(--gold-soft);color:#8A6D3F;}
+  .stat-icon-success{background:#E3F1EC;color:var(--success);}
+  .stat-num{font-family:'Noto Serif TC',serif;font-size:26px;font-weight:700;color:var(--text);}
   .stat-label{font-size:10px;color:var(--ink-faint);letter-spacing:1px;margin-top:3px;}
   .logout-btn{width:100%;padding:14px;background:transparent;border:1px solid var(--border-strong);border-radius:10px;font-family:'Noto Sans TC',sans-serif;font-size:13px;color:var(--ink-faint);cursor:pointer;margin-top:10px;}
 
@@ -545,55 +551,55 @@
       <div class="section-tag">主要功能</div>
       <div class="feature-grid">
         <div class="feature-card" onclick="route('#/customer')">
-          <div class="feature-card-icon">👤</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20c0-3.5 2.5-6 5.5-6s5.5 2.5 5.5 6"/><path d="M18 8v5M15.5 10.5h5"/></svg></div>
           <div class="feature-card-title">客戶登記</div>
           <div class="feature-card-desc">新增訪客資料</div>
         </div>
         <div class="feature-card" onclick="route('#/mycustomers')" style="border-top:2px solid var(--teal);">
-          <div class="feature-card-icon">📁</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a1.5 1.5 0 0 1 1.5-1.5h4l2 2h8A1.5 1.5 0 0 1 20 9v8A1.5 1.5 0 0 1 18.5 18.5h-15A1.5 1.5 0 0 1 3 17V7Z"/></svg></div>
           <div class="feature-card-title">我的客戶</div>
           <div class="feature-card-desc" id="myCustomerDesc">全部歷史紀錄</div>
         </div>
         <div class="feature-card" onclick="route('#/reservation')" style="border-top:2px solid var(--gold);">
-          <div class="feature-card-icon">📆</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg></div>
           <div class="feature-card-title">預約賞屋</div>
           <div class="feature-card-desc" id="reservationDesc">尚無待到訪預約</div>
         </div>
         <div class="feature-card task" onclick="route('#/task')">
-          <div class="feature-card-icon">📋</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="4.5" width="13" height="16" rx="1.8"/><rect x="9" y="3" width="6" height="3" rx="1"/><path d="M9 11h6M9 14.5h6M9 18h4"/></svg></div>
           <div class="feature-card-title">任務系統</div>
           <div class="feature-card-desc" id="taskCountDesc">查看待辦</div>
           <span class="feature-badge hidden" id="taskBadge">0</span>
         </div>
         <div class="feature-card" onclick="route('#/weeklypick')" style="border-top:2px solid var(--rust);">
-          <div class="feature-card-icon">⭐</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l2.6 5.4 5.9.7-4.4 4.1 1.1 5.9-5.2-2.9-5.2 2.9 1.1-5.9-4.4-4.1 5.9-.7Z"/></svg></div>
           <div class="feature-card-title">本週有望客</div>
           <div class="feature-card-desc">勾選並送出給主管</div>
         </div>
         <div class="feature-card" onclick="route('#/salescontrol')" style="border-top:2px solid var(--teal);">
-          <div class="feature-card-icon">🏢</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3.5" width="10" height="17" rx="1"/><path d="M9 7.5h2M9 11h2M9 14.5h2M15 10v10.5h4V13a1 1 0 0 0-1-1h-3Z"/></svg></div>
           <div class="feature-card-title">銷售控制表</div>
           <div class="feature-card-desc">全案戶別銷控狀態</div>
         </div>
         <div class="feature-card hidden" id="reportFeature" onclick="route('#/report')">
           <span class="feature-badge gold">主管</span>
-          <div class="feature-card-icon">📊</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M12 20V4M20 20v-7"/></svg></div>
           <div class="feature-card-title">銷售日報</div>
           <div class="feature-card-desc">提交今日業績</div>
         </div>
         <div class="feature-card maint" onclick="route('#/maint')">
-          <div class="feature-card-icon">🔧</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2-2Z"/></svg></div>
           <div class="feature-card-title">維修通報</div>
           <div class="feature-card-desc">案場問題回報</div>
         </div>
         <div class="feature-card hidden" id="userMgmtFeature" onclick="route('#/users')" style="border-top:2px solid var(--ink);">
           <span class="feature-badge" style="background:var(--ink-light);">管理</span>
-          <div class="feature-card-icon">👥</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c0-3 2.5-5.3 5.5-5.3s5.5 2.3 5.5 5.3"/><circle cx="17" cy="8.5" r="2.4"/><path d="M15.5 13.3c2.5.3 4.5 2.3 4.5 5.2"/></svg></div>
           <div class="feature-card-title">使用者管理</div>
           <div class="feature-card-desc" id="pendingCountDesc">審核新成員</div>
         </div>
         <div class="feature-card" onclick="route('#/leave')" style="border-top:2px solid var(--gold);grid-column:1/-1;">
-          <div class="feature-card-icon">📅</div>
+          <div class="feature-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><circle cx="8.5" cy="14" r="1"/><circle cx="12" cy="14" r="1"/><circle cx="15.5" cy="14" r="1"/></svg></div>
           <div class="feature-card-title">假表排班</div>
           <div class="feature-card-desc" id="todayLeaveDesc">今日休假：載入中…</div>
         </div>
@@ -617,9 +623,9 @@
       <div class="section-tag"><span id="statCumulativePrefix">累積接待共</span> <span id="statCumulative">—</span> 組</div>
       <div class="section-tag" style="margin-top:6px;">本月接待共 <span id="statTotal">—</span> 組</div>
       <div class="stat-grid">
-        <div class="stat-card"><div class="stat-num" id="statFirst">—</div><div class="stat-label">初訪</div></div>
-        <div class="stat-card"><div class="stat-num" id="statRevisit">—</div><div class="stat-label">回籠</div></div>
-        <div class="stat-card"><div class="stat-num" id="statDeal">—</div><div class="stat-label">成交</div></div>
+        <div class="stat-card"><div class="stat-icon stat-icon-lake"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.3"/><path d="M5.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5"/></svg></div><div class="stat-num" id="statFirst">—</div><div class="stat-label">初訪</div></div>
+        <div class="stat-card"><div class="stat-icon stat-icon-gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 13.6-5.7L20 8M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13.6 5.7L4 16M4 20v-4h4"/></svg></div><div class="stat-num" id="statRevisit">—</div><div class="stat-label">回籠</div></div>
+        <div class="stat-card"><div class="stat-icon stat-icon-success"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M8.3 12.3l2.4 2.4 5-5.4"/></svg></div><div class="stat-num" id="statDeal">—</div><div class="stat-label">成交</div></div>
       </div>
       <!-- 本週各業務接待統計（主管/admin 才顯示）：初訪／回籠／成交
            三項都拆開顯示，方便看每個業務這週的接待跟成交狀況 -->
