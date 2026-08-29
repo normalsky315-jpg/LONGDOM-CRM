@@ -13,11 +13,36 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
+  /* ══ 華雄天地 Lakeside Design Tokens ══
+     以澄清湖畔的湖水／天空意象為底：霧白背景、深湖藍為主色、湖水藍
+     為互動強調色、香檳金只做極少量的尊榮點綴（VIP／成交／保留戶）。
+     沿用既有變數命名（--cream/--ink/--teal…）只調整色值本身，讓全站
+     既有元件不用改一行 CSS 就套上新色系；新增的語意化命名
+     （--primary/--lake/--muted…）是給後續分階段重構元件時使用的別名，
+     現階段內容跟舊命名的值完全一致，不會造成任何視覺落差 */
   :root {
-    --cream:#FAF8F4; --ink:#1A1A2E; --ink-light:#4A4A6A; --ink-faint:#8A8AA0;
-    --gold:#C9A84C; --gold-soft:#F4EBC8; --rust:#C0392B; --rust-soft:#FBEAE7;
-    --teal:#1D9E75; --teal-soft:#E1F5EE; --surface:#FFFFFF;
-    --border:#E8E4DC; --border-strong:#D5CFC0;
+    --cream:#F5F8FA; --ink:#123B5D; --ink-light:#3F6478; --ink-faint:#6C7F89;
+    --gold:#B9A16B; --gold-soft:#F4EFE4; --rust:#C85C5C; --rust-soft:#F8E9E9;
+    --teal:#24789A; --teal-soft:#DCEEF3; --surface:#FFFFFF;
+    --border:#DCE6EA; --border-strong:#C3D2D8;
+
+    /* 語意化別名（供之後分階段重構元件使用） */
+    --background: var(--cream);
+    --foreground: var(--ink);
+    --primary: var(--ink);
+    --primary-foreground: #FFFFFF;
+    --secondary: var(--teal);
+    --secondary-foreground: #FFFFFF;
+    --lake: #4D9DB8;
+    --lake-soft: var(--teal-soft);
+    --surface-glass: rgba(255,255,255,.82);
+    --muted: #EDF3F5;
+    --muted-foreground: var(--ink-faint);
+    --accent: #8BBBC8;
+    --success: #3A8B73;
+    --warning: #D3A653;
+    --danger: var(--rust);
+    --radius: 14px;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
   html,body{width:100%;height:100%;overflow:hidden;}
