@@ -36,10 +36,10 @@ export function DailyReport() {
       return;
     }
     try {
-      const today = new Date();
-      const from = new Date(today.getTime() - 13 * 86400000).toISOString().slice(0, 10);
-      const to = today.toISOString().slice(0, 10);
-      const res = await getDailyReportRange({ from, to });
+      // getDailyReportRange 的參數是 months（抓最近幾個月），不是
+      // from/to 日期區間——之前送 from/to 後端根本不認得，會被忽略、
+      // 直接回傳預設的最近 3 個月，不是原本以為的「最近 14 天」
+      const res = await getDailyReportRange({ months: 1 });
       setReports(res?.data || MOCK_REPORTS);
     } catch {
       setReports(MOCK_REPORTS);

@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Card } from '../components/ui/Card';
-import { getWeeklyVisitorBreakdown, GAS_URL } from '../lib/gasClient';
+import { getMyCustomers, GAS_URL } from '../lib/gasClient';
+import type { Customer } from './Customers';
 
+// getWeeklyVisitorBreakdown 回傳的是「整個查詢區間」的單一彙總物件
+// （{total, first_visit, revisit, deal, by_district, by_source,...}），
+// 不是逐日陣列；要畫「每日趨勢」長條圖得自己在前端依 visit_date 分組。
+// 這裡改成跟 Home 頁一樣直接用 getMyCustomers 的資料源在前端聚合，
+// 不用再對一支回傳形狀跟畫面需求對不起來的 API。
 interface DayPoint { label: string; visitors: number; deals: number }
 interface SourceRow { source: string; count: number }
 
@@ -17,9 +23,18 @@ const MOCK_WEEK: DayPoint[] = [
 const MOCK_SOURCES: SourceRow[] = [
   { source: '現場來訪', count: 18 },
   { source: '廣告來電', count: 12 },
-  { source: '朋友介紹', count: 9 },
+  { source: '親友介紹', count: 9 },
   { source: '網路媒體', count: 6 },
 ];
+
+function lastNDays(n: number): string[] {
+  const days: string[] = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000);
+    days.push(d.toISOString().slice(0, 10).replace(/-/g, '/'));
+  }
+  return days;
+}
 
 function BarChart({ data }: { data: DayPoint[] }) {
   const max = Math.max(...data.map((d) => d.visitors), 1);
@@ -40,7 +55,7 @@ function BarChart({ data }: { data: DayPoint[] }) {
               )}
             </div>
           </div>
-          <span className="text-[11px] tabular" style={{ color: 'var(--muted-foreground)' }}>{d.label}</span>
+          <span className="text-[11px] tabular" style={{ color: 'var(--muted-foreground)' }}>{d.label.slice(5)}</span>
         </div>
       ))}
     </div>
@@ -59,9 +74,25 @@ export function Analytics() {
         return;
       }
       try {
-        const res = await getWeeklyVisitorBreakdown();
-        setWeek(res?.data?.days || MOCK_WEEK);
-        setSources(res?.data?.sources || MOCK_SOURCES);
+        const res = await getMyCustomers();
+        const rows: Customer[] = res?.data || [];
+        const days = lastNDays(7);
+        setWeek(
+          days.map((day) => {
+            const dayRows = rows.filter((r) => r.visit_date === day);
+            return {
+              label: day,
+              visitors: dayRows.length,
+              deals: dayRows.filter((r) => r.deal_status === '已成交').length,
+            };
+          })
+        );
+        const bySource = new Map<string, number>();
+        rows.forEach((r) => {
+          const key = r.source || '未填';
+          bySource.set(key, (bySource.get(key) || 0) + 1);
+        });
+        setSources([...bySource.entries()].map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count));
       } catch {
         setWeek(MOCK_WEEK);
         setSources(MOCK_SOURCES);
@@ -102,6 +133,9 @@ export function Analytics() {
       <Card className="p-5">
         <div className="font-bold text-sm mb-3.5" style={{ color: 'var(--foreground)' }}>來源管道分布</div>
         <div className="flex flex-col gap-3">
+          {(sources || []).length === 0 && (
+            <div className="text-center text-sm py-4" style={{ color: 'var(--muted-foreground)' }}>尚無資料</div>
+          )}
           {(sources || []).map((s) => (
             <div key={s.source} className="flex items-center gap-3">
               <span className="text-[13px] w-20 flex-shrink-0" style={{ color: 'var(--muted-foreground)' }}>{s.source}</span>

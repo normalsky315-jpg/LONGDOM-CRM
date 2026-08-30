@@ -1,42 +1,80 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Building2, Eye, EyeOff } from 'lucide-react';
 import { SITE_NAME, SITE_TAGLINE } from '../lib/siteConfig';
-import { verifyAccess, GAS_URL } from '../lib/gasClient';
+import { verifyAccess, getProjectList, GAS_URL } from '../lib/gasClient';
 import { saveSession } from '../lib/session';
 
+// ⚠ 架構備註：真正的吉隆天曜後端是 LINE LIFF 應用（jltx.html 用
+// liff.init()／liff.getProfile() 取得 lineUserId，這是識別使用者的
+// 唯一依據，不是帳號密碼），verifyAccess 只驗證「一組全案場共用的
+// 密碼」+ lineUserId + 選擇的案場，並沒有「帳號」這個概念——之前這裡
+// 做的「帳號」輸入框是完全虛構的欄位，真實系統裡不存在。
+// 這裡已經改成貼近真實流程（密碼 + 動態載入案場清單，不再有帳號
+// 欄位），但沒有整合 LIFF SDK：在瀏覽器直接開啟（不是從 LINE 內開）
+// 拿不到真正的 lineUserId，verifyAccess 會直接被後端擋掉
+// （「無法取得 LINE 使用者身份，請確認從 LINE 開啟本頁面」）。
+// 要讓這個 React 版本真的能對接後端登入，需要先決定：(a) 加入
+// @line/liff 走一樣的 LIFF 流程，或 (b) 幫這個新架構另外做一支不綁
+// LINE 身份的登入 action——這是產品層級的決定，不是我能自己選的，
+// 所以先維持示範模式可用、真實模式會誠實顯示後端錯誤，而不是假裝
+// 登入成功。
 export function Login() {
   const navigate = useNavigate();
   const [showPw, setShowPw] = useState(false);
-  const [account, setAccount] = useState('');
   const [password, setPassword] = useState('');
+  const [projects, setProjects] = useState<string[]>([]);
+  const [project, setProject] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      if (!GAS_URL) {
+        setProjects([SITE_NAME]);
+        setProject(SITE_NAME);
+        return;
+      }
+      try {
+        const res: any = await getProjectList();
+        const list = res?.data || [];
+        setProjects(list);
+        if (list.length === 1) setProject(list[0]);
+      } catch {
+        setProjects([]);
+      }
+    })();
+  }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (!password) {
+      setError('請輸入密碼');
+      return;
+    }
     setLoading(true);
     try {
       if (!GAS_URL) {
-        // 未設定 VITE_GAS_URL 時走示範模式，不打真實後端。role 預設給
-        // manager 是為了讓示範時看得到全部功能；實際串接後端時
-        // verifyAccess 回傳的 role 才是後端 CONFIG.ROLES 認的真正權限，
-        // sales 角色會被後端擋掉銷控表狀態異動/日報提交/系統管理等操作
-        saveSession({ display_name: account || '示範使用者', role: 'manager', project_name: SITE_NAME });
+        // 未設定 VITE_GAS_URL 時走示範模式，不打真實後端
+        saveSession({ display_name: '示範使用者', role: 'manager', project_name: project || SITE_NAME });
         navigate('/', { replace: true });
         return;
       }
-      const res: any = await verifyAccess({ account, password });
-      if (res && res.ok) {
+      // 真實模式下沒有 LIFF 取得的 lineUserId，這裡誠實送空字串讓
+      // 後端回傳真正的錯誤，而不是自己假造一個 id 騙過驗證
+      const res: any = await verifyAccess({ lineUserId: '', displayName: '', password, selectedProject: project });
+      if (res?.ok && res.data?.status === 'active') {
         saveSession({
-          display_name: res.display_name || account,
-          role: res.role || 'sales',
-          project_name: SITE_NAME,
+          display_name: res.data.displayName,
+          role: res.data.role || 'sales',
+          project_name: res.data.projectName || project,
         });
         navigate('/', { replace: true });
+      } else if (res?.ok && res.data?.status === 'pending') {
+        setError('帳號待審核，請聯絡主管核准後再登入');
       } else {
-        setError(res?.error || '帳號或密碼錯誤');
+        setError(res?.error || '登入失敗');
       }
     } catch {
       setError('連線失敗，請稍後再試');
@@ -78,16 +116,21 @@ export function Login() {
         <form onSubmit={onSubmit} className="w-full max-w-[380px]">
           <div className="mb-7">
             <div className="brand-font font-bold text-[22px]" style={{ color: 'var(--foreground)' }}>登入控台</div>
-            <div className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>請輸入帳號密碼</div>
+            <div className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>請選擇案場並輸入密碼</div>
           </div>
 
-          <label className="block text-[13px] font-semibold mb-1.5" style={{ color: 'var(--muted-foreground)' }}>帳號</label>
-          <input
-            value={account}
-            onChange={(e) => setAccount(e.target.value)}
+          <label className="block text-[13px] font-semibold mb-1.5" style={{ color: 'var(--muted-foreground)' }}>案場</label>
+          <select
+            value={project}
+            onChange={(e) => setProject(e.target.value)}
             className="w-full px-3.5 py-3 rounded-xl text-[15px] mb-4.5"
             style={{ border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)' }}
-          />
+          >
+            <option value="">請選擇案場</option>
+            {projects.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
 
           <label className="block text-[13px] font-semibold mb-1.5" style={{ color: 'var(--muted-foreground)' }}>密碼</label>
           <div className="relative mb-6.5">
@@ -125,7 +168,7 @@ export function Login() {
 
           {!GAS_URL && (
             <div className="mt-5 text-xs text-center" style={{ color: 'var(--muted-foreground)' }}>
-              示範模式・尚未設定 VITE_GAS_URL，輸入任意帳密即可進入
+              示範模式・尚未設定 VITE_GAS_URL，輸入任意密碼即可進入
             </div>
           )}
         </form>
