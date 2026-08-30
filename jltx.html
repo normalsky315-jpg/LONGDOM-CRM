@@ -1704,6 +1704,7 @@ var CUSTOMER_CARD_FIELDS = [
   ['occupation_industry','客戶職業'], ['purchase_motive','購屋動機'],
   ['source','來源管道'], ['referrer_name','介紹人'],
   ['room_types','需求房型'], ['sqft_requirement','坪數需求'],
+  ['introduced_units','已介紹戶型'],
   ['issues','客戶癥結點'], ['revisit_plan','預計再訪']
 ];
 
@@ -1713,6 +1714,8 @@ function customerCardFieldsHTML(c) {
     var valueHtml;
     if (key === 'phone' && raw) {
       valueHtml = '<a style="color:inherit;" href="tel:' + escapeHtml(String(raw)) + '">' + escapeHtml(String(raw)) + '</a>';
+    } else if (key === 'introduced_units' && raw) {
+      valueHtml = escapeHtml(formatUnitLabel(raw));
     } else {
       valueHtml = raw ? escapeHtml(String(raw)) : '<span class="cust-card-field-empty">未填寫</span>';
     }
