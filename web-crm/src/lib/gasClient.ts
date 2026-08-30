@@ -81,7 +81,7 @@ export const deleteDailyReport = (payload: any) => gasPost('deleteDailyReport', 
 export const getDailyReportRange = (payload: any) => gasPost('getDailyReportRange', payload);
 export const getDailyReportSummary = (payload: any) => gasPost('getDailyReportSummary', payload);
 export const getDailyVisitorBreakdown = (payload: any) => gasPost('getDailyVisitorBreakdown', payload);
-export const getWeeklyVisitorBreakdown = (payload: any) => gasPost('getWeeklyVisitorBreakdown', payload);
+export const getWeeklyVisitorBreakdown = (payload?: any) => gasPost('getWeeklyVisitorBreakdown', payload);
 export const getMonthlyVisitorBreakdown = (payload: any) => gasPost('getMonthlyVisitorBreakdown', payload);
 export const getWeeklyReceptionList = (payload: any) => gasPost('getWeeklyReceptionList', payload);
 export const getSalesByProject = (payload?: any) => gasPost('getSalesByProject', payload);

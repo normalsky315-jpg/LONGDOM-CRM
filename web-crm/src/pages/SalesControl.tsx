@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
-import { getSalesControlList, GAS_URL } from '../lib/gasClient';
+import { getSalesControlList, updateSalesControlUnit, GAS_URL } from '../lib/gasClient';
+import { useToast } from '../components/ui/Toast';
 
 interface Unit {
   unit_id: string;
@@ -46,7 +48,11 @@ function mockUnits(): Unit[] {
   return units;
 }
 
+const NEXT_STATUS: Record<Unit['category'], Unit['category']> = { 可售: '保留', 保留: '已售', 已售: '可售' };
+
 export function SalesControl() {
+  const navigate = useNavigate();
+  const showToast = useToast();
   const [units, setUnits] = useState<Unit[] | null>(null);
   const [selected, setSelected] = useState<Unit | null>(null);
   const [building, setBuilding] = useState('A');
@@ -151,8 +157,33 @@ export function SalesControl() {
             </div>
           </div>
           <div className="flex gap-2.5">
-            <Button variant="secondary">查看客戶</Button>
-            <Button variant="primary">標記狀態</Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if ((selected as any).customer_id) navigate(`/customers/${(selected as any).customer_id}`);
+                else showToast('此戶尚無關聯客戶', 'info');
+              }}
+            >
+              查看客戶
+            </Button>
+            <Button
+              variant="primary"
+              onClick={async () => {
+                const next = NEXT_STATUS[selected.category];
+                setUnits((prev) => (prev || []).map((u) => (u.unit_id === selected.unit_id ? { ...u, category: next } : u)));
+                setSelected((prev) => (prev ? { ...prev, category: next } : prev));
+                showToast(`已標記為「${next}」`, 'success');
+                if (GAS_URL) {
+                  try {
+                    await updateSalesControlUnit({ unit_id: selected.unit_id, category: next });
+                  } catch {
+                    showToast('同步後端失敗，請重新整理確認', 'error');
+                  }
+                }
+              }}
+            >
+              標記狀態
+            </Button>
           </div>
         </Card>
       )}

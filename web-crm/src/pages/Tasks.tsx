@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { CheckSquare, Square } from 'lucide-react';
 import { Card } from '../components/ui/Card';
-import { getTasks, GAS_URL } from '../lib/gasClient';
+import { getTasks, updateTaskStatus, GAS_URL } from '../lib/gasClient';
+import { useToast } from '../components/ui/Toast';
 
 interface Task {
   task_id: string;
@@ -17,6 +18,7 @@ const MOCK_TASKS: Task[] = [
 ];
 
 export function Tasks() {
+  const showToast = useToast();
   const [tasks, setTasks] = useState<Task[] | null>(null);
 
   useEffect(() => {
@@ -34,13 +36,32 @@ export function Tasks() {
     })();
   }, []);
 
+  const toggle = async (t: Task) => {
+    const nextStatus = t.status === '已完成' ? '待處理' : '已完成';
+    setTasks((prev) => (prev || []).map((x) => (x.task_id === t.task_id ? { ...x, status: nextStatus } : x)));
+    showToast(nextStatus === '已完成' ? '任務已完成' : '已重新標記為待處理', 'success');
+    if (GAS_URL) {
+      try {
+        await updateTaskStatus({ task_id: t.task_id, status: nextStatus });
+      } catch {
+        showToast('同步後端失敗，請重新整理確認', 'error');
+      }
+    }
+  };
+
   return (
     <div>
       <h2 className="brand-font font-bold text-[22px] m-0 mb-4.5" style={{ color: 'var(--foreground)' }}>任務管理</h2>
       <div className="flex flex-col gap-2.5">
         {(tasks || []).map((t) => (
           <Card key={t.task_id} className="p-4 flex items-center gap-3">
-            {t.status === '已完成' ? <CheckSquare size={20} color="var(--success)" /> : <Square size={20} color="var(--muted-foreground)" />}
+            <button
+              onClick={() => toggle(t)}
+              className="bg-transparent border-none cursor-pointer p-0 flex items-center justify-center flex-shrink-0"
+              aria-label={t.status === '已完成' ? '標記為待處理' : '標記為已完成'}
+            >
+              {t.status === '已完成' ? <CheckSquare size={20} color="var(--success)" /> : <Square size={20} color="var(--muted-foreground)" />}
+            </button>
             <div className="flex-1">
               <div
                 className="text-sm font-semibold"

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   Home, Users, Grid3x3, ClipboardList, FileBarChart, Map, Settings,
@@ -5,6 +6,13 @@ import {
 } from 'lucide-react';
 import { SITE_NAME } from '../../lib/siteConfig';
 import { clearSession, loadSession } from '../../lib/session';
+import { GlobalSearch } from './GlobalSearch';
+
+const MOCK_ALERTS = [
+  { id: 'a1', text: '李先生今日到期・約看夜景戶', to: '/customers/c1' },
+  { id: 'a2', text: '陳小姐明日追蹤・貸款方案', to: '/customers/c2' },
+  { id: 'a3', text: '王先生2天後・二次回籠邀約', to: '/customers/c3' },
+];
 
 const NAV_ITEMS = [
   { to: '/', icon: Home, label: '首頁', end: true },
@@ -27,11 +35,28 @@ const BOTTOM_ITEMS = [
 export function AppShell() {
   const navigate = useNavigate();
   const user = loadSession();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [alertsOpen, setAlertsOpen] = useState(false);
 
   const onLogout = () => {
     clearSession();
     navigate('/login', { replace: true });
   };
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+      if (e.key === 'Escape') {
+        setSearchOpen(false);
+        setAlertsOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   return (
     <div className="flex min-h-screen" style={{ background: 'var(--background)' }}>
@@ -73,14 +98,47 @@ export function AppShell() {
           <div className="px-5 py-3.5 flex items-center justify-between gap-3">
             <span className="brand-font font-bold text-base md:hidden" style={{ color: 'var(--foreground)' }}>{SITE_NAME}控台</span>
             <span className="hidden md:block" />
-            <div className="flex items-center gap-2.5">
-              <button className="p-2 rounded-[10px] cursor-pointer border-none" style={{ background: 'var(--surface-soft)', border: '1px solid var(--border)', color: 'var(--muted-foreground)' }}>
+            <div className="flex items-center gap-2.5 relative">
+              <button
+                onClick={() => setSearchOpen(true)}
+                aria-label="搜尋（⌘K）"
+                className="p-2 rounded-[10px] cursor-pointer border-none"
+                style={{ background: 'var(--surface-soft)', border: '1px solid var(--border)', color: 'var(--muted-foreground)' }}
+              >
                 <Search size={17} />
               </button>
-              <button className="relative p-2 rounded-[10px] cursor-pointer border-none" style={{ background: 'var(--surface-soft)', border: '1px solid var(--border)', color: 'var(--muted-foreground)' }}>
+              <button
+                onClick={() => setAlertsOpen((v) => !v)}
+                aria-label="通知"
+                className="relative p-2 rounded-[10px] cursor-pointer border-none"
+                style={{ background: 'var(--surface-soft)', border: '1px solid var(--border)', color: 'var(--muted-foreground)' }}
+              >
                 <Bell size={17} />
                 <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--danger)' }} />
               </button>
+              {alertsOpen && (
+                <div
+                  className="absolute top-11 right-0 w-72 rounded-xl overflow-hidden z-30"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)' }}
+                >
+                  <div className="px-3.5 py-2.5 text-xs font-bold" style={{ borderBottom: '1px solid var(--border)', color: 'var(--muted-foreground)' }}>
+                    待處理提醒
+                  </div>
+                  {MOCK_ALERTS.map((a, i) => (
+                    <button
+                      key={a.id}
+                      onClick={() => {
+                        navigate(a.to);
+                        setAlertsOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2.5 text-[13px] bg-transparent border-none cursor-pointer"
+                      style={{ borderTop: i ? '1px solid var(--border)' : 'none', color: 'var(--foreground)' }}
+                    >
+                      {a.text}
+                    </button>
+                  ))}
+                </div>
+              )}
               <button
                 onClick={onLogout}
                 className="flex items-center gap-1.5 text-[13px] font-semibold rounded-lg px-3 py-1.5 border-none cursor-pointer"
@@ -120,6 +178,9 @@ export function AppShell() {
           )}
         </nav>
       </div>
+
+      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+      {alertsOpen && <div className="fixed inset-0 z-20" onClick={() => setAlertsOpen(false)} />}
     </div>
   );
 }
