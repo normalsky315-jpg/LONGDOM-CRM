@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { CheckSquare, Square } from 'lucide-react';
+import { CheckSquare, Square, Plus, X } from 'lucide-react';
 import { Card } from '../components/ui/Card';
-import { getTasks, updateTaskStatus, GAS_URL } from '../lib/gasClient';
+import { Button } from '../components/ui/Button';
+import { Field, Input, Select } from '../components/ui/Input';
+import { getTasks, appendTask, updateTaskStatus, GAS_URL } from '../lib/gasClient';
 import { useToast } from '../components/ui/Toast';
 
 // 狀態欄位對照 Task_List 實際值（CONFIG.STATUS: pending/done，英文
@@ -15,6 +17,8 @@ interface Task {
   title: string;
   due_date: string;
   status: 'pending' | 'done';
+  priority?: string;
+  description?: string;
 }
 
 const STATUS_LABEL: Record<Task['status'], string> = { pending: '待處理', done: '已完成' };
@@ -25,23 +29,30 @@ const MOCK_TASKS: Task[] = [
   { task_id: 't3', title: '林小姐二訪邀約簡訊', due_date: '已完成', status: 'done' },
 ];
 
+const emptyForm = { title: '', due_date: '', description: '', priority: 'normal' };
+
 export function Tasks() {
   const showToast = useToast();
   const [tasks, setTasks] = useState<Task[] | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    if (!GAS_URL) {
+      setTasks(MOCK_TASKS);
+      return;
+    }
+    try {
+      const res = await getTasks();
+      setTasks(res?.data || MOCK_TASKS);
+    } catch {
+      setTasks(MOCK_TASKS);
+    }
+  };
 
   useEffect(() => {
-    (async () => {
-      if (!GAS_URL) {
-        setTasks(MOCK_TASKS);
-        return;
-      }
-      try {
-        const res = await getTasks();
-        setTasks(res?.data || MOCK_TASKS);
-      } catch {
-        setTasks(MOCK_TASKS);
-      }
-    })();
+    load();
   }, []);
 
   const toggle = async (t: Task) => {
@@ -67,9 +78,78 @@ export function Tasks() {
     }
   };
 
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.title.trim()) {
+      showToast('任務標題必填', 'error');
+      return;
+    }
+    setSaving(true);
+    try {
+      if (!GAS_URL) {
+        setTasks((prev) => [
+          { task_id: `mock-${Date.now()}`, title: form.title, due_date: form.due_date || '未指定', status: 'pending', priority: form.priority, description: form.description },
+          ...(prev || []),
+        ]);
+        showToast('已新增任務', 'success');
+        setForm(emptyForm);
+        setShowForm(false);
+        return;
+      }
+      const res: any = await appendTask(form);
+      if (!res?.ok) {
+        showToast(res?.error || '新增失敗', 'error');
+        return;
+      }
+      showToast('已新增任務', 'success');
+      setForm(emptyForm);
+      setShowForm(false);
+      load();
+    } catch {
+      showToast('連線失敗，請稍後再試', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div>
-      <h2 className="brand-font font-bold text-[22px] m-0 mb-4.5" style={{ color: 'var(--foreground)' }}>任務管理</h2>
+      <div className="flex items-center justify-between mb-4.5">
+        <h2 className="brand-font font-bold text-[22px] m-0" style={{ color: 'var(--foreground)' }}>任務管理</h2>
+        <Button variant={showForm ? 'secondary' : 'primary'} onClick={() => setShowForm((v) => !v)} className="!px-3.5">
+          {showForm ? <X size={16} /> : <Plus size={16} />}
+          {showForm ? '取消' : '新增任務'}
+        </Button>
+      </div>
+
+      {showForm && (
+        <Card className="p-5 mb-5">
+          <form onSubmit={onSubmit} className="flex flex-col gap-3.5">
+            <Field label="任務標題 *">
+              <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="致電客戶確認簽約時間" />
+            </Field>
+            <div className="grid grid-cols-2 gap-3.5">
+              <Field label="截止日期">
+                <Input type="date" value={form.due_date} onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))} />
+              </Field>
+              <Field label="優先度">
+                <Select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}>
+                  <option value="normal">一般</option>
+                  <option value="high">高</option>
+                  <option value="low">低</option>
+                </Select>
+              </Field>
+            </div>
+            <Field label="說明（選填）">
+              <Input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+            </Field>
+            <Button type="submit" variant="primary" disabled={saving} className="self-start">
+              {saving ? '新增中…' : '新增任務'}
+            </Button>
+          </form>
+        </Card>
+      )}
+
       <div className="flex flex-col gap-2.5">
         {(tasks || []).map((t) => (
           <Card key={t.task_id} className="p-4 flex items-center gap-3">

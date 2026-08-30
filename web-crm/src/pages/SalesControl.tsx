@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Plus, X } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
-import { getSalesControlList, updateSalesControlUnit, GAS_URL } from '../lib/gasClient';
+import { Field, Input, Select } from '../components/ui/Input';
+import { getSalesControlList, updateSalesControlUnit, appendSalesControlUnit, GAS_URL } from '../lib/gasClient';
 import { useToast } from '../components/ui/Toast';
 import { canManage, loadSession } from '../lib/session';
 
@@ -68,24 +70,74 @@ export function SalesControl() {
   const [units, setUnits] = useState<Unit[] | null>(null);
   const [selected, setSelected] = useState<Unit | null>(null);
   const [building, setBuilding] = useState('A');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addForm, setAddForm] = useState({ building: 'A', unit_type: '', floor: '', house_sqft: '', house_sale_price: '', parking_id: '' });
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    if (!GAS_URL) {
+      setUnits(mockUnits());
+      return;
+    }
+    try {
+      // getSalesControlList 回傳 ok({results:[...]})，不是 ok([...])——
+      // 之前直接用 res.data 會拿到 {results:[...]} 這個物件而不是陣列，
+      // 後面所有 .filter()/.map() 都會整頁壞掉
+      const res = await getSalesControlList();
+      setUnits(res?.data?.results || mockUnits());
+    } catch {
+      setUnits(mockUnits());
+    }
+  };
 
   useEffect(() => {
-    (async () => {
+    load();
+  }, []);
+
+  const onAddUnit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addForm.building || !addForm.unit_type || !addForm.floor) {
+      showToast('棟別/型別/樓層必填', 'error');
+      return;
+    }
+    setSaving(true);
+    try {
       if (!GAS_URL) {
-        setUnits(mockUnits());
+        const label = `${addForm.building}${addForm.unit_type}`;
+        setUnits((prev) => [
+          ...(prev || []),
+          {
+            unit_id: `mock-${Date.now()}`,
+            building: addForm.building,
+            floor: Number(addForm.floor),
+            unit_type: addForm.unit_type,
+            unit_label: label,
+            status: '待售',
+            house_sqft: Number(addForm.house_sqft) || undefined,
+            house_sale_price: Number(addForm.house_sale_price) || undefined,
+            parking_id: addForm.parking_id || undefined,
+          },
+        ]);
+        showToast('已新增戶別', 'success');
+        setShowAddForm(false);
+        setAddForm({ building: 'A', unit_type: '', floor: '', house_sqft: '', house_sale_price: '', parking_id: '' });
         return;
       }
-      try {
-        // getSalesControlList 回傳 ok({results:[...]})，不是 ok([...])——
-        // 之前直接用 res.data 會拿到 {results:[...]} 這個物件而不是陣列，
-        // 後面所有 .filter()/.map() 都會整頁壞掉
-        const res = await getSalesControlList();
-        setUnits(res?.data?.results || mockUnits());
-      } catch {
-        setUnits(mockUnits());
+      const res: any = await appendSalesControlUnit(addForm);
+      if (!res?.ok) {
+        showToast(res?.error || '新增失敗', 'error');
+        return;
       }
-    })();
-  }, []);
+      showToast('已新增戶別', 'success');
+      setShowAddForm(false);
+      setAddForm({ building: 'A', unit_type: '', floor: '', house_sqft: '', house_sale_price: '', parking_id: '' });
+      load();
+    } catch {
+      showToast('連線失敗，請稍後再試', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const buildings = useMemo(() => [...new Set((units || []).map((u) => u.building))].sort(), [units]);
   const floors = useMemo(() => {
@@ -141,23 +193,65 @@ export function SalesControl() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
         <h2 className="brand-font font-bold text-[22px] m-0" style={{ color: 'var(--foreground)' }}>銷控表</h2>
-        {buildings.length > 1 && (
-          <div className="flex gap-1.5">
-            {buildings.map((b) => (
-              <button
-                key={b}
-                onClick={() => setBuilding(b)}
-                className="px-3 py-1.5 rounded-lg text-sm font-semibold border-none cursor-pointer"
-                style={{ background: b === building ? 'var(--primary)' : 'var(--surface-soft)', color: b === building ? 'var(--primary-foreground)' : 'var(--muted-foreground)' }}
-              >
-                {b}棟
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {buildings.length > 1 && (
+            <div className="flex gap-1.5">
+              {buildings.map((b) => (
+                <button
+                  key={b}
+                  onClick={() => setBuilding(b)}
+                  className="px-3 py-1.5 rounded-lg text-sm font-semibold border-none cursor-pointer"
+                  style={{ background: b === building ? 'var(--primary)' : 'var(--surface-soft)', color: b === building ? 'var(--primary-foreground)' : 'var(--muted-foreground)' }}
+                >
+                  {b}棟
+                </button>
+              ))}
+            </div>
+          )}
+          {canEdit && (
+            <Button variant={showAddForm ? 'secondary' : 'primary'} onClick={() => setShowAddForm((v) => !v)} className="!px-3.5">
+              {showAddForm ? <X size={16} /> : <Plus size={16} />}
+              {showAddForm ? '取消' : '新增戶別'}
+            </Button>
+          )}
+        </div>
       </div>
+
+      {showAddForm && (
+        <Card className="p-5 mb-4">
+          <form onSubmit={onAddUnit} className="flex flex-col gap-3.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
+              <Field label="棟別 *">
+                <Select value={addForm.building} onChange={(e) => setAddForm((f) => ({ ...f, building: e.target.value }))}>
+                  <option value="A">A棟</option>
+                  <option value="B">B棟</option>
+                </Select>
+              </Field>
+              <Field label="型別 *">
+                <Input value={addForm.unit_type} onChange={(e) => setAddForm((f) => ({ ...f, unit_type: e.target.value }))} placeholder="1" />
+              </Field>
+              <Field label="樓層 *">
+                <Input type="number" value={addForm.floor} onChange={(e) => setAddForm((f) => ({ ...f, floor: e.target.value }))} placeholder="8" />
+              </Field>
+              <Field label="坪數">
+                <Input type="number" value={addForm.house_sqft} onChange={(e) => setAddForm((f) => ({ ...f, house_sqft: e.target.value }))} />
+              </Field>
+              <Field label="開價（萬）">
+                <Input type="number" value={addForm.house_sale_price} onChange={(e) => setAddForm((f) => ({ ...f, house_sale_price: e.target.value }))} />
+              </Field>
+              <Field label="車位編號">
+                <Input value={addForm.parking_id} onChange={(e) => setAddForm((f) => ({ ...f, parking_id: e.target.value }))} />
+              </Field>
+            </div>
+            <Button type="submit" variant="primary" disabled={saving} className="self-start">
+              {saving ? '新增中…' : '新增戶別'}
+            </Button>
+          </form>
+        </Card>
+      )}
+
       <div className="flex gap-3 flex-wrap text-[13px] my-4" style={{ color: 'var(--muted-foreground)' }}>
         {SALES_CONTROL_STATUSES.map((k) => (
           <span key={k} className="flex items-center gap-1.5">
