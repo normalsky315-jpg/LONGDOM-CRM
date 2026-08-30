@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Routes, Route } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { RequireAuth } from './components/layout/RequireAuth';
 import { Login } from './pages/Login';
@@ -11,7 +11,7 @@ import { Placeholder } from './pages/Placeholder';
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route
@@ -31,6 +31,6 @@ export default function App() {
           <Route path="/settings" element={<Placeholder title="系統管理" />} />
         </Route>
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
