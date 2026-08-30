@@ -48,20 +48,25 @@ rm -rf ../webapp && cp -r dist ../webapp
 
 品牌名稱刻意保持通用（`示範建案`，可用環境變數覆寫），不寫死任何特定案場的中文或英文名稱。
 
-## 架構審查結論（已修正 vs. 待決策）
+## 架構審查結論
 
 這份專案曾經有一整批頁面的欄位／回傳格式是憑印象編的，跟真實後端
-（`gas-updates/jltx_v9.30_full.gs`）逐一核對後已經修正，細節見 git log；
-還有一項是產品層級的決定，不是程式碼可以自己選的：
+（`gas-updates/jltx_v9.30_full.gs`）逐一核對後已經修正，細節見 git log。
 
-**認證模型未定案**：真正的吉隆天曜是 LINE LIFF 應用——身份來自
-`liff.getProfile()` 取得的 `lineUserId`，不是帳號密碼；`verifyAccess`
-只驗證「一組全案場共用密碼」+ 這個 LINE 身份 + 選擇的案場。這個
-React 版本目前只修正了登入畫面的欄位（拿掉不存在的「帳號」欄位、
-案場清單改成動態載入），但沒有整合 `@line/liff`，所以在瀏覽器直接
-開啟時串不上真實後端登入（後端會回「無法取得 LINE 使用者身份」）。
-要讓真實登入可用，需要先決定：
-1. 整合 `@line/liff`，讓這個 React 版本也只能從 LINE 內開啟（跟現有系統一致）
-2. 或者幫這個新架構額外做一支不綁 LINE 身份的登入 action（等於後端要加新功能）
+**認證模型**：確認這個 React 版本的定位是取代 `jltx.html`、供現場業務
+用手機操作，所以已整合真正的 LINE LIFF（`@line/liff`），流程對照
+`jltx.html`：`liff.init()` → 未登入就 `liff.login()` 導轉 → 
+`liff.getProfile()` 拿 `userId`/`displayName` → 帶著這個身份 + 全案場
+共用密碼 + 選擇的案場呼叫 `verifyAccess`。session 只長期保存
+`line_user_id`（不快取 role，跟 jltx.html 同樣的設計，避免主管改角色
+後本地還在用舊權限），每次重新打開 app 都用 `checkAutoLogin` 重新驗證
+一次即時角色。
 
-在決定之前，示範模式（不設定 `VITE_GAS_URL`）仍可完整操作所有畫面。
+部署到真實案場前記得：
+1. 在 LINE Developers 後台建立該案場自己的 LIFF App，Endpoint URL 指向
+   這個 web-crm 部署後的正式網址（不能用會變動的分支預覽網址）
+2. 設定 `VITE_LIFF_ID` 環境變數為這個新的 LIFF App ID（不要沿用吉隆天曜的）
+
+示範模式（不設定 `VITE_GAS_URL`）刻意不整合 LIFF，因為 LIFF 的固定
+Endpoint URL 限制跟示範用的多組隨機預覽網址不相容；示範模式下所有
+畫面仍可完整操作，只是不會有真實登入驗證。

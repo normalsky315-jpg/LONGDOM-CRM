@@ -4,37 +4,37 @@ import { Building2, Eye, EyeOff } from 'lucide-react';
 import { SITE_NAME, SITE_TAGLINE } from '../lib/siteConfig';
 import { verifyAccess, getProjectList, GAS_URL } from '../lib/gasClient';
 import { saveSession } from '../lib/session';
+import { initLiff, type LiffProfile } from '../lib/liff';
 
-// ⚠ 架構備註：真正的吉隆天曜後端是 LINE LIFF 應用（jltx.html 用
-// liff.init()／liff.getProfile() 取得 lineUserId，這是識別使用者的
-// 唯一依據，不是帳號密碼），verifyAccess 只驗證「一組全案場共用的
-// 密碼」+ lineUserId + 選擇的案場，並沒有「帳號」這個概念——之前這裡
-// 做的「帳號」輸入框是完全虛構的欄位，真實系統裡不存在。
-// 這裡已經改成貼近真實流程（密碼 + 動態載入案場清單，不再有帳號
-// 欄位），但沒有整合 LIFF SDK：在瀏覽器直接開啟（不是從 LINE 內開）
-// 拿不到真正的 lineUserId，verifyAccess 會直接被後端擋掉
-// （「無法取得 LINE 使用者身份，請確認從 LINE 開啟本頁面」）。
-// 要讓這個 React 版本真的能對接後端登入，需要先決定：(a) 加入
-// @line/liff 走一樣的 LIFF 流程，或 (b) 幫這個新架構另外做一支不綁
-// LINE 身份的登入 action——這是產品層級的決定，不是我能自己選的，
-// 所以先維持示範模式可用、真實模式會誠實顯示後端錯誤，而不是假裝
-// 登入成功。
+// 對照 jltx.html 的登入流程：身份來自 LIFF 的 liff.getProfile()
+// （userId／displayName），密碼是全案場共用的一組密碼，不是每人一組
+// 帳密。畫面上完全沒有「帳號」欄位可以打——LINE 顯示名稱是唯讀的、
+// 從 LIFF 自動帶出來，使用者只需要選案場、輸入共用密碼。
 export function Login() {
   const navigate = useNavigate();
   const [showPw, setShowPw] = useState(false);
   const [password, setPassword] = useState('');
   const [projects, setProjects] = useState<string[]>([]);
   const [project, setProject] = useState('');
+  const [profile, setProfile] = useState<LiffProfile | null>(null);
+  const [liffReady, setLiffReady] = useState(!GAS_URL);
   const [loading, setLoading] = useState(false);
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     (async () => {
       if (!GAS_URL) {
+        // 示範模式不整合 LIFF：LIFF 需要在 LINE 開發者後台登記固定的
+        // Endpoint URL，跟示範用的多組隨機預覽網址不相容，示範模式
+        // 只需要能操作畫面，不需要真的驗證身份
         setProjects([SITE_NAME]);
         setProject(SITE_NAME);
         return;
       }
+      const p = await initLiff();
+      setProfile(p);
+      setLiffReady(true);
       try {
         const res: any = await getProjectList();
         const list = res?.data || [];
@@ -56,32 +56,60 @@ export function Login() {
     setLoading(true);
     try {
       if (!GAS_URL) {
-        // 未設定 VITE_GAS_URL 時走示範模式，不打真實後端
         saveSession({ display_name: '示範使用者', role: 'manager', project_name: project || SITE_NAME });
         navigate('/', { replace: true });
         return;
       }
-      // 真實模式下沒有 LIFF 取得的 lineUserId，這裡誠實送空字串讓
-      // 後端回傳真正的錯誤，而不是自己假造一個 id 騙過驗證
-      const res: any = await verifyAccess({ lineUserId: '', displayName: '', password, selectedProject: project });
-      if (res?.ok && res.data?.status === 'active') {
-        saveSession({
-          display_name: res.data.displayName,
-          role: res.data.role || 'sales',
-          project_name: res.data.projectName || project,
-        });
-        navigate('/', { replace: true });
-      } else if (res?.ok && res.data?.status === 'pending') {
-        setError('帳號待審核，請聯絡主管核准後再登入');
-      } else {
-        setError(res?.error || '登入失敗');
+      if (!profile?.userId) {
+        setError('無法取得 LINE 使用者身份，請確認從 LINE 開啟本頁面');
+        return;
       }
+      const res: any = await verifyAccess({
+        lineUserId: profile.userId,
+        displayName: profile.displayName,
+        password,
+        selectedProject: project,
+      });
+      if (!res?.ok) {
+        setError(res?.error || '登入失敗');
+        return;
+      }
+      if (res.data?.status === 'pending') {
+        setPending(true);
+        return;
+      }
+      saveSession({
+        line_user_id: profile.userId,
+        display_name: res.data.displayName,
+        role: res.data.role || 'sales',
+        project_name: res.data.projectName || project,
+      });
+      navigate('/', { replace: true });
     } catch {
       setError('連線失敗，請稍後再試');
     } finally {
       setLoading(false);
     }
   };
+
+  if (GAS_URL && !liffReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--background)', color: 'var(--muted-foreground)' }}>
+        連接 LINE 中…
+      </div>
+    );
+  }
+
+  if (pending) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-8" style={{ background: 'var(--background)' }}>
+        <div className="text-center max-w-sm">
+          <div className="brand-font font-bold text-xl mb-2" style={{ color: 'var(--foreground)' }}>帳號待審核</div>
+          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>您的帳號已建立，請聯絡主管完成核准後再重新登入。</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen grid grid-cols-1 md:grid-cols-[1.05fr_1fr]" style={{ background: 'var(--background)' }}>
@@ -118,6 +146,15 @@ export function Login() {
             <div className="brand-font font-bold text-[22px]" style={{ color: 'var(--foreground)' }}>登入控台</div>
             <div className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>請選擇案場並輸入密碼</div>
           </div>
+
+          {profile?.displayName && (
+            <div className="flex items-center gap-2.5 mb-4.5 px-3.5 py-2.5 rounded-xl" style={{ background: 'var(--lake-soft)' }}>
+              <div className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0" style={{ background: 'var(--secondary)', color: '#fff' }}>
+                {profile.displayName.charAt(0)}
+              </div>
+              <span className="text-sm font-semibold" style={{ color: 'var(--secondary)' }}>LINE 帳號：{profile.displayName}</span>
+            </div>
+          )}
 
           <label className="block text-[13px] font-semibold mb-1.5" style={{ color: 'var(--muted-foreground)' }}>案場</label>
           <select

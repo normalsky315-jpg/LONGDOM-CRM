@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { SITE_NAME } from '../../lib/siteConfig';
 import { canManage, clearSession, loadSession } from '../../lib/session';
+import { liffLogout } from '../../lib/liff';
+import { GAS_URL } from '../../lib/gasClient';
 import { GlobalSearch } from './GlobalSearch';
 
 const MOCK_ALERTS = [
@@ -44,6 +46,7 @@ export function AppShell() {
 
   const onLogout = () => {
     clearSession();
+    if (GAS_URL) liffLogout();
     navigate('/login', { replace: true });
   };
 
