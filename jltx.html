@@ -2361,7 +2361,12 @@ function fillDealModalFieldsForEdit(d, custId) {
   document.getElementById('deal_id').value = d.deal_id || '';
   document.getElementById('deal_custId').value = custId || d.customer_id || '';
   ensureSalesControlLoaded_(function(){
-    var u = (state.salesControlRaw || []).filter(function(r){ return r.unit_id === d.unit_id; })[0];
+    var list = state.salesControlRaw || [];
+    var u = list.filter(function(r){ return r.unit_id === d.unit_id; })[0];
+    // unit_id 對不到時（例如銷控表該戶被刪除重建過），退而求其次用
+    // 成交明細存的戶別文字比對，至少棟別/型別/樓層還能自動帶出來
+    if (!u && d.unit) u = list.filter(function(r){ return r.unit_label === d.unit; })[0];
+    if (!u) showToast('找不到這筆成交明細對應的戶別（可能銷控表該戶已被刪除或重建），請重新手動選擇棟別/型別/樓層','error');
     setDealUnitSelects_(u ? u.building : 'A', u ? u.unit_type : null, u ? u.floor : null);
   });
   document.getElementById('deal_custName').value = d.customer_name || '';
