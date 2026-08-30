@@ -1,5 +1,23 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.31
+//  龍登 CRM — 吉隆天曜專用版 v9.32
+//  v9.32 變更：客戶名單改成「一人一張卡」，不再把同一人的初訪／回籠
+//  拆成好幾筆各自獨立顯示的卡片：
+//    1. Customer_Data 新增 person_id 欄位，appendCustomerData 依電話
+//       號碼自動判斷是不是同一個人（跟既有的重複電話偵測用同一套
+//       比對邏輯），是的話沿用同一個 person_id，連舊資料第一次被
+//       回訪時也會順便回填
+//    2. 新增 getMyCustomerProfiles()：依 person_id 把同一人的多筆來訪
+//       合併成一份「畫面呈現用」的 profile，代表性欄位（姓名/成交
+//       狀態等）取自最新一筆來訪，並帶出完整來訪陣列
+//    3. renderMyCustomerList()／renderRecentCustomers() 改成依
+//       person_id 分組渲染：同一人只有一張卡片，收合展開看得到全部
+//       來訪紀錄；每一筆來訪的內容跟按鈕（修改／刪除／追蹤紀錄／
+//       成交階段…）完全沿用既有的 myCustomerCardHTML()／
+//       recentCustCardHTML()，沒有改動任何既有動作的邏輯
+//    4. 新增 backfillPersonIds()：一次性遷移用，把既有資料依電話
+//       號碼回填 person_id，主管要在 Apps Script 編輯器手動執行一次
+//    ★ 週報表／日報表／月報表完全不受影響——那些報表要看的是「這週
+//    有哪些來訪事件」，不是「有哪些人」，繼續讀 Customer_Data 原始列
 //  v9.31 變更：修正「標記退戶」沒有連動釋放銷控表戶別的漏洞。
 //    問題：jltx.html 的 confirmRefund() 只在表單上有帶到 deal_id 時
 //    才會另外呼叫 markDealDetailRefund() 去釋放 Sales_Control 的戶別；
@@ -757,6 +775,8 @@ function doGet(e) {
         return jsonResponse(getCustomerList(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
       case 'getMyCustomers':
         return jsonResponse(getMyCustomers(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
+      case 'getMyCustomerProfiles':
+        return jsonResponse(getMyCustomerProfiles(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId }));
       case 'searchMyCustomers':
         return jsonResponse(searchMyCustomers(payload.lineUserId ? payload : { lineUserId: e.parameter.lineUserId, keyword: e.parameter.keyword }));
       case 'getMyCustomerOverview':
@@ -1335,7 +1355,7 @@ var CUSTOMER_EXTRA_FIELDS = ['gender','marital_status','visit_time_slot',
   'linked_customer_id','linked_customer_name','linked_visit_date','detailed_address',
   'geo_lat','geo_lng','age',
   'sales_deal_stage','sales_deal_unit_id','sales_deal_unit_label',
-  'reserved_until','expected_sign_date'];
+  'reserved_until','expected_sign_date','person_id'];
 
 // ★ 業務端成交階段（跟主管的正式成交標記 deal_status 是兩套並行、互相
 // 對照用的機制，不是同一個欄位）：業務自己在客戶資料上填，不用等主管
@@ -1424,14 +1444,32 @@ function appendCustomerData(payload) {
     // 正常情況），但回傳提示讓前端跳訊息告知，避免業務不知道已經有人
     // 接過這位客戶
     var phone = String(payload.phone).trim();
-    var dupRecords = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER)
-      .filter(function(r) { return String(r.phone || '').trim() === phone; })
+    var samePhoneRows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER)
+      .filter(function(r) { return String(r.phone || '').trim() === phone; });
+    var dupRecords = samePhoneRows
       .map(function(r) { return { customer_name: r.customer_name, visit_date: String(r.visit_date || '').substring(0, 10), sales_name: r.sales_name }; });
 
     ensureCustomerExtraColumns();
     var customerId = genId('CUST');
+
+    // ★ person_id：同一支電話視為同一個人，讓客戶名單畫面可以把同一人
+    // 的多筆來訪（初訪＋回籠）合併成一張卡片顯示，而不是散成好幾筆各自
+    // 獨立的資料列（見 getMyCustomerProfiles）。舊資料沒有 person_id
+    // 的話，找到同電話的第一筆現有資料時順便回填，讓歷史資料也能併得
+    // 起來，不用等主管手動跑一次 backfillPersonIds()
+    var personId;
+    var existingWithPerson = samePhoneRows.filter(function(r) { return r.person_id; })[0];
+    if (existingWithPerson) {
+      personId = existingWithPerson.person_id;
+    } else if (samePhoneRows.length) {
+      personId = genId('PERSON');
+      updateRowById(CONFIG.SHEETS.CUSTOMER, 'customer_id', samePhoneRows[0].customer_id, { person_id: personId });
+    } else {
+      personId = genId('PERSON');
+    }
     var customerRow = {
       customer_id: customerId,
+      person_id: personId,
       created_at: nowTW(),
       updated_at: nowTW(),
       created_by_line_user_id: ctx.lineUserId,
@@ -1980,6 +2018,92 @@ function getMyCustomers(payload) {
     });
     return ok(rows);
   } catch (err) { return fail(err.message); }
+}
+
+// ★ 客戶名單畫面用：把同一支電話（同一個 person_id）的多筆來訪紀錄
+// 合併成一張「人」的卡片，而不是像 getMyCustomers 那樣一筆來訪一張卡片
+// 散得到處都是。權限篩選跟 getMyCustomers 完全一樣，差別只在合併方式；
+// 週報表／日報表／月報表這些統計報表完全不會用到這支，它們要看的是
+// 「這週有哪些來訪事件」，不是「有哪些人」，繼續讀 getMyCustomers／
+// Customer_Data 原始列，不受這裡的合併邏輯影響。
+// 每個 profile 帶出的 customer_name/deal_status 等「代表性欄位」取自
+// 最新一筆來訪；visits 陣列則是這個人全部來訪紀錄（含初訪/回籠），
+// 由新到舊排序，畫面上點開卡片就能看到完整歷史，跟今天散在各處的
+// 呈現方式相比，這裡才是「一人一張卡」。
+// 舊資料如果還沒有 person_id（還沒被任何一次新的 appendCustomerData
+// 回填過、也還沒手動跑過 backfillPersonIds()），就退回用 customer_id
+// 自己當分組 key，效果等同「這筆自己算一個人」，不會爆炸也不會漏資料，
+// 只是還沒合併而已。
+function getMyCustomerProfiles(payload) {
+  try {
+    var ctx = getUserContext(payload && payload.lineUserId);
+    if (!ctx) return fail('未授權');
+
+    var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER).filter(function(r) {
+      if (ctx.role === CONFIG.ROLES.ADMIN) return true;
+      if (ctx.role === CONFIG.ROLES.MANAGER) return r.project_name === ctx.projectName;
+      return String(r.sales_line_user_id) === String(ctx.lineUserId) ||
+             String(r.created_by_line_user_id) === String(ctx.lineUserId);
+    });
+
+    var groups = {};
+    var order = [];
+    rows.forEach(function(r) {
+      var key = r.person_id || r.customer_id;
+      if (!groups[key]) { groups[key] = []; order.push(key); }
+      groups[key].push(r);
+    });
+
+    var profiles = order.map(function(key) {
+      var visits = groups[key].slice().sort(function(a, b) {
+        var da = String(a.visit_date || a.created_at || '').substring(0, 10);
+        var db = String(b.visit_date || b.created_at || '').substring(0, 10);
+        return db.localeCompare(da);
+      });
+      var latest = visits[0];
+      return {
+        person_id: key,
+        customer_name: latest.customer_name,
+        phone: latest.phone,
+        deal_status: latest.deal_status,
+        deal_unit: latest.deal_unit,
+        sales_deal_stage: latest.sales_deal_stage,
+        sales_name: latest.sales_name,
+        status_note: latest.status_note,
+        visit_count: visits.length,
+        first_visit_date: String(visits[visits.length - 1].visit_date || '').substring(0, 10),
+        last_visit_date: String(latest.visit_date || '').substring(0, 10),
+        latest_customer_id: latest.customer_id,
+        visits: visits
+      };
+    });
+
+    profiles.sort(function(a, b) { return String(b.last_visit_date).localeCompare(String(a.last_visit_date)); });
+    return ok(profiles);
+  } catch (err) { return fail(err.message); }
+}
+
+// 一次性遷移用：把 Customer_Data 裡還沒有 person_id 的舊資料，依電話
+// 號碼分組回填 person_id。在 Apps Script 編輯器手動執行一次即可，
+// 可以放心重複執行——已經有 person_id 的列不會被覆蓋、也不會重複分組。
+function backfillPersonIds() {
+  ensureCustomerExtraColumns();
+  var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER);
+  var personIdByPhone = {};
+  rows.forEach(function(r) {
+    var phone = String(r.phone || '').trim();
+    if (phone && r.person_id && !personIdByPhone[phone]) personIdByPhone[phone] = r.person_id;
+  });
+  var updated = 0;
+  rows.forEach(function(r) {
+    if (r.person_id) return;
+    var phone = String(r.phone || '').trim();
+    if (!phone) return;
+    if (!personIdByPhone[phone]) personIdByPhone[phone] = genId('PERSON');
+    updateRowById(CONFIG.SHEETS.CUSTOMER, 'customer_id', r.customer_id, { person_id: personIdByPhone[phone] });
+    updated++;
+  });
+  Logger.log('✓ 完成：回填 ' + updated + ' 筆 person_id');
 }
 
 // ★ 回訪客人關聯：業務登記回籠客人時，可以用姓名／電話搜尋自己權限
