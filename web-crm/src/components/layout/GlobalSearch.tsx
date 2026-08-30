@@ -25,7 +25,7 @@ export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => 
       if (!GAS_URL) {
         setResults(
           MOCK_CUSTOMERS.filter(
-            (c) => c.customer_name.includes(q) || c.phone.includes(q) || c.intent_unit?.includes(q)
+            (c) => c.customer_name.includes(q) || c.phone.includes(q) || c.introduced_units?.includes(q)
           )
         );
         return;
@@ -91,7 +91,7 @@ export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => 
               </div>
               <div className="min-w-0">
                 <div className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{c.customer_name}</div>
-                <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{c.phone}｜{c.intent_unit}</div>
+                <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{c.phone}｜{c.visit_date}・{c.visit_type}</div>
               </div>
             </button>
           ))}

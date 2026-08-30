@@ -19,8 +19,11 @@ export function Login() {
     setLoading(true);
     try {
       if (!GAS_URL) {
-        // 未設定 VITE_GAS_URL 時走示範模式，不打真實後端
-        saveSession({ display_name: account || '示範使用者', role: '銷售顧問', project_name: SITE_NAME });
+        // 未設定 VITE_GAS_URL 時走示範模式，不打真實後端。role 預設給
+        // manager 是為了讓示範時看得到全部功能；實際串接後端時
+        // verifyAccess 回傳的 role 才是後端 CONFIG.ROLES 認的真正權限，
+        // sales 角色會被後端擋掉銷控表狀態異動/日報提交/系統管理等操作
+        saveSession({ display_name: account || '示範使用者', role: 'manager', project_name: SITE_NAME });
         navigate('/', { replace: true });
         return;
       }
@@ -28,7 +31,7 @@ export function Login() {
       if (res && res.ok) {
         saveSession({
           display_name: res.display_name || account,
-          role: res.role || '銷售顧問',
+          role: res.role || 'sales',
           project_name: SITE_NAME,
         });
         navigate('/', { replace: true });

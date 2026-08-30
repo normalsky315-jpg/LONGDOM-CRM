@@ -4,20 +4,24 @@ import { UserPlus, Repeat, CheckCircle2, ChevronRight } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { IconTile } from '../components/ui/IconTile';
 import { SkeletonCard } from '../components/ui/Skeleton';
-import { getMyCustomerStats, getPendingFollowups, GAS_URL } from '../lib/gasClient';
+import { getMyCustomers, getPendingFollowups, GAS_URL } from '../lib/gasClient';
 import { loadSession } from '../lib/session';
+import type { Customer } from './Customers';
 
-const MOCK_STATS = { today_first_visit: 4, today_revisit: 3, today_deal: 1 };
-const MOCK_FOLLOWUPS = [
-  { customer_id: 'c1', customer_name: '李先生', unit: 'A棟 5F・2型', note: '今日到期・約看夜景戶', tone: 'danger' as const },
-  { customer_id: 'c2', customer_name: '陳小姐', unit: 'B棟 3F・1型', note: '明日追蹤・貸款方案', tone: 'warning' as const },
-  { customer_id: 'c3', customer_name: '王先生', unit: 'A棟 12F・3型', note: '2天後・二次回籠邀約', tone: 'lake' as const },
+interface Stats { today_first_visit: number; today_revisit: number; today_deal: number }
+interface Followup { customer_id: string; customer_name: string; note: string; next_followup_date: string }
+
+const MOCK_STATS: Stats = { today_first_visit: 4, today_revisit: 3, today_deal: 1 };
+const MOCK_FOLLOWUPS: Followup[] = [
+  { customer_id: 'c1', customer_name: '李先生', note: '約看夜景戶', next_followup_date: '2026-08-30' },
+  { customer_id: 'c2', customer_name: '陳小姐', note: '貸款方案', next_followup_date: '2026-08-31' },
+  { customer_id: 'c3', customer_name: '王先生', note: '二次回籠邀約', next_followup_date: '2026-09-01' },
 ];
 
 export function Home() {
   const user = loadSession();
-  const [stats, setStats] = useState<typeof MOCK_STATS | null>(null);
-  const [followups, setFollowups] = useState<typeof MOCK_FOLLOWUPS | null>(null);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [followups, setFollowups] = useState<Followup[] | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -27,9 +31,20 @@ export function Home() {
         return;
       }
       try {
-        const [s, f] = await Promise.all([getMyCustomerStats(), getPendingFollowups()]);
-        setStats(s?.data || MOCK_STATS);
-        setFollowups(f?.data || MOCK_FOLLOWUPS);
+        // 後端沒有現成的「今日初訪/回籠/成交」統計 API（getMyCustomerStats
+        // 實際回傳的是 {total, by_district, by_source, by_age_range}，
+        // 跟這裡要的每日 KPI 完全是兩回事），改成用 getMyCustomers 抓
+        // 權限範圍內的客戶清單，前端依今天日期自己算
+        const [listRes, followupRes] = await Promise.all([getMyCustomers(), getPendingFollowups()]);
+        const rows: Customer[] = listRes?.data || [];
+        const today = new Date().toISOString().slice(0, 10).replace(/-/g, '/');
+        const todayRows = rows.filter((r) => r.visit_date === today);
+        setStats({
+          today_first_visit: todayRows.filter((r) => r.visit_type === '初訪').length,
+          today_revisit: todayRows.filter((r) => r.visit_type === '回籠').length,
+          today_deal: todayRows.filter((r) => r.deal_status === '已成交').length,
+        });
+        setFollowups(followupRes?.data || []);
       } catch {
         setStats(MOCK_STATS);
         setFollowups(MOCK_FOLLOWUPS);
@@ -78,6 +93,9 @@ export function Home() {
         <Link to="/customers" className="text-[13px] font-semibold no-underline" style={{ color: 'var(--secondary)' }}>查看全部</Link>
       </div>
       <Card className="overflow-hidden">
+        {(followups || []).length === 0 && (
+          <div className="text-center text-sm py-8" style={{ color: 'var(--muted-foreground)' }}>目前沒有需要追蹤的客戶</div>
+        )}
         {(followups || []).map((f, i) => (
           <Link
             key={f.customer_id}
@@ -85,12 +103,13 @@ export function Home() {
             className="flex items-center gap-3 px-4.5 py-3.5 no-underline"
             style={{ borderTop: i ? '1px solid var(--border)' : 'none', color: 'inherit' }}
           >
-            <div className="w-1 self-stretch rounded" style={{ background: `var(--${f.tone === 'lake' ? 'secondary' : f.tone})` }} />
+            <div
+              className="w-1 self-stretch rounded"
+              style={{ background: f.next_followup_date <= new Date().toISOString().slice(0, 10) ? 'var(--danger)' : 'var(--secondary)' }}
+            />
             <div className="flex-1 min-w-0">
-              <div className="font-bold text-sm" style={{ color: 'var(--foreground)' }}>
-                {f.customer_name} <span className="font-medium" style={{ color: 'var(--muted-foreground)' }}>・{f.unit}</span>
-              </div>
-              <div className="text-[13px] mt-0.5" style={{ color: 'var(--muted-foreground)' }}>{f.note}</div>
+              <div className="font-bold text-sm" style={{ color: 'var(--foreground)' }}>{f.customer_name}</div>
+              <div className="text-[13px] mt-0.5" style={{ color: 'var(--muted-foreground)' }}>{f.note}・下次追蹤 {f.next_followup_date}</div>
             </div>
             <ChevronRight size={16} style={{ color: 'var(--muted-foreground)' }} />
           </Link>

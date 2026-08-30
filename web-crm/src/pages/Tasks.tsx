@@ -38,14 +38,24 @@ export function Tasks() {
 
   const toggle = async (t: Task) => {
     const nextStatus = t.status === '已完成' ? '待處理' : '已完成';
+    const prevTasks = tasks;
     setTasks((prev) => (prev || []).map((x) => (x.task_id === t.task_id ? { ...x, status: nextStatus } : x)));
-    showToast(nextStatus === '已完成' ? '任務已完成' : '已重新標記為待處理', 'success');
-    if (GAS_URL) {
-      try {
-        await updateTaskStatus({ task_id: t.task_id, status: nextStatus });
-      } catch {
-        showToast('同步後端失敗，請重新整理確認', 'error');
+
+    if (!GAS_URL) {
+      showToast(nextStatus === '已完成' ? '任務已完成' : '已重新標記為待處理', 'success');
+      return;
+    }
+    try {
+      const res: any = await updateTaskStatus({ task_id: t.task_id, status: nextStatus });
+      if (!res?.ok) {
+        setTasks(prevTasks);
+        showToast(res?.error || '更新失敗，狀態已還原', 'error');
+        return;
       }
+      showToast(nextStatus === '已完成' ? '任務已完成' : '已重新標記為待處理', 'success');
+    } catch {
+      setTasks(prevTasks);
+      showToast('連線失敗，狀態已還原', 'error');
     }
   };
 

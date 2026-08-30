@@ -5,7 +5,7 @@ import {
   Bell, Search, LogOut, Building2, Plus,
 } from 'lucide-react';
 import { SITE_NAME } from '../../lib/siteConfig';
-import { clearSession, loadSession } from '../../lib/session';
+import { canManage, clearSession, loadSession } from '../../lib/session';
 import { GlobalSearch } from './GlobalSearch';
 
 const MOCK_ALERTS = [
@@ -14,14 +14,18 @@ const MOCK_ALERTS = [
   { id: 'a3', text: '王先生2天後・二次回籠邀約', to: '/customers/c3' },
 ];
 
+// managerOnly 對照後端實際權限：appendDailyReport 擋 role==='sales'
+// （「業務無權限提交日報」），getUserList／updateUserRole 也擋 sales
+// （「無權限」），所以這兩個入口業務帳號本來就進不去，導覽列先不顯示
+// 比讓他們點進去才看到錯誤訊息更合理
 const NAV_ITEMS = [
   { to: '/', icon: Home, label: '首頁', end: true },
   { to: '/customers', icon: Users, label: '客戶管理' },
   { to: '/sales-control', icon: Grid3x3, label: '銷控表' },
   { to: '/tasks', icon: ClipboardList, label: '任務管理' },
-  { to: '/reports', icon: FileBarChart, label: '銷售日報' },
+  { to: '/reports', icon: FileBarChart, label: '銷售日報', managerOnly: true },
   { to: '/analytics', icon: Map, label: '來人分析' },
-  { to: '/settings', icon: Settings, label: '系統管理' },
+  { to: '/settings', icon: Settings, label: '系統管理', managerOnly: true },
 ];
 
 const BOTTOM_ITEMS = [
@@ -74,7 +78,7 @@ export function AppShell() {
           </div>
         </div>
         <div className="flex flex-col gap-0.5">
-          {NAV_ITEMS.map((item) => (
+          {NAV_ITEMS.filter((item) => !item.managerOnly || canManage(user)).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

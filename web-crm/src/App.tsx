@@ -1,6 +1,7 @@
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { RequireAuth } from './components/layout/RequireAuth';
+import { RequireManager } from './components/layout/RequireManager';
 import { ToastProvider } from './components/ui/Toast';
 import { Login } from './pages/Login';
 import { Home } from './pages/Home';
@@ -32,9 +33,9 @@ export default function App() {
             <Route path="/customers/:id" element={<CustomerDetail />} />
             <Route path="/sales-control" element={<SalesControl />} />
             <Route path="/tasks" element={<Tasks />} />
-            <Route path="/reports" element={<DailyReport />} />
+            <Route path="/reports" element={<RequireManager><DailyReport /></RequireManager>} />
             <Route path="/analytics" element={<Analytics />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/settings" element={<RequireManager><Settings /></RequireManager>} />
           </Route>
         </Routes>
       </HashRouter>

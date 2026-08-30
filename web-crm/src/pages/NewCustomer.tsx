@@ -7,6 +7,10 @@ import { Field, Input, Select } from '../components/ui/Input';
 import { appendCustomerData, GAS_URL } from '../lib/gasClient';
 import { useToast } from '../components/ui/Toast';
 
+// 欄位對照 appendCustomerData 實際必填／可選欄位（gas-updates/jltx_v9.30_full.gs）。
+// customer_name／phone／status_note 三個是後端強制必填，漏了任何一個
+// 送出一定會被 fail() 擋掉——之前這裡少了 status_note，串上真實後端
+// 一定會提交失敗。
 export function NewCustomer() {
   const navigate = useNavigate();
   const showToast = useToast();
@@ -14,10 +18,12 @@ export function NewCustomer() {
   const [form, setForm] = useState({
     customer_name: '',
     phone: '',
-    intent_unit: '',
+    visit_type: '初訪',
+    introduced_units: '',
     budget: '',
-    purpose: '自住',
+    district: '',
     source: '現場來訪',
+    status_note: '',
     note: '',
   });
 
@@ -26,8 +32,8 @@ export function NewCustomer() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.customer_name.trim() || !form.phone.trim()) {
-      showToast('姓名與電話為必填', 'error');
+    if (!form.customer_name.trim() || !form.phone.trim() || !form.status_note.trim()) {
+      showToast('姓名、電話、接待狀況為必填', 'error');
       return;
     }
     setSaving(true);
@@ -38,6 +44,9 @@ export function NewCustomer() {
           showToast(res?.error || '新增失敗', 'error');
           setSaving(false);
           return;
+        }
+        if (res.data?.duplicate_phone) {
+          showToast('提醒：此電話已有其他來訪紀錄，仍已新增此筆', 'info');
         }
       }
       showToast('已新增來客', 'success');
@@ -67,29 +76,34 @@ export function NewCustomer() {
             <Field label="電話 *">
               <Input value={form.phone} onChange={set('phone')} placeholder="0912-345-678" />
             </Field>
-            <Field label="意向戶別">
-              <Input value={form.intent_unit} onChange={set('intent_unit')} placeholder="A3・3房" />
+            <Field label="來訪類型">
+              <Select value={form.visit_type} onChange={set('visit_type')}>
+                <option>初訪</option>
+                <option>回籠</option>
+              </Select>
+            </Field>
+            <Field label="居住區域">
+              <Input value={form.district} onChange={set('district')} placeholder="仁武區" />
+            </Field>
+            <Field label="介紹戶別">
+              <Input value={form.introduced_units} onChange={set('introduced_units')} placeholder="A3/3F" />
             </Field>
             <Field label="預算">
               <Input value={form.budget} onChange={set('budget')} placeholder="3,500 萬" />
-            </Field>
-            <Field label="購屋目的">
-              <Select value={form.purpose} onChange={set('purpose')}>
-                <option>自住</option>
-                <option>置產</option>
-                <option>投資</option>
-              </Select>
             </Field>
             <Field label="來源管道">
               <Select value={form.source} onChange={set('source')}>
                 <option>現場來訪</option>
                 <option>廣告來電</option>
-                <option>朋友介紹</option>
+                <option>親友介紹</option>
                 <option>網路媒體</option>
               </Select>
             </Field>
           </div>
-          <Field label="接待備註">
+          <Field label="接待狀況 *">
+            <Input value={form.status_note} onChange={set('status_note')} placeholder="例：先生希望再確認高樓層景觀" />
+          </Field>
+          <Field label="備註（選填）">
             <textarea
               value={form.note}
               onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
