@@ -1,5 +1,19 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.30
+//  龍登 CRM — 吉隆天曜專用版 v9.31
+//  v9.31 變更：修正「標記退戶」沒有連動釋放銷控表戶別的漏洞。
+//    問題：jltx.html 的 confirmRefund() 只在表單上有帶到 deal_id 時
+//    才會另外呼叫 markDealDetailRefund() 去釋放 Sales_Control 的戶別；
+//    如果這個客戶名下找不到對應的 Deal_Detail 紀錄（getDealDetailByCustomer
+//    查不到、dealId 是空字串——畫面上甚至還顯示「這筆客戶沒有找到成交
+//    明細，仍可直接標記退戶」），退戶流程就會整個跳過 Sales_Control，
+//    戶別狀態卡在已保留/已收訂/已簽約，永遠沒有被釋放，別的客戶也无法
+//    再被指定這戶。修正方式：updateCustomerDeal() 只要 deal_status
+//    變成「退戶」，不管前端有沒有另外呼叫 markDealDetailRefund，都主動
+//    找出 linked_customer_id 是這個客戶、且狀態是已保留/已收訂/已簽約
+//    的銷控戶別，一併改成「退戶」（跟 markDealDetailRefund 用同一個
+//    狀態值，不是「待售」，維持「這戶曾經談過又退了」跟「從沒談過」
+//    兩種語意的區別）。兩邊都會呼叫也沒關係，updateRowById 重複設
+//    一樣的值是安全的。
 //  v9.30 變更：下週休假通報格式改版，照主管指定的格式：
 //    1. 拿掉每行的「休假人員」字樣，改成日期(星期)後面直接接姓名
 //    2. 沒有人休假的日期整行省略——不管平日或假日，只要那天沒人排休
@@ -1500,6 +1514,30 @@ function updateCustomerDeal(payload) {
       updated_at:  nowTW()
     };
     updateRowById(CONFIG.SHEETS.CUSTOMER, 'customer_id', payload.customer_id, updates);
+
+    // ★ 修正：標記退戶時，不管前端有沒有帶 deal_id 去另外呼叫
+    // markDealDetailRefund，這裡都主動找出連結到這個客戶的銷控戶別
+    // 一併釋放。之前退戶只靠前端在 confirmRefund() 裡「如果有 deal_id
+    // 才呼叫 markDealDetailRefund」，客戶名下沒有 Deal_Detail 紀錄
+    // （dealId 是空字串）時就完全不會去動 Sales_Control，導致戶別
+    // 狀態卡在已保留/已收訂/已簽約，永遠釋放不出來，別的客戶也無法
+    // 再被指定這戶——這裡直接在後端補上，兩邊都會呼叫也沒關係
+    // （updateRowById 對同一戶重複設一樣的值是安全的）
+    if (newStatus === '退戶') {
+      ensureSalesControlSheet();
+      // 狀態值跟 markDealDetailRefund 保持一致：退戶戶別標成「退戶」
+      // 而不是「待售」，讓銷控表看得出這戶「曾經談過又退了」，不是
+      // 「從沒談過」；linked_customer 也保留不清空，當作歷史紀錄
+      var linkedUnits = readSheetAsObjects(CONFIG.SHEETS.SALES_CONTROL).filter(function(u) {
+        return String(u.linked_customer_id || '') === String(payload.customer_id) &&
+          ['已保留', '已收訂', '已簽約'].indexOf(u.status) >= 0;
+      });
+      linkedUnits.forEach(function(u) {
+        updateRowById(CONFIG.SHEETS.SALES_CONTROL, 'unit_id', u.unit_id, {
+          status: '退戶', updated_at: nowTW()
+        });
+      });
+    }
 
     var logId = genId('CLOG');
     appendObjectToSheet(CONFIG.SHEETS.CHANGE_LOG, {
