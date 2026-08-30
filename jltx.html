@@ -1777,6 +1777,15 @@ function filterMyCustomers(el) {
   renderMyCustomerList();
 }
 
+// ★ 修正資料呈現邏輯：Customer_Data 一筆是「一次來訪」，同一人回籠會是
+// 另一筆全新資料列，過去這裡直接把每一筆來訪都攤平成一張獨立卡片，
+// 同一位客戶的初訪、回籠會散成好幾張卡片、看起來像好幾個人。現在依
+// person_id（同一支電話）分組，一個人只顯示一張卡片，卡片裡收合展開
+// 看得到這個人全部來訪紀錄；每一筆來訪的內容跟按鈕（修改／刪除／
+// 追蹤紀錄／成交階段…）完全沿用 myCustomerCardHTML()，沒有改動任何
+// 既有動作的邏輯，只是改變外層怎麼分組顯示。
+// 週報表／日報表／月報表不會受影響——那些報表直接讀 Customer_Data
+// 原始列（一筆一次來訪），不會經過這裡的分組。
 function renderMyCustomerList() {
   var box = document.getElementById('myCustomerList');
   var list = state.myCustomersRaw;
@@ -1785,7 +1794,31 @@ function renderMyCustomerList() {
   }
   list = applyCustomerSearch(list, 'myCustomerSearchName', 'myCustomerSearchDateStart', 'myCustomerSearchDateEnd');
   if (!list.length) { box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📁</div><div class="empty-state-text">尚無符合條件的客戶資料</div></div>'; return; }
-  box.innerHTML = sortByDateDesc(list).map(function(c){ return myCustomerCardHTML(c); }).join('');
+
+  var groups = {}, order = [];
+  sortByDateDesc(list).forEach(function(c) {
+    var key = c.person_id || c.customer_id;
+    if (!groups[key]) { groups[key] = []; order.push(key); }
+    groups[key].push(c);
+  });
+
+  box.innerHTML = order.map(function(key) {
+    var visits = groups[key];
+    var latest = visits[0];
+    if (visits.length === 1) return myCustomerCardHTML(latest);
+    var visitBadge = '<span class="cust-card-deal pending" style="background:var(--teal-soft);color:#0f6e56;">共 ' + visits.length + ' 次到訪</span>';
+    return '<details class="cust-card" style="padding:0;">' +
+      '<summary style="cursor:pointer;list-style:none;padding:14px;">' +
+        '<div class="cust-card-head" style="display:inline-flex;width:calc(100% - 20px);">' +
+          '<div class="cust-card-name">' + escapeHtml(latest.customer_name||'') + '</div>' +
+          '<div class="cust-card-date">最近來訪：' + String(latest.visit_date||'').substring(0,10) + '</div>' +
+        '</div>' +
+      '</summary>' +
+      '<div style="padding:0 14px 14px;">' + visitBadge + '<div style="margin-top:10px;display:flex;flex-direction:column;gap:10px;">' +
+        visits.map(function(c){ return myCustomerCardHTML(c); }).join('') +
+      '</div></div>' +
+    '</details>';
+  }).join('');
 }
 
 function myCustomerCardHTML(c) {
@@ -2190,6 +2223,10 @@ function applyCustomerSearch(list, nameInputId, dateStartInputId, dateEndInputId
   return list;
 }
 
+// 分組邏輯跟 renderMyCustomerList() 一樣：同一支電話（person_id）合併
+// 成一張卡片，裡面收合展開看得到這個人在這 7 天內的每一次來訪。標記
+// 成交／編輯成交／標記退戶／追蹤紀錄／成交階段這些動作全部沿用
+// recentCustCardHTML() 原樣，不受影響。
 function renderRecentCustomers() {
   var box = document.getElementById('recentCustomerList');
   var list = state.recentCustomers;
@@ -2201,7 +2238,30 @@ function renderRecentCustomers() {
     box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👤</div><div class="empty-state-text">沒有符合條件的客戶資料</div></div>';
     return;
   }
-  box.innerHTML = sortByDateDesc(list).map(function(c){ return recentCustCardHTML(c); }).join('');
+
+  var groups = {}, order = [];
+  sortByDateDesc(list).forEach(function(c) {
+    var key = c.person_id || c.customer_id;
+    if (!groups[key]) { groups[key] = []; order.push(key); }
+    groups[key].push(c);
+  });
+
+  box.innerHTML = order.map(function(key) {
+    var visits = groups[key];
+    var latest = visits[0];
+    if (visits.length === 1) return recentCustCardHTML(latest);
+    return '<details class="cust-card" style="padding:0;">' +
+      '<summary style="cursor:pointer;list-style:none;padding:14px;">' +
+        '<div class="cust-card-head" style="display:inline-flex;width:calc(100% - 20px);">' +
+          '<div class="cust-card-name">' + escapeHtml(latest.customer_name||'') + '</div>' +
+          '<div class="cust-card-date">最近來訪：' + String(latest.visit_date||'').substring(0,10) + '（共 ' + visits.length + ' 次）</div>' +
+        '</div>' +
+      '</summary>' +
+      '<div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:10px;">' +
+        visits.map(function(c){ return recentCustCardHTML(c); }).join('') +
+      '</div>' +
+    '</details>';
+  }).join('');
 }
 
 function recentCustCardHTML(c) {
