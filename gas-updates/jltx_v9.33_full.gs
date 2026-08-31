@@ -10,6 +10,10 @@
 //    另外手動通知，也不需要新增任何觸發器設定（沿用既有的每日 9 點
 //    trigger）。只要 LINE_TOKEN 有設定就會運作，跟 LINE_PUSH_TARGET
 //    （案場廣播名單）是否有設定無關。
+//    ★ 追加修正：getSalesByProject() 原本只回傳 role 是 sales/manager
+//    的人，導致「指派任務」「客戶指派業務」下拉選單裡看不到 admin，
+//    admin 沒辦法互相指派任務或提醒。改成 sales/manager/admin 都會出現
+//    在下拉選單裡，admin 可以把任務／提醒傳給任何人，包含其他 admin。
 //  v9.32 變更：客戶名單改成「一人一張卡」，不再把同一人的初訪／回籠
 //  拆成好幾筆各自獨立顯示的卡片：
 //    1. Customer_Data 新增 person_id 欄位，appendCustomerData 依電話
@@ -1194,7 +1198,7 @@ function getSalesByProject(projectName, lineUserId) {
     var rows = readSheetAsObjects(CONFIG.SHEETS.USER_ROLE)
       .filter(function(r) {
         if (r.status !== CONFIG.STATUS.ACTIVE) return false;
-        if (r.role !== CONFIG.ROLES.SALES && r.role !== CONFIG.ROLES.MANAGER) return false;
+        if (r.role !== CONFIG.ROLES.SALES && r.role !== CONFIG.ROLES.MANAGER && r.role !== CONFIG.ROLES.ADMIN) return false;
         if (r.project_name !== projectName) return false;
         // User_Role_Table 可能對同一個人有多筆重複的有效紀錄（例如
         // 重新授權 LINE、重新審核過，導致同一個人對到不同的 line_user_id）
