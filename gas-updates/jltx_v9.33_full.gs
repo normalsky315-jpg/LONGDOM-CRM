@@ -1,5 +1,15 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.32
+//  龍登 CRM — 吉隆天曜專用版 v9.33
+//  v9.33 變更：新增任務「到期日提醒」功能。原本 sendDailyTaskReminder()
+//    只會依 LINE_PUSH_TARGET 廣播給手動維護的名單，指派任務時個人完全
+//    不會另外收到「明天要到期」的提醒。修正方式：每天早上 9 點觸發時，
+//    在原本的廣播邏輯之前，先掃描所有 status 是待辦、到期日剛好是今天、
+//    而且有指定負責人（assigned_to_line_user_id）的任務，逐一用
+//    sendLinePush() 私訊提醒本人。這樣主管今天指派一筆任務、把到期日設
+//    成明天，指派到的銷售明天早上 9 點就會自動收到個人提醒，不用等主管
+//    另外手動通知，也不需要新增任何觸發器設定（沿用既有的每日 9 點
+//    trigger）。只要 LINE_TOKEN 有設定就會運作，跟 LINE_PUSH_TARGET
+//    （案場廣播名單）是否有設定無關。
 //  v9.32 變更：客戶名單改成「一人一張卡」，不再把同一人的初訪／回籠
 //  拆成好幾筆各自獨立顯示的卡片：
 //    1. Customer_Data 新增 person_id 欄位，appendCustomerData 依電話
@@ -4325,9 +4335,30 @@ function qaSearchCustomer(keyword, ctx) {
 function sendDailyTaskReminder() {
   try {
     var rows = readSheetAsObjects(CONFIG.SHEETS.TASK).filter(function(r){ return r.status === CONFIG.STATUS.PENDING; });
+    var today = todayTW();
+
+    // ★ 新增：任務指派時是「立刻」私訊被指派的人，沒有「今天先指派、
+    // 明天早上才提醒」這種延後通知的功能。這裡補上：借用既有的每天
+    // 早上 9 點排程（跟下面的團隊彙總廣播共用同一個觸發時間），只要
+    // 有任務的截止日期剛好是「今天」，就額外一對一私訊提醒被指派的
+    // 那個人——用法是新增任務時把截止日期填「明天」，隔天這個排程
+    // 跑的時候 due_date 就會等於當天，自動補發提醒。跟下面團隊彙總
+    // 用的 LINE_PUSH_TARGET 設定無關，獨立判斷 LINE_TOKEN 有沒有設定
+    // 就會運作，不會因為沒設定團隊彙總對象而整支跳過
+    if (getProp(CONFIG.PROP_KEYS.LINE_TOKEN)) {
+      rows.filter(function(r) {
+        return r.due_date && String(r.due_date).substring(0, 10) === today && r.assigned_to_line_user_id;
+      }).forEach(function(t) {
+        sendLinePush(t.assigned_to_line_user_id,
+          '案場：' + CONFIG.PROJECT_NAME + '\n🔔 今日到期任務提醒\n標題：' + t.title +
+          (t.description ? '\n說明：' + t.description : '') +
+          (t.created_by ? '\n指派人：' + t.created_by : ''));
+      });
+    }
+
     if (!getProp(CONFIG.PROP_KEYS.LINE_PUSH_TARGET)) return;
 
-    var msg = '案場：' + CONFIG.PROJECT_NAME + '\n🔔 今日任務提醒（' + todayTW() + '）\n\n';
+    var msg = '案場：' + CONFIG.PROJECT_NAME + '\n🔔 今日任務提醒（' + today + '）\n\n';
     if (!rows.length) { msg += '✅ 目前沒有待辦任務'; }
     else {
       var byProject = {};
