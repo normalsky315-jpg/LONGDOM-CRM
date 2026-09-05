@@ -710,6 +710,7 @@
           <input class="inp" type="week" id="weekReportDate" onchange="setWeeklyReportAllTime(false)" style="flex:1;">
           <button type="button" class="btn-mini" id="weekAllTimeBtn" onclick="setWeeklyReportAllTime(true)" style="flex-shrink:0;">全部期間</button>
         </div>
+        <button type="button" class="btn-mini" id="weekSyncReportBtn" onclick="syncWeeklyReportSheet()" style="width:100%;margin-top:8px;">🔄 同步本週報表（Excel 範本）</button>
       </div>
       <div class="summary-card"><div class="summary-card-label" id="weekSummaryLabel">WEEKLY SUMMARY</div><div class="summary-card-date" id="weekReportRange">—</div><div class="summary-stats"><div class="summary-stat"><div class="summary-stat-num" id="weekSumVisitor">0</div><div class="summary-stat-label">接待</div></div><div class="summary-stat"><div class="summary-stat-num" id="weekSumFirst">0</div><div class="summary-stat-label">初訪</div></div><div class="summary-stat"><div class="summary-stat-num" id="weekSumRevisit">0</div><div class="summary-stat-label">回籠</div></div><div class="summary-stat"><div class="summary-stat-num" id="weekSumDeal">0</div><div class="summary-stat-label">成交</div></div></div></div>
       <div class="summary-card" id="weekBreakdownCard">
@@ -3420,6 +3421,29 @@ function loadWeeklyReport() {
 
   loadWeeklyHotPicksCard(weekRange);
   loadWeeklyReceptionTable(weekRange);
+}
+
+// 把目前選取的週次算好的數字同步進獨立的「週報表」Excel 範本試算表
+// （第一次按會自動建立這份試算表，之後都是同一份，只更新數字）。
+// 一律用查詢週次輸入框選的那一週，不受「全部期間」切換影響，因為
+// 週報範本本來就是設計給「單一週」看的
+function syncWeeklyReportSheet() {
+  var btn = document.getElementById('weekSyncReportBtn');
+  var weekStr = document.getElementById('weekReportDate').value || isoWeekStringFromDate(todayStr());
+  var weekRange = isoWeekRangeFromString(weekStr);
+  btn.disabled = true; btn.textContent = '同 步 中…';
+  gasGet('refreshWeeklyReport', { lineUserId: state.user.lineUserId, startDate: weekRange[0], endDate: weekRange[1] }, function(res) {
+    btn.disabled = false; btn.textContent = '🔄 同步本週報表（Excel 範本）';
+    if (res.ok) {
+      showToast('已同步，正在開啟試算表','success');
+      window.open(res.data.url, '_blank');
+    } else {
+      showToast(res.error || '同步失敗', 'error');
+    }
+  }, function() {
+    btn.disabled = false; btn.textContent = '🔄 同步本週報表（Excel 範本）';
+    showToast('連線失敗', 'error');
+  });
 }
 
 // 本週有望客卡片：業務挑選送出的清單，跨業務彙整
