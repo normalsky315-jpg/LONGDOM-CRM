@@ -883,10 +883,10 @@
       <option value="退戶">退戶</option>
     </select></div>
     <div class="field hidden" id="sc_linkedCustomerWrap">
-      <div class="field-label">連結客戶 <span class="req">*</span></div>
-      <input class="inp" type="text" id="sc_linkedCustomerName" list="sc_custNameList" placeholder="從既有客戶挑選">
-      <datalist id="sc_custNameList"></datalist>
-      <input type="hidden" id="sc_linkedCustomerId">
+      <div class="field-label">業務員 <span class="req">*</span></div>
+      <select class="sel" id="sc_linkedSalesperson" onchange="populateScCustomerSelect()"><option value="">請選擇業務員</option></select>
+      <div class="field-label" style="margin-top:10px;">連結客戶 <span class="req">*</span></div>
+      <select class="sel" id="sc_linkedCustomerId"><option value="">請先選業務員</option></select>
     </div>
     <div class="field hidden" id="sc_reservedUntilWrap"><div class="field-label">保留至 <span class="req">*</span></div><input class="inp" type="date" id="sc_reservedUntil"></div>
     <div class="field hidden" id="sc_expectedSignWrap"><div class="field-label">預計簽約時間 <span class="req">*</span></div><input class="inp" type="date" id="sc_expectedSignDate"></div>
@@ -3922,40 +3922,69 @@ function toggleScStatusFields() {
   var needsCustomer = ['已保留','已收訂','已簽約'].indexOf(status) >= 0;
   document.getElementById('sc_linkedCustomerWrap').classList.toggle('hidden', !needsCustomer);
   if (!needsCustomer) {
-    document.getElementById('sc_linkedCustomerName').value = '';
-    document.getElementById('sc_linkedCustomerId').value = '';
+    document.getElementById('sc_linkedSalesperson').value = '';
+    document.getElementById('sc_linkedCustomerId').innerHTML = '<option value="">請先選業務員</option>';
   }
 }
 
-// Sales_Control 畫面可能沒經過「近期客戶」頁面就直接使用，state.
-// recentCustomers 這時候還是空的，「連結客戶」欄位會完全挑不到人。
-// 這裡確保打開編輯戶別的 modal 之前，客戶名單一定已經載入過一次
-function ensureRecentCustomersLoaded_(cb) {
-  if (state.recentCustomers && state.recentCustomers.length) { cb(); return; }
-  gasGet('getRecentCustomers', { lineUserId: state.user.lineUserId }, function(res) {
-    if (res.ok) state.recentCustomers = res.data;
+// 這份完整（不限14天）的客戶名單專門給銷控表的「連結客戶」用，跟
+// 「我的客戶」清單共用同一支 getMyCustomers（主管/admin 呼叫會拿到
+// 整個案場的所有客戶，不像 getRecentCustomers 只回傳近14天內的），
+// 這樣不管客戶是多久以前接待的都選得到，不會因為超過14天就找不到人
+function ensureAllCustomersLoaded_(cb) {
+  if (state.myCustomersRaw && state.myCustomersRaw.length) { cb(); return; }
+  gasGet('getMyCustomers', { lineUserId: state.user.lineUserId }, function(res) {
+    if (res.ok) state.myCustomersRaw = res.data;
     cb();
   }, cb);
 }
 
-// 跟 populateDealCustomerList() 同一套模式，從 state.recentCustomers
-// 建立姓名→customer_id 的對照表，讓「連結客戶」欄位可以打字挑選既有客戶
-function populateScCustomerList() {
-  var dl = document.getElementById('sc_custNameList');
-  var map = {};
-  var options = '';
-  var seen = {};
-  (state.recentCustomers || []).forEach(function(c) {
-    if (!c.customer_name) return;
-    var suffix = c.phone ? String(c.phone).slice(-3) : '';
-    var label = c.customer_name + (suffix ? '（' + suffix + '）' : '');
-    if (seen[label]) return;
-    seen[label] = true;
-    map[label] = c.customer_id;
-    options += '<option value="' + escapeHtml(label) + '">';
+// ★ 連結客戶改成「先選業務員，再從該業務員的客戶名單挑」兩層選單，
+// 原因有兩個：
+//   1. 原本是自由輸入＋datalist，瀏覽器（尤其 Chrome）會把自己存的
+//      地址簿/自動填入建議混進候選清單，跟真正的客戶名單混在一起，
+//      使用者根本分不清楚哪個是真的客戶
+//   2. 主管反映：如果不強制先選業務員，選到的客戶等於「憑空冒出來的
+//      成交」，畫面上完全看不出這筆成交算哪位業務員的——雖然客戶資料
+//      本來就有記錄接待業務，但操作流程上應該讓主管明確先確認是哪位
+//      業務員的客戶，才不會選錯人（例如同名同姓）
+function populateScSalespersonSelect() {
+  var sel = document.getElementById('sc_linkedSalesperson');
+  var proj = state.user.projectName;
+  var load = function(list) {
+    sel.innerHTML = '<option value="">請選擇業務員</option>' +
+      list.map(function(s){ return '<option value="' + escapeHtml(s.lineUserId) + '">' + escapeHtml(s.name) + '</option>'; }).join('');
+  };
+  if (!proj) { sel.innerHTML = '<option value="">請選擇業務員</option>'; return; }
+  if (state.salesByProject && state.salesByProject[proj]) { load(state.salesByProject[proj]); return; }
+  gasGet('getSalesByProject', { project: proj, lineUserId: state.user.lineUserId }, function(res) {
+    if (res.ok) { state.salesByProject = state.salesByProject || {}; state.salesByProject[proj] = res.data; load(res.data); }
   });
-  dl.innerHTML = options;
-  state.scCustomerMap = map;
+}
+
+// 依選定的業務員，從完整客戶名單（state.myCustomersRaw）篩出他名下的
+// 客戶，同一人可能有多筆來訪紀錄，都列出來讓主管選最新那筆
+function populateScCustomerSelect() {
+  var salespersonId = document.getElementById('sc_linkedSalesperson').value;
+  var sel = document.getElementById('sc_linkedCustomerId');
+  if (!salespersonId) { sel.innerHTML = '<option value="">請先選業務員</option>'; return; }
+  var mine = (state.myCustomersRaw || []).filter(function(c){ return String(c.sales_line_user_id) === String(salespersonId); });
+  if (!mine.length) { sel.innerHTML = '<option value="">這位業務員名下沒有客戶資料</option>'; return; }
+  sel.innerHTML = '<option value="">請選擇客戶</option>' + mine.map(function(c) {
+    var suffix = c.phone ? String(c.phone).slice(-3) : '';
+    var label = escapeHtml(c.customer_name||'') + (suffix ? '（' + suffix + '）' : '') + '　' + String(c.visit_date||'').substring(0,10);
+    return '<option value="' + escapeHtml(c.customer_id) + '">' + label + '</option>';
+  }).join('');
+}
+
+// 編輯已經連結客戶的戶別時，要先知道這位客戶是哪個業務員名下的，
+// 才能把兩層選單預選回原本連結的那位客戶
+function prefillScLinkedCustomer_(customerId) {
+  var c = (state.myCustomersRaw || []).filter(function(r){ return String(r.customer_id) === String(customerId); })[0];
+  if (!c) return;
+  document.getElementById('sc_linkedSalesperson').value = c.sales_line_user_id || '';
+  populateScCustomerSelect();
+  document.getElementById('sc_linkedCustomerId').value = customerId;
 }
 
 function openSalesControlModal(unitId) {
@@ -3979,8 +4008,6 @@ function openSalesControlModal(unitId) {
     document.getElementById('sc_houseSalePrice').value = u.house_sale_price || '';
     document.getElementById('sc_parkingSalePrice').value = u.parking_sale_price || '';
     document.getElementById('sc_parkingSqft').value = u.parking_sqft || '';
-    document.getElementById('sc_linkedCustomerId').value = u.linked_customer_id || '';
-    document.getElementById('sc_linkedCustomerName').value = u.linked_customer_name || '';
   } else {
     document.getElementById('scModalTitle').textContent = '新增戶別';
     document.querySelector('#salesControlModal .btn-mini.primary').textContent = '建 立 戶 別';
@@ -3991,15 +4018,17 @@ function openSalesControlModal(unitId) {
     document.getElementById('sc_status').value = '待售';
     document.getElementById('sc_reservedUntil').value = '';
     document.getElementById('sc_expectedSignDate').value = '';
-    document.getElementById('sc_linkedCustomerId').value = '';
-    document.getElementById('sc_linkedCustomerName').value = '';
     ['sc_houseSqft','sc_houseSalePrice','sc_parkingSalePrice','sc_parkingSqft'].forEach(function(id){ document.getElementById(id).value = ''; });
   }
-  // 先用目前快取的名單填一次（通常已經夠用），modal 不用等網路；如果
-  // 這個瀏覽階段還沒載入過客戶名單，背景補抓一次，抓到再重新填一次
-  // 下拉選單，不會卡住畫面
-  populateScCustomerList();
-  ensureRecentCustomersLoaded_(populateScCustomerList);
+  populateScSalespersonSelect();
+  document.getElementById('sc_linkedSalesperson').value = '';
+  document.getElementById('sc_linkedCustomerId').innerHTML = '<option value="">請先選業務員</option>';
+  // 完整客戶名單（不限14天）載入後，如果這戶本來就連結了客戶，把兩層
+  // 選單預選回原本那位業務員／客戶；modal 不等網路，先開起來，資料
+  // 到了再補選
+  ensureAllCustomersLoaded_(function() {
+    if (unitId && u.linked_customer_id) prefillScLinkedCustomer_(u.linked_customer_id);
+  });
   toggleScStatusFields();
   updateScPreview();
   openModal('salesControlModal');
@@ -4034,15 +4063,16 @@ function submitSalesControlUnit() {
   if (status === '已保留' && !reservedUntil) { showToast('狀態選「已保留」時，保留至日期必填','error'); return; }
   if (status === '已收訂' && !expectedSignDate) { showToast('狀態選「已收訂」時，預計簽約時間必填','error'); return; }
 
-  // 狀態改成已保留/已收訂/已簽約時，一定要連結一位既有客戶（跟後端
-  // updateSalesControlUnit/appendSalesControlUnit 的規則一致），打了
-  // 名字但沒從清單挑到就直接擋下，不要讓後端才回錯誤
-  var linkedCustId = document.getElementById('sc_linkedCustomerId').value;
-  var linkedCustName = document.getElementById('sc_linkedCustomerName').value.trim();
-  var mappedScId = (state.scCustomerMap || {})[linkedCustName];
-  var finalLinkedCustId = linkedCustId || mappedScId || '';
-  if (['已保留','已收訂','已簽約'].indexOf(status) >= 0 && !finalLinkedCustId) {
-    showToast('狀態選「' + status + '」時，請從清單挑選連結的客戶','error'); return;
+  // 狀態改成已保留/已收訂/已簽約時，一定要選業務員＋連結一位既有客戶
+  // （跟後端 updateSalesControlUnit/appendSalesControlUnit 的規則一致）
+  var finalLinkedCustId = document.getElementById('sc_linkedCustomerId').value;
+  if (['已保留','已收訂','已簽約'].indexOf(status) >= 0) {
+    if (!document.getElementById('sc_linkedSalesperson').value) {
+      showToast('狀態選「' + status + '」時，請先選業務員','error'); return;
+    }
+    if (!finalLinkedCustId) {
+      showToast('狀態選「' + status + '」時，請選擇連結的客戶','error'); return;
+    }
   }
 
   var btn = document.getElementById('scSubmitBtn');
