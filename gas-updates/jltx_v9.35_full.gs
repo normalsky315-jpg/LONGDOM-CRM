@@ -1,5 +1,56 @@
 // ============================================================
-//  龍登 CRM — 吉隆天曜專用版 v9.34
+//  龍登 CRM — 吉隆天曜專用版 v9.35
+//  v9.35 變更：修正一批「銷控表／客戶資料兩邊對不起來」的資料一致性
+//  漏洞，加上週報表試算表的幾個顯示錯誤：
+//    1. 【銷控表直接編輯戶別】原本可以不指定客戶就把狀態改成已保留/
+//       已收訂/已簽約（真實案例：A2/5F 在銷控表勾了已簽約，客戶資料
+//       完全沒有跟著變已成交）。updateSalesControlUnit()／
+//       appendSalesControlUnit() 現在改成已保留/已收訂/已簽約一定要
+//       指定連結的客戶（新增 syncCustomerFromSalesControl_() 反向同步
+//       回客戶資料的成交階段/成交狀態），狀態退回待售/退戶時順便清掉
+//       舊的客戶連結。jltx.html 銷控表編輯視窗新增「連結客戶」欄位
+//       （狀態選已保留/已收訂/已簽約時才顯示，必填）。
+//    2. 【標記成交／成交明細】saveDealDetail() 原本允許 customer_id
+//       空白也能送出成功，建出來的成交明細查無此人。改成一定要對到
+//       既有客戶資料，前端 confirmDeal() 也加了同樣的擋下（提示改從
+//       清單挑選）。
+//    3. 【客戶卡片 14 天限制沒判斷角色】myCustomerCardHTML() 的
+//       ✏️修改／🗑️刪除按鈕原本只看建立天數，沒有排除主管/admin——
+//       後端 updateCustomerData/deleteCustomerData 其實只限制業務，
+//       主管本來就能隨時改，但畫面上超過 14 天一律隱藏按鈕，導致主管
+//       誤以為系統擋住無法修改。改成跟後端規則一致（!isSales() ||
+//       diffDays<=14）。同時「我的客戶」清單原本完全沒有標記成交／
+//       編輯成交／標記退戶這幾顆主管專用按鈕（只有業務自填的「成交
+//       階段」，設計上就不包含已成交），現在補上，跟「近期客戶」清單
+//       一樣的權限規則。
+//    4. 【週報表 Excel：客戶反應統計欄位跟資料對不起來】主管反映欄位
+//       標題跟底下數字錯開一欄（例如「醫務」欄底下顯示的其實是「上班
+//       族」的數字）——因為標題從 A 欄開始放類別名稱，數字卻從 B 欄
+//       開始寫。改成標題也從 B 欄開始，A 欄固定放「項目」列標籤。
+//    5. 【週報表 Excel：職業別分類跟系統實際選項不一致】原本把系統
+//       實際 21 個職業選項用一張表併成範本的 14 類（例如公教/軍人/
+//       警察都算「軍公教」），但案場明確要求這三個要分開統計。改成
+//       直接用 CONFIG.INDUSTRIES 當欄位，不做任何合併，選項改了這裡
+//       也會自動跟著變。
+//    6. 【週報表 Excel：銷控表分頁完全空白】即使 Sales_Control 裡有
+//       戶別已經是已簽約，銷控表分頁還是整張空白（連「待售」都不會
+//       顯示）。根因是 building/unit_type 從試算表讀出來可能是數字
+//       型別，拿來當物件 key 用時被 JS 自動轉成字串，但後面比對是不
+//       是同一戶用嚴格比較（===），數字 1 永遠不等於字串 "1"，導致
+//       每一戶都比對不到。統一用 String() 包住兩邊再比較。
+//    7. 【週報表 Excel：欄位改版不會套用到已存在的試算表】上面第 4/5
+//       點的版面修正，如果只在「第一次建立試算表」時套用，已經建立
+//       過的舊試算表不會自動修正。改成每次同步都重新確認一次版面
+//       （ensureWeeklyReportSpreadsheet_()／syncWeeklyReportLayout_()，
+//       分頁用 getSheetByName 找得到就沿用、找不到才新增），舊試算表
+//       下次同步就會自動修正成最新版面。
+//    8. 【業務統計：接客合計/回訪率算法沒有意義】原本 total_visit／
+//       total_revisit 是把初訪＋回籠的「來訪列數」直接加總，同一人
+//       回籠愈多次，回訪率的分子分母會一起膨脹，例如接待 3 組客人、
+//       其中 1 組回籠一次，用列數算出來的回訪率不會是想要的 1/3。
+//       改成先依人（person_id，沒有的話退回 customer_id）分組，
+//       total_visit/total_revisit/total_deal 改成「人數」而不是
+//       「列數」，回訪率＝回訪過的人數／總人數。
 //  v9.34 變更：新增「週報表 Excel 範本自動連動」。主管原本每週要把
 //    客戶資料手動算成一份 Excel 週報（週報總表／客戶反應統計／銷控表／
 //    業務統計／設定說明 5 個分頁），改成維護一份獨立的 Google 試算表
@@ -1715,6 +1766,14 @@ function saveDealDetail(payload) {
     }
     var base = existing || {};
 
+    // ★ 鎖死：customer_id 一定要能對到既有客戶資料，不能讓「客戶」欄位
+    // 打了名字但選不到既有客戶時，還是用空白 customer_id 送出成功——
+    // 這樣建出來的成交明細跟銷控表連結的戶別，查無此人，跟客戶資料完全
+    // 兜不起來。前端要嘛從既有客戶名單挑，要嘛先去客戶資料建檔
+    var dealCustomerId = payload.customer_id || (existing && existing.customer_id) || '';
+    var dealCustomer = getCustomerRowById_(dealCustomerId);
+    if (!dealCustomer) return fail('請從既有客戶名單挑選客戶，找不到的話請先到客戶資料建檔');
+
     function pick(key, fallback) {
       return (payload[key] != null && payload[key] !== '') ? payload[key]
         : (base[key] != null && base[key] !== '' ? base[key] : fallback);
@@ -1739,8 +1798,8 @@ function saveDealDetail(payload) {
 
     var row = {
       deal_id:              existing ? existing.deal_id : genId('DEAL'),
-      customer_id:          pick('customer_id', ''),
-      customer_name:        pick('customer_name', ''),
+      customer_id:          dealCustomerId,
+      customer_name:        dealCustomer.customer_name,
       project_name:         base.project_name || ctx.projectName || '',
       unit:                 unitLabel,
       unit_id:              unitId,
@@ -3173,6 +3232,42 @@ function validateSalesControlStatus_(status, reservedUntil, expectedSignDate) {
   return null;
 }
 
+function getCustomerRowById_(customerId) {
+  if (!customerId) return null;
+  var rows = readSheetAsObjects(CONFIG.SHEETS.CUSTOMER);
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i].customer_id) === String(customerId)) return rows[i];
+  }
+  return null;
+}
+
+// ★ 銷控表直接編輯戶別狀態改成已保留／已收訂／已簽約時，反向同步回
+// 客戶資料。saveDealDetail()/syncSalesControlFromDeal_() 是「客戶資料→
+// 銷控表」的正向同步，這裡補上反方向，不然從銷控表直接改狀態就會出現
+// 「銷控表顯示已簽約，客戶資料卻還是未成交」的資料對不起來問題（這正是
+// 這次修正的起因：A2/5F 在銷控表勾了已簽約，客戶資料那邊完全沒有跟著變）
+function syncCustomerFromSalesControl_(customerId, status, unit, reservedUntil, expectedSignDate) {
+  if (!customerId) return;
+  var updates = { updated_at: nowTW() };
+  if (status === '已保留') {
+    updates.sales_deal_stage = '已保留';
+    updates.sales_deal_unit_id = unit.unit_id;
+    updates.sales_deal_unit_label = unit.unit_label;
+    updates.reserved_until = reservedUntil || '';
+    updates.expected_sign_date = '';
+  } else if (status === '已收訂') {
+    updates.sales_deal_stage = '已下訂';
+    updates.sales_deal_unit_id = unit.unit_id;
+    updates.sales_deal_unit_label = unit.unit_label;
+    updates.expected_sign_date = expectedSignDate || '';
+    updates.reserved_until = '';
+  } else if (status === '已簽約') {
+    updates.deal_status = '已成交';
+    updates.deal_unit = unit.unit_label;
+  }
+  updateRowById(CONFIG.SHEETS.CUSTOMER, 'customer_id', customerId, updates);
+}
+
 // 銷控表全案共用，任何角色（含業務）都看得到，方便業務跟客戶談的時候
 // 直接查戶別狀態跟價格；只有 manager/admin 才能新增/編輯/刪除
 function getSalesControlList(payload) {
@@ -3203,6 +3298,14 @@ function appendSalesControlUnit(payload) {
     var validateErr = validateSalesControlStatus_(status, payload.reserved_until, payload.expected_sign_date);
     if (validateErr) return fail(validateErr);
 
+    // ★ 鎖死：新增戶別時如果直接選了已保留/已收訂/已簽約，一樣要指定
+    // 客戶，理由跟 updateSalesControlUnit 一樣
+    var linkedCustomer = null;
+    if (['已保留','已收訂','已簽約'].indexOf(status) >= 0) {
+      linkedCustomer = getCustomerRowById_(payload.linked_customer_id);
+      if (!linkedCustomer) return fail('狀態選「' + status + '」時，必須指定連結的客戶');
+    }
+
     ensureSalesControlSheet();
     var unitId = genId('UNIT');
     var row = {
@@ -3215,6 +3318,8 @@ function appendSalesControlUnit(payload) {
       status: status,
       reserved_until: status === '已保留' ? payload.reserved_until : '',
       expected_sign_date: status === '已收訂' ? payload.expected_sign_date : '',
+      linked_customer_id: linkedCustomer ? linkedCustomer.customer_id : '',
+      linked_customer_name: linkedCustomer ? linkedCustomer.customer_name : '',
       house_sqft: payload.house_sqft || '',
       house_sale_price: payload.house_sale_price || '',
       parking_sale_price: payload.parking_sale_price || '',
@@ -3230,8 +3335,12 @@ function appendSalesControlUnit(payload) {
     row.avg_unit_price = derived.avg_unit_price;
 
     appendObjectToSheet(CONFIG.SHEETS.SALES_CONTROL, row);
+    if (linkedCustomer) {
+      syncCustomerFromSalesControl_(linkedCustomer.customer_id, status,
+        { unit_id: unitId, unit_label: row.unit_label }, row.reserved_until, row.expected_sign_date);
+    }
     writeAuditLog(ctx.lineUserId, 'CREATE', CONFIG.SHEETS.SALES_CONTROL, unitId,
-      ctx.displayName + ' 新增銷控戶別: ' + row.unit_label);
+      ctx.displayName + ' 新增銷控戶別: ' + row.unit_label + (linkedCustomer ? '，客戶：' + linkedCustomer.customer_name : ''));
     return ok({ unit_id: unitId });
   } catch (err) { return fail(err.message); }
 }
@@ -3257,6 +3366,18 @@ function updateSalesControlUnit(payload) {
     var validateErr = validateSalesControlStatus_(status, reservedUntil, expectedSignDate);
     if (validateErr) return fail(validateErr);
 
+    // ★ 鎖死：狀態要改成「已保留／已收訂／已簽約」代表這戶已經跟某位
+    // 客戶談到某個階段，一定要指定是哪位客戶，不能讓戶別憑空變成有人談
+    // 卻查無此人。這是修正「銷控表直接改狀態可以不填客戶，導致客戶資料
+    // 完全不會同步」的漏洞——沒填就直接擋下來，不讓這筆更動送出
+    var occupiedStatuses = ['已保留','已收訂','已簽約'];
+    var linkedCustomer = null;
+    if (occupiedStatuses.indexOf(status) >= 0) {
+      var linkedCustomerId = payload.linked_customer_id || original.linked_customer_id || '';
+      linkedCustomer = getCustomerRowById_(linkedCustomerId);
+      if (!linkedCustomer) return fail('狀態選「' + status + '」時，必須指定連結的客戶');
+    }
+
     var merged = {
       house_sale_price:   payload.house_sale_price   !== undefined ? payload.house_sale_price   : original.house_sale_price,
       house_sqft:          payload.house_sqft          !== undefined ? payload.house_sqft          : original.house_sqft,
@@ -3266,10 +3387,15 @@ function updateSalesControlUnit(payload) {
     };
     var derived = computeSalesControlDerived_(merged);
 
+    // 狀態退回「待售／退戶」時，順便清掉舊的客戶連結——這戶已經跟這個
+    // 客戶沒關係了，留著舊的 linked_customer_id 只會讓下次查詢誤以為
+    // 還連著人
     var updates = {
       status: status,
       reserved_until: reservedUntil,
       expected_sign_date: expectedSignDate,
+      linked_customer_id: linkedCustomer ? linkedCustomer.customer_id : '',
+      linked_customer_name: linkedCustomer ? linkedCustomer.customer_name : '',
       parking_id: merged.parking_id,
       house_sqft: merged.house_sqft,
       house_sale_price: merged.house_sale_price,
@@ -3281,8 +3407,15 @@ function updateSalesControlUnit(payload) {
       updated_at: nowTW()
     };
     updateRowById(CONFIG.SHEETS.SALES_CONTROL, 'unit_id', payload.unit_id, updates);
+
+    if (linkedCustomer) {
+      syncCustomerFromSalesControl_(linkedCustomer.customer_id, status,
+        { unit_id: payload.unit_id, unit_label: original.unit_label }, reservedUntil, expectedSignDate);
+    }
+
     writeAuditLog(ctx.lineUserId, 'UPDATE', CONFIG.SHEETS.SALES_CONTROL, payload.unit_id,
-      ctx.displayName + ' 修改銷控戶別 ' + original.unit_label + '，狀態：' + status);
+      ctx.displayName + ' 修改銷控戶別 ' + original.unit_label + '，狀態：' + status +
+      (linkedCustomer ? '，客戶：' + linkedCustomer.customer_name : ''));
     return ok({ unit_id: payload.unit_id });
   } catch (err) { return fail(err.message); }
 }
@@ -3323,24 +3456,12 @@ function deleteSalesControlUnit(payload) {
 // 職業別對照：系統實際的 21 個職業選項（CONFIG.INDUSTRIES）跟範本
 // 「客戶反應統計」的 14 個欄位不是一對一，靠這張表併起來，之後要
 // 調整分類只要改這裡：
-var WEEKLY_REPORT_INDUSTRY_MAP = {
-  '公教': '軍公教', '軍人': '軍公教', '警察': '軍公教',
-  '自營商': '自營業', '房仲業': '自營業',
-  '製造業': '製造業',
-  '金融保險': '金融業',
-  '科技資訊': '科技業', '技術設備類': '科技業',
-  '服務業': '服務業',
-  '自由業': '自由業',
-  '營建業': '營建業',
-  '農林漁牧業': '農牧業',
-  '餐飲業': '餐飲業',
-  '上班族': '上班族', '物流業': '上班族', '運輸業': '上班族',
-  '醫療生技': '醫務',
-  '家管': '家管',
-  '退休': '其他', '其他': '其他'
-};
-var WEEKLY_REPORT_INDUSTRY_COLS = ['軍公教','自營業','製造業','金融業','科技業','服務業',
-  '自由業','營建業','農牧業','餐飲業','上班族','醫務','家管','其他'];
+// ★ v9.35 修正：原本把系統實際 21 個職業選項用一張對照表併成範本的
+// 14 個欄位（例如公教/軍人/警察都併成「軍公教」），主管反映這樣不對——
+// 案場明確要求軍人/警察/公教要分開統計，「我上面怎麼填的，報表就該
+// 照樣統計出來」。改成直接用 CONFIG.INDUSTRIES（客戶登記表單實際的
+// 職業選項）當欄位，不做任何合併，選項改了這裡也會自動跟著變
+var WEEKLY_REPORT_INDUSTRY_COLS = CONFIG.INDUSTRIES;
 
 var WEEKLY_REPORT_AGE_BANDS = [
   { label: '25以下', min: -Infinity, max: 25 },
@@ -3379,22 +3500,39 @@ function currentWeekRangeTW_() {
 // 第一次呼叫才會真的建立檔案跟 5 個分頁的固定版面，之後都是同一份。
 function ensureWeeklyReportSpreadsheet_() {
   var id = getProp(CONFIG.PROP_KEYS.WEEKLY_REPORT_SHEET_ID);
+  var ss = null;
   if (id) {
-    try { return SpreadsheetApp.openById(id); } catch (e) { /* 檔案被刪了，往下重建 */ }
+    try { ss = SpreadsheetApp.openById(id); } catch (e) { /* 檔案被刪了，往下重建 */ }
   }
-  var ss = SpreadsheetApp.create(CONFIG.PROJECT_NAME + '週報表');
-  setProp(CONFIG.PROP_KEYS.WEEKLY_REPORT_SHEET_ID, ss.getId());
-  buildWeeklyReportLayout_(ss);
+  if (!ss) {
+    ss = SpreadsheetApp.create(CONFIG.PROJECT_NAME + '週報表');
+    setProp(CONFIG.PROP_KEYS.WEEKLY_REPORT_SHEET_ID, ss.getId());
+  }
+  // ★ v9.35 修正：原本版面只在第一次建立試算表時畫一次，之後改了欄位
+  // 定義（例如這次把職業別從 14 類改回真正的 21 個選項）不會反映到已經
+  // 存在的舊試算表，只會拿新的資料去套舊的欄位標題，造成標題跟數字對
+  // 不起來。改成每次同步都重新確認一次版面（getSheetByName 找得到就
+  // 沿用分頁，找不到才新增；標題儲存格每次都重新蓋一次值，這是安全的
+  // 重複操作），舊試算表下次同步就會自動修正成最新版面
+  syncWeeklyReportLayout_(ss);
   return ss;
 }
 
-// 建立 5 個分頁的固定版面（標題、標籤欄位），只在第一次建立試算表時
-// 跑一次，模式跟 seedSalesControlUnits() 一樣——這裡只負責版面骨架，
-// 數字由 writeWeeklyReportToSheet_() 另外填入
-function buildWeeklyReportLayout_(ss) {
-  var defaultSheet = ss.getSheets()[0];
+// 確保 5 個分頁存在，並且固定的標題/標籤儲存格是最新版面。這個函式
+// 設計成可以重複執行（不管是第一次建立、還是舊試算表要修正版面），
+// 數字本身由 writeWeeklyReportToSheet_() 另外填入
+function syncWeeklyReportLayout_(ss) {
+  function sheet_(name) {
+    var existing = ss.getSheetByName(name);
+    if (existing) return existing;
+    // 全新試算表只有一張預設的空白分頁（Sheet1），第一次同步時直接把
+    // 它改名沿用，不留一張永遠用不到的空白分頁
+    var sheets = ss.getSheets();
+    if (sheets.length === 1) { sheets[0].setName(name); return sheets[0]; }
+    return ss.insertSheet(name);
+  }
 
-  var summary = defaultSheet; summary.setName('週報總表');
+  var summary = sheet_('週報總表');
   summary.getRange('A1').setValue(CONFIG.PROJECT_NAME + '｜銷售週報');
   summary.getRange('A3').setValue('週次');
   summary.getRange('C3').setValue('起日');
@@ -3405,33 +3543,39 @@ function buildWeeklyReportLayout_(ss) {
   for (var i = 0; i < 7; i++) summary.getRange(8 + i, 1).setValue('');
   summary.getRange(15, 1).setValue('總計');
 
-  var reaction = ss.insertSheet('客戶反應統計');
+  // ★ v9.35 修正：欄位標題原本從 A 欄開始放職業別名稱，但下面填數字時
+  // 是從 B 欄開始寫（A 欄留給「本週來人」這種列標籤），造成標題永遠比
+  // 底下的數字錯開一欄——例如「醫務」欄底下顯示的其實是「上班族」的
+  // 數字。改成標題也從 B 欄開始放，跟數字對齊
+  var reaction = sheet_('客戶反應統計');
   reaction.getRange('A1').setValue(CONFIG.PROJECT_NAME + '｜客戶反應統計');
   reaction.getRange('A2').setValue('行業別反應');
-  reaction.getRange(3, 1, 1, WEEKLY_REPORT_INDUSTRY_COLS.length + 1).setValues([WEEKLY_REPORT_INDUSTRY_COLS.concat(['合計'])]);
+  reaction.getRange('A3').setValue('項目');
+  reaction.getRange(3, 2, 1, WEEKLY_REPORT_INDUSTRY_COLS.length + 1).setValues([WEEKLY_REPORT_INDUSTRY_COLS.concat(['合計'])]);
   ['本週來人','累計來人','本週成交','累計成交'].forEach(function(label, i) {
     reaction.getRange(4 + i, 1).setValue(label);
   });
   reaction.getRange('A9').setValue('年齡反應');
+  reaction.getRange('A10').setValue('項目');
   var ageLabels = WEEKLY_REPORT_AGE_BANDS.map(function(b){ return b.label; });
-  reaction.getRange(10, 1, 1, ageLabels.length + 1).setValues([ageLabels.concat(['合計'])]);
+  reaction.getRange(10, 2, 1, ageLabels.length + 1).setValues([ageLabels.concat(['合計'])]);
   ['本週來人','累計來人','本週成交','累計成交'].forEach(function(label, i) {
     reaction.getRange(11 + i, 1).setValue(label);
   });
 
-  var control = ss.insertSheet('銷售控制表');
+  var control = sheet_('銷售控制表');
   control.getRange('A1').setValue(CONFIG.PROJECT_NAME + '｜銷售控制表');
   // 棟別×樓層網格內容完全由 writeWeeklyReportToSheet_() 依 Sales_Control
   // 目前實際的棟別/樓層/戶型動態產生，這裡不預先畫死版面
 
-  var salesSheet = ss.insertSheet('業務統計');
+  var salesSheet = sheet_('業務統計');
   salesSheet.getRange('A1').setValue(CONFIG.PROJECT_NAME + '｜業務成交比統計');
   salesSheet.getRange('A3:B3').setValues([['期間','指標']]);
   ['本週來客','本週回訪','本週成交','接客合計','回訪合計','成交合計','回訪率','成交比'].forEach(function(label, i) {
     salesSheet.getRange(4 + i, 2).setValue(label);
   });
 
-  var settings = ss.insertSheet('設定說明');
+  var settings = sheet_('設定說明');
   settings.getRange('A1:D1').setValues([['項目', CONFIG.PROJECT_NAME + '設定', '資料來源／依據', '備註']]);
 
   ss.setActiveSheet(summary);
@@ -3467,13 +3611,14 @@ function gatherWeeklyReportData_(startDate, endDate) {
     });
   }
 
-  // 行業別反應：本週/累計 來人與成交，依 WEEKLY_REPORT_INDUSTRY_MAP 併類
+  // 行業別反應：本週/累計 來人與成交，直接照 CONFIG.INDUSTRIES 的實際
+  // 選項分類，不做任何合併
   function industryBreakdown_(rows) {
     var counts = {};
     WEEKLY_REPORT_INDUSTRY_COLS.forEach(function(c){ counts[c] = 0; });
     rows.forEach(function(r) {
-      var mapped = WEEKLY_REPORT_INDUSTRY_MAP[String(r.occupation_industry || '').trim()];
-      if (mapped) counts[mapped]++;
+      var val = String(r.occupation_industry || '').trim();
+      if (counts.hasOwnProperty(val)) counts[val]++;
     });
     return counts;
   }
@@ -3502,11 +3647,19 @@ function gatherWeeklyReportData_(startDate, endDate) {
   };
 
   // 銷控表：依實際 Sales_Control 資料動態抓棟別/樓層/戶型範圍
+  // ★ v9.35 修正：building/unit_type 從 Google Sheets 讀出來時，如果
+  // 儲存格內容是純數字（例如型別「1」「2」），Apps Script 會回傳 JS
+  // Number 而不是字串。前面拿它們當物件的 key（buildings[u.building]、
+  // b.types[u.unit_type]）時，JS 會自動把 key 轉成字串，但後面比對是不是
+  // 同一戶時用的是嚴格比較（===），數字 1 跟字串 "1" 永遠不會相等，
+  // 導致每一戶都比對不到、整張表格全部空白（連「待售」都不會顯示）。
+  // 統一用 String() 包起來比較，不管原始型別是數字還字串都能對得起來
   var buildings = {};
   salesRows.forEach(function(u) {
-    if (!buildings[u.building]) buildings[u.building] = { types: {}, minFloor: Infinity, maxFloor: -Infinity };
-    var b = buildings[u.building];
-    b.types[u.unit_type] = true;
+    var buildingKey = String(u.building);
+    if (!buildings[buildingKey]) buildings[buildingKey] = { types: {}, minFloor: Infinity, maxFloor: -Infinity };
+    var b = buildings[buildingKey];
+    b.types[String(u.unit_type)] = true;
     var floorNum = parseInt(u.floor, 10);
     if (!isNaN(floorNum)) { b.minFloor = Math.min(b.minFloor, floorNum); b.maxFloor = Math.max(b.maxFloor, floorNum); }
   });
@@ -3517,30 +3670,50 @@ function gatherWeeklyReportData_(startDate, endDate) {
     for (var f = b.maxFloor; f >= b.minFloor; f--) floors.push(f);
     var cells = floors.map(function(floor) {
       return types.map(function(type) {
-        var unit = salesRows.filter(function(u){ return u.building === bName && u.unit_type === type && parseInt(u.floor,10) === floor; })[0];
+        var unit = salesRows.filter(function(u){
+          return String(u.building) === bName && String(u.unit_type) === type && parseInt(u.floor,10) === floor;
+        })[0];
         return unit ? { unit_label: unit.unit_label, status: unit.status } : null;
       });
     });
     return { building: bName, types: types, floors: floors, cells: cells };
   });
 
-  // 業務統計：依 sales_name 分組
+  // 業務統計：依 sales_name 分組。「本週」算的是活動次數（這週接待了
+  // 幾組來客、幾組是回籠、幾組成交），「累計」改成算「人數」而不是
+  // 「來訪列數」——原本 total_visit/total_revisit 是把初訪＋回籠的列數
+  // 全部加在一起，同一人回籠愈多次、回訪率的分子分母會一起膨脹，跟
+  // 主管想看的「這些客戶裡有多少比例回來過／成交」意義對不起來（例如
+  // 接待 3 組客人、其中 1 組回籠過，回訪率應該是 1/3，不是用來訪列數去
+  // 算）。改成先依人（person_id，沒有的話退回 customer_id，跟客戶名單
+  // 「一人一張卡」用同一套識別）分組，同一人不管回籠幾次都只算一個人
   var salesNames = {};
   allRows.forEach(function(r){ if (r.sales_name) salesNames[r.sales_name] = true; });
+  function weeklyReportPersonKey_(r) { return r.person_id || r.customer_id; }
   var salesStats = Object.keys(salesNames).sort().map(function(name) {
     var mine = cumulativeRows.filter(function(r){ return r.sales_name === name; });
     var mineWeek = weekRows.filter(function(r){ return r.sales_name === name; });
     var weekVisit = mineWeek.length;
     var weekRevisit = mineWeek.filter(function(r){ return r.visit_type === '回籠'; }).length;
     var weekDeal = mineWeek.filter(function(r){ return r.deal_status === '已成交'; }).length;
-    var totalVisit = mine.length;
-    var totalRevisit = mine.filter(function(r){ return r.visit_type === '回籠'; }).length;
-    var totalDeal = mine.filter(function(r){ return r.deal_status === '已成交'; }).length;
+
+    var byPerson = {};
+    mine.forEach(function(r) {
+      var key = weeklyReportPersonKey_(r);
+      if (!byPerson[key]) byPerson[key] = { revisited: false, deal: false };
+      if (r.visit_type === '回籠') byPerson[key].revisited = true;
+      if (r.deal_status === '已成交') byPerson[key].deal = true;
+    });
+    var personKeys = Object.keys(byPerson);
+    var totalCustomers = personKeys.length;
+    var returningCustomers = personKeys.filter(function(k){ return byPerson[k].revisited; }).length;
+    var dealCustomers = personKeys.filter(function(k){ return byPerson[k].deal; }).length;
+
     return {
       name: name, week_visit: weekVisit, week_revisit: weekRevisit, week_deal: weekDeal,
-      total_visit: totalVisit, total_revisit: totalRevisit, total_deal: totalDeal,
-      revisit_rate: totalVisit ? Math.round(totalRevisit / totalVisit * 1000) / 10 : 0,
-      deal_rate: totalVisit ? Math.round(totalDeal / totalVisit * 1000) / 10 : 0
+      total_visit: totalCustomers, total_revisit: returningCustomers, total_deal: dealCustomers,
+      revisit_rate: totalCustomers ? Math.round(returningCustomers / totalCustomers * 1000) / 10 : 0,
+      deal_rate: totalCustomers ? Math.round(dealCustomers / totalCustomers * 1000) / 10 : 0
     };
   });
 
