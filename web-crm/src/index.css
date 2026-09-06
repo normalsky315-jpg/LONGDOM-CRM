@@ -1,0 +1,105 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700&family=Noto+Sans+TC:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+:root {
+  --background: #F5F8FA;
+  --foreground: #152936;
+  --primary: #123B5D;
+  --primary-hover: #194E73;
+  --primary-foreground: #FFFFFF;
+  --secondary: #24789A;
+  --secondary-foreground: #FFFFFF;
+  --lake: #4D9DB8;
+  --lake-soft: #DCEEF3;
+  --surface: #FFFFFF;
+  --surface-soft: #F8FBFC;
+  --surface-glass: rgba(255, 255, 255, .82);
+  --muted: #EDF3F5;
+  --muted-foreground: #6C7F89;
+  --border: #DCE6EA;
+  --accent: #8BBBC8;
+  --gold: #B9A16B;
+  --gold-soft: #F4EFE4;
+  --success: #3A8B73;
+  --success-soft: #E4F1EC;
+  --warning: #D3A653;
+  --warning-soft: #FBF1DE;
+  --danger: #C85C5C;
+  --danger-soft: #FBEAEA;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 3px rgba(18, 59, 93, .07);
+  --shadow-md: 0 10px 30px rgba(18, 59, 93, .10);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #0E1B24;
+    --foreground: #E7EEF2;
+    --primary: #7FB2CE;
+    --primary-hover: #9EC6DC;
+    --primary-foreground: #0E1B24;
+    --secondary: #5FA8C4;
+    --lake: #5FA8C4;
+    --lake-soft: #1D3A45;
+    --surface: #152633;
+    --surface-soft: #1B2E3C;
+    --surface-glass: rgba(21, 38, 51, .82);
+    --muted: #1B2E3C;
+    --muted-foreground: #93A8B3;
+    --border: #28404E;
+    --accent: #3A5A68;
+    --gold: #C9AF7C;
+    --gold-soft: #2B2618;
+    --success: #59B296;
+    --success-soft: #173229;
+    --warning: #E0B564;
+    --warning-soft: #332918;
+    --danger: #DB7C7C;
+    --danger-soft: #331E1E;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, .35);
+    --shadow-md: 0 14px 34px rgba(0, 0, 0, .45);
+  }
+}
+:root[data-theme="dark"] {
+  --background: #0E1B24;
+  --foreground: #E7EEF2;
+  --primary: #7FB2CE;
+  --primary-hover: #9EC6DC;
+  --primary-foreground: #0E1B24;
+  --secondary: #5FA8C4;
+  --lake: #5FA8C4;
+  --lake-soft: #1D3A45;
+  --surface: #152633;
+  --surface-soft: #1B2E3C;
+  --surface-glass: rgba(21, 38, 51, .82);
+  --muted: #1B2E3C;
+  --muted-foreground: #93A8B3;
+  --border: #28404E;
+  --accent: #3A5A68;
+  --gold: #C9AF7C;
+  --gold-soft: #2B2618;
+  --success: #59B296;
+  --success-soft: #173229;
+  --warning: #E0B564;
+  --warning-soft: #332918;
+  --danger: #DB7C7C;
+  --danger-soft: #331E1E;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, .35);
+  --shadow-md: 0 14px 34px rgba(0, 0, 0, .45);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Noto Sans TC", system-ui, sans-serif;
+}
+.brand-font { font-family: "Noto Serif TC", serif; }
+.tabular { font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
