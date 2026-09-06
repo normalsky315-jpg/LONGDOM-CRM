@@ -882,6 +882,12 @@
       <option value="已收訂">已收訂</option><option value="已簽約">已簽約</option>
       <option value="退戶">退戶</option>
     </select></div>
+    <div class="field hidden" id="sc_linkedCustomerWrap">
+      <div class="field-label">連結客戶 <span class="req">*</span></div>
+      <input class="inp" type="text" id="sc_linkedCustomerName" list="sc_custNameList" placeholder="從既有客戶挑選">
+      <datalist id="sc_custNameList"></datalist>
+      <input type="hidden" id="sc_linkedCustomerId">
+    </div>
     <div class="field hidden" id="sc_reservedUntilWrap"><div class="field-label">保留至 <span class="req">*</span></div><input class="inp" type="date" id="sc_reservedUntil"></div>
     <div class="field hidden" id="sc_expectedSignWrap"><div class="field-label">預計簽約時間 <span class="req">*</span></div><input class="inp" type="date" id="sc_expectedSignDate"></div>
     <div class="field-row">
@@ -1829,7 +1835,11 @@ function myCustomerCardHTML(c) {
   var now = new Date();
   var createdAt = new Date(c.created_at);
   var diffDays = (now - createdAt) / (1000 * 60 * 60 * 24);
-  var canEdit = diffDays <= 14;
+  // 14天限制只套用在業務身上（跟後端 updateCustomerData/deleteCustomerData
+  // 的規則一致）：主管/admin 不受這個時間限制，隨時都能改。之前這裡沒
+  // 判斷角色，導致主管看自己名下的客戶時，超過14天一樣被畫面擋住看不到
+  // 修改/刪除按鈕，即使後端本來就允許
+  var canEdit = !isSales() || diffDays <= 14;
   var isDone   = c.deal_status === '已成交';
   var isRefund = c.deal_status === '退戶';
   var badgeClass = isRefund ? 'refund' : (isDone ? 'done' : 'pending');
@@ -1840,6 +1850,20 @@ function myCustomerCardHTML(c) {
   var editBtn = canEdit
     ? '<button class="deal-btn" style="background:var(--teal);" onclick="openEditCustModal(\'' + escapeHtml(c.customer_id) + '\')">✏️ 修改</button>'
     : '<span style="font-size:11px;color:var(--ink-faint);">已超過14天，無法修改</span>';
+
+  // 主管/admin 專用的正式成交標記——跟「近期客戶」清單（recentCustCardHTML）
+  // 用同一套按鈕跟權限規則，之前「我的客戶」清單完全沒有這幾顆按鈕，
+  // 主管只能看到業務自填的「成交階段」（未成交/已下訂/已保留，設計上
+  // 就不包含已成交），導致沒有地方能正式標記已成交
+  var dealBtn = !isDone && !isRefund && !isSales()
+    ? '<button class="deal-btn" onclick="openDealModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">標記成交</button>'
+    : '';
+  var editDealBtn = isDone && !isSales()
+    ? '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openEditDealModal(\'' + escapeHtml(c.customer_id) + '\')">✏️ 編輯成交</button>'
+    : '';
+  var refundBtn = isDone && !isSales()
+    ? '<button class="deal-btn" style="background:var(--rust);margin-left:6px;" onclick="markRefund(\'' + escapeHtml(c.customer_id) + '\')">🔙 標記退戶</button>'
+    : '';
 
   var followBtn = '<button class="deal-btn" style="background:var(--gold);margin-left:6px;" onclick="openContactLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">📋 追蹤紀錄</button>';
 
@@ -1860,7 +1884,7 @@ function myCustomerCardHTML(c) {
     dealBadge +
     '<div style="margin-top:8px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">' + editBtn +
       '<button class="deal-btn" style="background:var(--gold);margin-left:6px;" onclick="openDealStageModal(\'' + escapeHtml(c.customer_id) + '\')">🏠 成交階段</button>' +
-      followBtn + logBtn + deleteBtn + '</div>' +
+      dealBtn + editDealBtn + refundBtn + followBtn + logBtn + deleteBtn + '</div>' +
   '</div>';
 }
 
@@ -2475,6 +2499,9 @@ function confirmDeal() {
   var custNameInput = document.getElementById('deal_custName').value.trim();
   var mappedId = (state.dealCustomerMap || {})[custNameInput];
   var finalCustId = custId || mappedId || '';
+  // 一定要對到既有客戶資料，不能讓打了名字但沒從清單挑的情況送出——
+  // 這樣建出來的成交明細查無此人，銷控表也連不回客戶資料
+  if (!finalCustId) { showToast('請從清單挑選既有客戶，找不到的話請先到客戶資料建檔','error'); return; }
   var building = document.getElementById('deal_building').value;
   var unitType = document.getElementById('deal_unitType').value;
   var floor = document.getElementById('deal_floor').value;
@@ -2519,6 +2546,7 @@ function finishDealSave(wasEdit, unitId) {
   closeModal('dealModal');
   showToast('成交明細已儲存','success');
   if (document.getElementById('recentCustomerList')) loadRecentCustomers();
+  if (document.getElementById('myCustomerList')) renderMyCustomers();
   loadPendingSignatures();
   if (state.dealQueueRemaining > 0) {
     state.dealQueueRemaining--;
@@ -2593,6 +2621,7 @@ function confirmRefund() {
     closeModal('dealModal');
     showToast('已標記退戶','success');
     loadRecentCustomers();
+    if (document.getElementById('myCustomerList')) renderMyCustomers();
     loadPendingSignatures();
   }
 
@@ -3888,6 +3917,45 @@ function toggleScStatusFields() {
   var status = document.getElementById('sc_status').value;
   document.getElementById('sc_reservedUntilWrap').classList.toggle('hidden', status !== '已保留');
   document.getElementById('sc_expectedSignWrap').classList.toggle('hidden', status !== '已收訂');
+  // 狀態改成已保留/已收訂/已簽約時，一定要連結一位既有客戶——不然畫面
+  // 上可以直接把戶別改成已簽約，客戶資料那邊卻完全不知道有這回事
+  var needsCustomer = ['已保留','已收訂','已簽約'].indexOf(status) >= 0;
+  document.getElementById('sc_linkedCustomerWrap').classList.toggle('hidden', !needsCustomer);
+  if (!needsCustomer) {
+    document.getElementById('sc_linkedCustomerName').value = '';
+    document.getElementById('sc_linkedCustomerId').value = '';
+  }
+}
+
+// Sales_Control 畫面可能沒經過「近期客戶」頁面就直接使用，state.
+// recentCustomers 這時候還是空的，「連結客戶」欄位會完全挑不到人。
+// 這裡確保打開編輯戶別的 modal 之前，客戶名單一定已經載入過一次
+function ensureRecentCustomersLoaded_(cb) {
+  if (state.recentCustomers && state.recentCustomers.length) { cb(); return; }
+  gasGet('getRecentCustomers', { lineUserId: state.user.lineUserId }, function(res) {
+    if (res.ok) state.recentCustomers = res.data;
+    cb();
+  }, cb);
+}
+
+// 跟 populateDealCustomerList() 同一套模式，從 state.recentCustomers
+// 建立姓名→customer_id 的對照表，讓「連結客戶」欄位可以打字挑選既有客戶
+function populateScCustomerList() {
+  var dl = document.getElementById('sc_custNameList');
+  var map = {};
+  var options = '';
+  var seen = {};
+  (state.recentCustomers || []).forEach(function(c) {
+    if (!c.customer_name) return;
+    var suffix = c.phone ? String(c.phone).slice(-3) : '';
+    var label = c.customer_name + (suffix ? '（' + suffix + '）' : '');
+    if (seen[label]) return;
+    seen[label] = true;
+    map[label] = c.customer_id;
+    options += '<option value="' + escapeHtml(label) + '">';
+  });
+  dl.innerHTML = options;
+  state.scCustomerMap = map;
 }
 
 function openSalesControlModal(unitId) {
@@ -3911,6 +3979,8 @@ function openSalesControlModal(unitId) {
     document.getElementById('sc_houseSalePrice').value = u.house_sale_price || '';
     document.getElementById('sc_parkingSalePrice').value = u.parking_sale_price || '';
     document.getElementById('sc_parkingSqft').value = u.parking_sqft || '';
+    document.getElementById('sc_linkedCustomerId').value = u.linked_customer_id || '';
+    document.getElementById('sc_linkedCustomerName').value = u.linked_customer_name || '';
   } else {
     document.getElementById('scModalTitle').textContent = '新增戶別';
     document.querySelector('#salesControlModal .btn-mini.primary').textContent = '建 立 戶 別';
@@ -3921,8 +3991,15 @@ function openSalesControlModal(unitId) {
     document.getElementById('sc_status').value = '待售';
     document.getElementById('sc_reservedUntil').value = '';
     document.getElementById('sc_expectedSignDate').value = '';
+    document.getElementById('sc_linkedCustomerId').value = '';
+    document.getElementById('sc_linkedCustomerName').value = '';
     ['sc_houseSqft','sc_houseSalePrice','sc_parkingSalePrice','sc_parkingSqft'].forEach(function(id){ document.getElementById(id).value = ''; });
   }
+  // 先用目前快取的名單填一次（通常已經夠用），modal 不用等網路；如果
+  // 這個瀏覽階段還沒載入過客戶名單，背景補抓一次，抓到再重新填一次
+  // 下拉選單，不會卡住畫面
+  populateScCustomerList();
+  ensureRecentCustomersLoaded_(populateScCustomerList);
   toggleScStatusFields();
   updateScPreview();
   openModal('salesControlModal');
@@ -3957,6 +4034,17 @@ function submitSalesControlUnit() {
   if (status === '已保留' && !reservedUntil) { showToast('狀態選「已保留」時，保留至日期必填','error'); return; }
   if (status === '已收訂' && !expectedSignDate) { showToast('狀態選「已收訂」時，預計簽約時間必填','error'); return; }
 
+  // 狀態改成已保留/已收訂/已簽約時，一定要連結一位既有客戶（跟後端
+  // updateSalesControlUnit/appendSalesControlUnit 的規則一致），打了
+  // 名字但沒從清單挑到就直接擋下，不要讓後端才回錯誤
+  var linkedCustId = document.getElementById('sc_linkedCustomerId').value;
+  var linkedCustName = document.getElementById('sc_linkedCustomerName').value.trim();
+  var mappedScId = (state.scCustomerMap || {})[linkedCustName];
+  var finalLinkedCustId = linkedCustId || mappedScId || '';
+  if (['已保留','已收訂','已簽約'].indexOf(status) >= 0 && !finalLinkedCustId) {
+    showToast('狀態選「' + status + '」時，請從清單挑選連結的客戶','error'); return;
+  }
+
   var btn = document.getElementById('scSubmitBtn');
   if (btn.disabled) return;
   btn.disabled = true; btn.textContent = isEdit ? '儲 存 中…' : '送 出 中…';
@@ -3970,6 +4058,7 @@ function submitSalesControlUnit() {
     status: status,
     reserved_until: reservedUntil,
     expected_sign_date: expectedSignDate,
+    linked_customer_id: finalLinkedCustId,
     house_sqft: document.getElementById('sc_houseSqft').value,
     house_sale_price: document.getElementById('sc_houseSalePrice').value,
     parking_sale_price: document.getElementById('sc_parkingSalePrice').value,
@@ -3983,6 +4072,12 @@ function submitSalesControlUnit() {
       showToast(isEdit ? '已儲存修改' : '戶別已建立','success');
       closeModal('salesControlModal');
       loadSalesControlList();
+      // 狀態連結客戶時後端會反向同步該客戶的成交階段/成交狀態，兩個
+      // 客戶清單都可能顯示過期資料，一併刷新
+      if (finalLinkedCustId) {
+        if (document.getElementById('myCustomerList')) renderMyCustomers();
+        if (document.getElementById('recentCustomerList')) loadRecentCustomers();
+      }
     } else { showToast(res.error || '送出失敗','error'); }
   }, function(){ btn.disabled = false; btn.textContent = isEdit ? '儲 存 修 改' : '建 立 戶 別'; showToast('連線失敗','error'); });
 }
