@@ -138,9 +138,27 @@
 - **v9.36**：追加項目一（`saveDealDetail`／`appendContactLog`／`updateCustomerData` 防重複寫入、`getHomeBootstrap`、`searchMyCustomers` 回籠自動帶入欄位）。使用者已於 2026-09-19 部署到正式 Apps Script。
 - **v9.37**：追加項目二（週報表統計修正、新增區域反應、銷控表反查客戶）。`gas-updates/jltx_v9.36_full.gs` 保留為 v9.36 已部署版本的歷史紀錄，不再修改。
 
+## 追加項目三：統一「已簽約＝已成交」同步邏輯
+
+使用者實測週報表後，發現銷控表顯示 2 戶已簽約，但週報表/業務統計都只算到 1 筆成交，追查後發現這是比週報表統計本身更深一層的問題：「成交」相關的三張表（`Customer_Data`／`Sales_Control`／`Deal_Detail`）原本由 4 個各自獨立的入口各自決定要同步哪些欄位：
+
+| 入口 | 會同步的表 |
+|---|---|
+| 業務「成交階段」（`updateCustomerDealStage`） | `Customer_Data.sales_deal_stage` + `Sales_Control.status`（已下訂/已保留，無「已簽約」選項） |
+| 客戶列表「標記成交」完整流程（前端 `confirmDeal()`） | 前端連續呼叫 `saveDealDetail`（寫 `Deal_Detail` + 同步 `Sales_Control`）與 `updateCustomerDeal`（寫 `Customer_Data.deal_status`）兩支 API，中間任一步失敗就不一致 |
+| 首頁「待簽約提醒→標記已簽約」快速按鈕（`quickMarkSigned`） | 只呼叫 `saveDealDetail`，**未呼叫** `updateCustomerDeal`，`Customer_Data.deal_status` 不會更新 ← 本次確認的漏洞 |
+| 銷控表直接編輯戶別狀態（`updateSalesControlUnit`/`appendSalesControlUnit`） | 直接同步 `Customer_Data.deal_status`（透過 `syncCustomerFromSalesControl_`），但不會建立/更新 `Deal_Detail` |
+
+**修復方向**（使用者已確認、已比照「已簽約＝已成交」的原則實作）：`saveDealDetail` 只要合約狀態確定是「已簽約」，自己就直接把 `Customer_Data.deal_status` 同步成「已成交」，不再依賴前端另外呼叫 `updateCustomerDeal` 補這一步。這樣「客戶列表標記成交」與「首頁快速標記已簽約」兩個入口都統一收斂到 `saveDealDetail` 內部處理，保證只要合約狀態是已簽約，客戶正式成交狀態一定同步，不會再有分歧。
+
+銷控表直接編輯入口本來就會正確同步 `deal_status`，這次沒有變動；它「不會建立成交明細」這個資料完整性缺口（用這個入口成交的話，價格/訂金/簽約日不會留紀錄）記錄下來，留待之後有需要再處理，這次不在範圍內。
+
+**目前卡住的舊資料**：使用者已確認自行到客戶列表找出對應客戶、手動點一次既有的「標記成交」按鈕修正，不需要額外寫一次性修復腳本。
+
 ## 範圍外（Out of scope）
 
 - LINE ID token 驗證 / 後端簽署 session（認證強化，留待下一輪）
 - Supabase 雙寫改非同步佇列（方案 B，留待下一輪）
 - 華雄天地（hstd）的任何修改
 - 舊版 `index.html` 通用入口的任何修改
+- 銷控表直接編輯入口未建立成交明細的資料完整性缺口（記錄在追加項目三，留待下一輪）
