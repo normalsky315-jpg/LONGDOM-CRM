@@ -82,8 +82,8 @@
 - `.gs` 檔案語法檢查：用 Node 對修改後的 `.gs` 做語法層級檢查（GAS 語法本質上是 ES5/ES6），可抓出低級語法錯誤，但無法驗證 `SpreadsheetApp`／`CacheService` 等 GAS 專屬 API 的實際執行結果
 - 前端本地驗證：本地開啟 `jltx.html`，視需要 mock `GAS_URL` 回應，走一次 `getHomeBootstrap` 的呼叫路徑與失敗退回舊路徑的邏輯、確認畫面渲染沒有壞掉
 
-**需要使用者手動完成的部分**（會在實作完成後明確列出清單）：
-- 把修改後的 `gas-updates/jltx_v9.35_full.gs` 內容貼回 Google Apps Script 編輯器，部署新版本
+**需要使用者手動完成的部分**：
+- 依照本專案既有慣例（每次修改 GAS 都建新版本檔，不覆蓋舊版），實作結果存成新檔 `gas-updates/jltx_v9.36_full.gs`（`v9.35` 保留為未改動的歷史紀錄）。把 `jltx_v9.36_full.gs` 的內容貼回 Google Apps Script 編輯器，用「編輯現有部署」（不要「新增部署」，網址才不會變）部署新版本
 - 部署後實際操作驗收：正常送出一筆成交明細/追蹤記錄/客戶編輯，確認沒有重複寫入；刻意在網路很慢的情況下測試逾時重試情境（若能重現）
 - 確認 `getUserList` 相關的主管專屬資料在 `getHomeBootstrap` 回傳中權限判斷正確（一般業務不該拿到）
 

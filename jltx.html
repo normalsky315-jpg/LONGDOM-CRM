@@ -438,7 +438,7 @@
           <div class="feature-card-title">本週有望客</div>
           <div class="feature-card-desc">勾選並送出給主管</div>
         </div>
-        <div class="feature-card" onclick="route('#/salescontrol')" style="border-top:2px solid var(--teal);">
+        <div class="feature-card" onclick="goSalesControl()" style="border-top:2px solid var(--teal);">
           <div class="feature-card-icon">🏢</div>
           <div class="feature-card-title">銷售控制表</div>
           <div class="feature-card-desc" id="scPendingDesc">全案戶別銷控狀態</div>
@@ -1123,6 +1123,18 @@
 </div>
 
 <!-- 修改紀錄 Modal -->
+<div class="modal-mask" id="scPendingModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">待主管確認</div>
+    <div class="modal-subtitle">業務已標記下訂/保留，但還沒有人正式標記成交的客戶</div>
+    <div id="scPendingList"></div>
+    <div style="margin-top:18px;">
+      <button class="btn-mini" style="width:100%;padding:14px;" onclick="closeModal('scPendingModal')">關閉</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-mask" id="changeLogModal">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -1445,16 +1457,31 @@ function logout() {
 }
 
 /* ══ Global Data ══ */
+// ★ 效能優化：以下 4 支原本是各自獨立呼叫，改成統一透過 getHomeBootstrap
+// 一次拿齊（跟 renderHome 共用同一支彙整 API），減少登入後要打的 API
+// 數量。getHomeBootstrap 整包失敗時退回原本逐一呼叫的舊邏輯。
 function loadGlobalData(done) {
+  gasGet('getHomeBootstrap', { lineUserId: state.user.lineUserId }, function(r) {
+    if (!r.ok) { loadGlobalDataFallback_(done); return; }
+    var d = r.data;
+    state.projects      = (d.projects      && d.projects.ok)      ? d.projects.data      : [];
+    state.industries     = (d.industries    && d.industries.ok)    ? d.industries.data    : [];
+    state.motives        = (d.motives       && d.motives.ok)       ? d.motives.data       : [];
+    state.configOptions  = (d.configOptions && d.configOptions.ok) ? d.configOptions.data : {};
+    if (done) done();
+  }, function(){ loadGlobalDataFallback_(done); });
+}
+
+// 居住行政區／來源管道／年齡區間：原本寫死在這個檔案裡，改成從
+// Config_Options 表抓，讓經理可以直接在 Google 試算表自己增刪/排序
+// 選項，不用改程式碼重新部署。API 失敗（例如舊版 GAS 還沒部署）就
+// 用內建的預設值頂著，表單至少還能用
+function loadGlobalDataFallback_(done) {
   var pending = 4;
   function check(){ if(--pending===0 && done) done(); }
   gasGet('getProjectList',        null, function(r){ state.projects   = r.ok ? r.data : []; check(); }, check);
   gasGet('getIndustryList',       null, function(r){ state.industries = r.ok ? r.data : []; check(); }, check);
   gasGet('getPurchaseMotiveList', null, function(r){ state.motives    = r.ok ? r.data : []; check(); }, check);
-  // 居住行政區／來源管道／年齡區間：原本寫死在這個檔案裡，改成從
-  // Config_Options 表抓，讓經理可以直接在 Google 試算表自己增刪/排序
-  // 選項，不用改程式碼重新部署。API 失敗（例如舊版 GAS 還沒部署）就
-  // 用內建的預設值頂著，表單至少還能用
   gasGet('getConfigOptions', null, function(r){
     state.configOptions = (r.ok && r.data) ? r.data : {};
     check();
@@ -1501,6 +1528,92 @@ function route(hash) {
 }
 
 /* ══ Home ══ */
+// ★ 效能優化：以下四支資料（使用者名單／待辦任務／客戶名單／今日休假）
+// 原本是首頁各自獨立呼叫，改成統一透過 getHomeBootstrap 一次拿齊，
+// 減少首頁一次要打的 API 數量。拆成獨立函式方便被 getHomeBootstrap
+// 的結果、或是失敗退回的舊呼叫方式共用，渲染邏輯完全不變。
+function applyUserListForHome_(res) {
+  if (!res.ok) return;
+  var cnt = res.data.filter(function(r){ return r.status==='pending'; }).length;
+  if (cnt > 0) {
+    document.getElementById('pendingCountDesc').textContent = cnt + ' 人待審核';
+    var b = document.getElementById('userMgmtFeature').querySelector('.feature-badge');
+    if (b) { b.textContent = cnt; b.style.background = 'var(--rust)'; b.style.color = '#fff'; }
+  }
+}
+
+function applyTasksForHome_(res) {
+  if (!res.ok) return;
+  var n = res.data.length;
+  var badge = document.getElementById('taskBadge');
+  document.getElementById('taskCountDesc').textContent = n > 0 ? n + ' 個待辦' : '無待辦';
+  if (n > 0) { badge.textContent = n; badge.classList.remove('hidden'); }
+  else badge.classList.add('hidden');
+}
+
+function applyCustomerListForHome_(res) {
+  if (!res.ok) return;
+  // 累積總數：業務只看得到自己接待過的客戶（後端 getCustomerList 已經
+  // 依角色篩選過），主管/admin 看到的是案場/全體累積客戶數
+  document.getElementById('statCumulative').textContent = res.data.length;
+  document.getElementById('statCumulativePrefix').textContent =
+    isSales() ? '我目前累積接待共' : '累積客戶總數共';
+  var ym = new Date().toISOString().substring(0,7);
+  var rows = res.data.filter(function(r){ return String(r.visit_date).indexOf(ym)===0; });
+  document.getElementById('statTotal').textContent   = rows.length;
+  document.getElementById('statFirst').textContent   = rows.filter(function(r){ return r.visit_type==='初訪'; }).length;
+  document.getElementById('statRevisit').textContent = rows.filter(function(r){ return r.visit_type==='回籠'; }).length;
+  document.getElementById('statDeal').textContent    = rows.filter(function(r){ return r.deal_status==='已成交'; }).length;
+  if (isAdmin()) renderSalesBreakdown(rows);
+  renderScPendingBadge_(res.data);
+}
+
+// 業務端已標記已下訂/已保留、但主管正式成交標記還是未成交，代表主管
+// 還沒處理，在銷售控制表卡片上顯示待確認數量提醒。原本只顯示數字，
+// 看不出是哪幾筆，這裡把符合條件的客戶存起來，點擊卡片時可以直接
+// 列出名單（見 goSalesControl／renderScPendingModal）
+function renderScPendingBadge_(customerRows) {
+  state.scPendingList = customerRows.filter(function(r) {
+    return r.sales_deal_stage && r.sales_deal_stage !== '未成交' && r.deal_status !== '已成交';
+  });
+  var pending = state.scPendingList.length;
+  var scBadge = document.getElementById('scPendingBadge');
+  if (pending > 0) {
+    document.getElementById('scPendingDesc').textContent = pending + ' 筆已下訂/保留但尚未標記成交，點此查看';
+    scBadge.textContent = pending; scBadge.style.background = 'var(--rust)'; scBadge.style.color = '#fff';
+    scBadge.classList.remove('hidden');
+  } else {
+    document.getElementById('scPendingDesc').textContent = '全案戶別銷控狀態';
+    scBadge.classList.add('hidden');
+  }
+}
+
+function goSalesControl() {
+  if ((state.scPendingList || []).length > 0) { openScPendingModal(); return; }
+  route('#/salescontrol');
+}
+
+function openScPendingModal() {
+  var box = document.getElementById('scPendingList');
+  box.innerHTML = (state.scPendingList || []).map(function(c) {
+    var stageLabel = escapeHtml(c.sales_deal_stage || '') + (c.sales_deal_unit_label ? '　' + escapeHtml(c.sales_deal_unit_label) : '');
+    return '<div class="list-item"><div class="list-item-row"><div class="list-item-title">' + escapeHtml(c.customer_name||'') + '</div></div>' +
+      '<div class="list-item-meta"><span>' + stageLabel + '</span><span>' + escapeHtml(c.sales_name||'') + '</span></div>' +
+      '<div class="list-item-actions"><button class="btn-mini primary" style="flex:1;" onclick="closeModal(\'scPendingModal\');openDealModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">標記成交</button></div></div>';
+  }).join('') || '<div class="empty-state"><div class="empty-state-icon">✓</div><div class="empty-state-text">沒有待確認的客戶</div></div>';
+  openModal('scPendingModal');
+}
+
+function applyTodayLeaveForHome_(res) {
+  var el = document.getElementById('todayLeaveDesc');
+  if (!el) return;
+  if (res.ok && res.data && res.data.length > 0) {
+    el.textContent = '今日休假：' + res.data.join('、');
+  } else {
+    el.textContent = '今日全員出勤 ✓';
+  }
+}
+
 function renderHome() {
   var u = state.user;
   document.getElementById('homeGreeting').textContent = (u.displayName || '您') + ' 您好';
@@ -1514,72 +1627,32 @@ function renderHome() {
     document.getElementById('reportFeature').classList.remove('hidden');
     document.getElementById('userMgmtFeature').classList.remove('hidden');
     document.getElementById('recentCustomersSection').classList.remove('hidden');
-    gasGet('getUserList', { lineUserId: u.lineUserId }, function(res) {
-      if (!res.ok) return;
-      var cnt = res.data.filter(function(r){ return r.status==='pending'; }).length;
-      if (cnt > 0) {
-        document.getElementById('pendingCountDesc').textContent = cnt + ' 人待審核';
-        var b = document.getElementById('userMgmtFeature').querySelector('.feature-badge');
-        if (b) { b.textContent = cnt; b.style.background = 'var(--rust)'; b.style.color = '#fff'; }
-      }
-    });
     loadRecentCustomers();
   }
 
-  gasGet('getTasks', { lineUserId: u.lineUserId, status: 'pending' }, function(res) {
-    if (!res.ok) return;
-    var n = res.data.length;
-    var badge = document.getElementById('taskBadge');
-    document.getElementById('taskCountDesc').textContent = n > 0 ? n + ' 個待辦' : '無待辦';
-    if (n > 0) { badge.textContent = n; badge.classList.remove('hidden'); }
-    else badge.classList.add('hidden');
-  });
-
-  gasGet('getCustomerList', { lineUserId: u.lineUserId }, function(res) {
-    if (!res.ok) return;
-    // 累積總數：業務只看得到自己接待過的客戶（後端 getCustomerList 已經
-    // 依角色篩選過），主管/admin 看到的是案場/全體累積客戶數
-    document.getElementById('statCumulative').textContent = res.data.length;
-    document.getElementById('statCumulativePrefix').textContent =
-      isSales() ? '我目前累積接待共' : '累積客戶總數共';
-    var ym = new Date().toISOString().substring(0,7);
-    var rows = res.data.filter(function(r){ return String(r.visit_date).indexOf(ym)===0; });
-    document.getElementById('statTotal').textContent   = rows.length;
-    document.getElementById('statFirst').textContent   = rows.filter(function(r){ return r.visit_type==='初訪'; }).length;
-    document.getElementById('statRevisit').textContent = rows.filter(function(r){ return r.visit_type==='回籠'; }).length;
-    document.getElementById('statDeal').textContent    = rows.filter(function(r){ return r.deal_status==='已成交'; }).length;
-    if (isAdmin()) renderSalesBreakdown(rows);
-
-    // 業務端已標記已下訂/已保留、但主管正式成交標記還是未成交，代表
-    // 主管還沒處理，在銷售控制表卡片上顯示待確認數量提醒
-    var pending = res.data.filter(function(r) {
-      return r.sales_deal_stage && r.sales_deal_stage !== '未成交' && r.deal_status !== '已成交';
-    }).length;
-    var scBadge = document.getElementById('scPendingBadge');
-    if (pending > 0) {
-      document.getElementById('scPendingDesc').textContent = pending + ' 筆待主管確認';
-      scBadge.textContent = pending; scBadge.style.background = 'var(--rust)'; scBadge.style.color = '#fff';
-      scBadge.classList.remove('hidden');
-    } else {
-      document.getElementById('scPendingDesc').textContent = '全案戶別銷控狀態';
-      scBadge.classList.add('hidden');
-    }
-  });
-
-  // 今日休假人員
-  gasGet('getTodayLeave', { lineUserId: u.lineUserId }, function(res) {
-    var el = document.getElementById('todayLeaveDesc');
-    if (!el) return;
-    if (res.ok && res.data && res.data.length > 0) {
-      el.textContent = '今日休假：' + res.data.join('、');
-    } else {
-      el.textContent = '今日全員出勤 ✓';
-    }
-  });
+  gasGet('getHomeBootstrap', { lineUserId: u.lineUserId }, function(res) {
+    if (!res.ok) { renderHomeFallback_(u); return; }
+    var d = res.data;
+    if (!isSales() && d.userList) applyUserListForHome_(d.userList);
+    applyTasksForHome_(d.tasks);
+    applyCustomerListForHome_(d.customers);
+    applyTodayLeaveForHome_(d.todayLeave);
+  }, function(){ renderHomeFallback_(u); });
 
   loadPendingSignatures();
   loadTaskReminders();
   loadFollowupReminders();
+}
+
+// getHomeBootstrap 整包呼叫失敗（例如網路逾時重試都失敗）時，退回原本
+// 逐一呼叫個別 API 的舊邏輯，避免這支新的彙整 API 本身變成單點故障
+function renderHomeFallback_(u) {
+  if (!isSales()) {
+    gasGet('getUserList', { lineUserId: u.lineUserId }, applyUserListForHome_);
+  }
+  gasGet('getTasks', { lineUserId: u.lineUserId, status: 'pending' }, applyTasksForHome_);
+  gasGet('getCustomerList', { lineUserId: u.lineUserId }, applyCustomerListForHome_);
+  gasGet('getTodayLeave', { lineUserId: u.lineUserId }, applyTodayLeaveForHome_);
 }
 
 // 首頁「本月各業務接待統計」：主管/admin 看的是整個範圍（案場/全部）
@@ -1657,7 +1730,7 @@ function loadPendingSignatures() {
 
 function quickMarkSigned(dealId) {
   if (!confirm('確定這筆已經完成簽約了嗎？')) return;
-  gasPost('saveDealDetail', { lineUserId: state.user.lineUserId, deal_id: dealId, contract_status: '已簽約' }, function(res) {
+  gasPost('saveDealDetail', { lineUserId: state.user.lineUserId, client_request_id: 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2), deal_id: dealId, contract_status: '已簽約' }, function(res) {
     if (res.ok) { showToast('已標記簽約完成','success'); loadPendingSignatures(); }
     else showToast(res.error,'error');
   });
@@ -2032,6 +2105,7 @@ function submitEditCustomer() {
 
   var payload = {
     lineUserId:          state.user.lineUserId,
+    client_request_id:   'req_' + Date.now() + '_' + Math.random().toString(36).slice(2),
     customer_id:         document.getElementById('edit_custId').value,
     visit_date:          document.getElementById('edit_visitDate').value,
     visit_type:          document.getElementById('edit_visitType').value,
@@ -2162,6 +2236,7 @@ function submitContactLog() {
 
   gasPost('appendContactLog', {
     lineUserId:         state.user.lineUserId,
+    client_request_id:  'req_' + Date.now() + '_' + Math.random().toString(36).slice(2),
     customer_id:        custId,
     contact_date:       document.getElementById('contactLog_date').value || todayStr(),
     contact_method:     document.getElementById('contactLog_method').value,
@@ -2517,6 +2592,7 @@ function confirmDeal() {
 
   gasPost('saveDealDetail', {
     lineUserId: state.user.lineUserId,
+    client_request_id: 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2),
     deal_id: document.getElementById('deal_id').value || '',
     customer_id: finalCustId,
     customer_name: custNameInput,
@@ -2835,6 +2911,7 @@ function toggleCustLinkWrap(visitType) {
 }
 
 var custLinkSearchTimer = null;
+var custLinkSearchResults = [];
 function searchLinkCustomer() {
   clearTimeout(custLinkSearchTimer);
   var kw = document.getElementById('cust_linkSearch').value.trim();
@@ -2843,13 +2920,14 @@ function searchLinkCustomer() {
   custLinkSearchTimer = setTimeout(function() {
     gasGet('searchMyCustomers', { lineUserId: state.user.lineUserId, keyword: kw }, function(res) {
       if (!res.ok) { box.innerHTML = ''; return; }
+      custLinkSearchResults = res.data;
       if (!res.data.length) {
         box.innerHTML = '<div style="font-size:12px;color:var(--ink-faint);padding:6px 2px;">查無符合的客戶資料</div>';
         return;
       }
-      box.innerHTML = res.data.map(function(c) {
+      box.innerHTML = res.data.map(function(c, idx) {
         return '<div style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-top:6px;cursor:pointer;" ' +
-          'onclick="pickLinkCustomer(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\',\'' + escapeHtml(c.visit_date||'') + '\')">' +
+          'onclick="pickLinkCustomer(' + idx + ')">' +
           '<div style="font-weight:600;">' + escapeHtml(c.customer_name||'') + '　' + escapeHtml(c.phone||'') + '</div>' +
           '<div style="font-size:11px;color:var(--ink-faint);margin-top:2px;">' + escapeHtml(c.visit_date||'') + '　' + escapeHtml(c.visit_type||'') + '　' + escapeHtml(c.project_name||'') + '</div>' +
         '</div>';
@@ -2858,14 +2936,77 @@ function searchLinkCustomer() {
   }, 300);
 }
 
-function pickLinkCustomer(id, name, visitDate) {
-  document.getElementById('cust_linkedCustomerId').value = id;
-  document.getElementById('cust_linkedCustomerName').value = name;
-  document.getElementById('cust_linkedVisitDate').value = visitDate;
-  document.getElementById('cust_linkSelectedText').textContent = '已連結：' + name + '（' + visitDate + '）';
+// 挑到既有客戶後，把姓名/電話/年齡/地址/職業/購屋動機/居住區域/來源
+// 管道/性別/婚姻狀況都自動帶入，業務只要重新填寫這次的接待狀況即可
+// （帶入後每個欄位仍可自行修改）。像室型需求、預算等「這次接待才會
+// 變動」的欄位刻意不帶，避免帶入舊資料誤導本次登記。
+function pickLinkCustomer(idx) {
+  var c = custLinkSearchResults[idx];
+  if (!c) return;
+  document.getElementById('cust_linkedCustomerId').value = c.customer_id;
+  document.getElementById('cust_linkedCustomerName').value = c.customer_name || '';
+  document.getElementById('cust_linkedVisitDate').value = c.visit_date || '';
+  document.getElementById('cust_linkSelectedText').textContent = '已連結：' + (c.customer_name||'') + '（' + (c.visit_date||'') + '）';
   document.getElementById('cust_linkSelected').classList.remove('hidden');
   document.getElementById('cust_linkResults').innerHTML = '';
   document.getElementById('cust_linkSearch').value = '';
+
+  document.getElementById('cust_name').value = c.customer_name || '';
+  document.getElementById('cust_phone').value = c.phone || '';
+  if (c.age) document.getElementById('cust_age').value = c.age;
+  if (c.detailed_address) document.getElementById('cust_detailedAddress').value = c.detailed_address;
+  fillLinkedRadio_('cust_dist', '外縣市', 'cust_distOtherWrap', 'cust_distOther', c.district);
+  fillLinkedSelect_('cust_industry', 'cust_industryOtherWrap', 'cust_industryOther', c.occupation_industry);
+  fillLinkedSelect_('cust_motive', 'cust_motiveOtherWrap', 'cust_motiveOther', c.purchase_motive);
+  fillLinkedRadio_('cust_source', '其他', 'cust_sourceOtherWrap', 'cust_sourceOther', c.source);
+  toggleOther('cust_referrerWrap', c.source === '親友介紹');
+  fillLinkedRadio_('cust_gender', null, null, null, c.gender);
+  fillLinkedRadio_('cust_marital', null, null, null, c.marital_status);
+}
+
+// 把「主選項 + 其他文字」這種欄位（select 版）帶入既有值：值剛好對到
+// 既有選項就直接選中，對不到（代表存的是「其他：ＸＸ」或純文字）就
+// 選「其他」、把原文字帶進旁邊的輸入框
+function fillLinkedSelect_(selectId, otherWrapId, otherInputId, rawValue) {
+  if (!rawValue) return;
+  var sel = document.getElementById(selectId);
+  var hasOption = Array.prototype.some.call(sel.options, function(o){ return o.value === rawValue; });
+  if (hasOption) {
+    sel.value = rawValue;
+    document.getElementById(otherWrapId).classList.add('hidden');
+    document.getElementById(otherInputId).value = '';
+  } else {
+    sel.value = '其他';
+    document.getElementById(otherWrapId).classList.remove('hidden');
+    document.getElementById(otherInputId).value = stripOtherPrefix_(rawValue, '其他');
+  }
+}
+
+// 同上，radio 版。triggerValue 傳 null 代表這組沒有「其他」選項（單純
+// 選中對應值的 radio 就好，例如性別/婚姻狀況）
+function fillLinkedRadio_(radioName, triggerValue, otherWrapId, otherInputId, rawValue) {
+  if (!rawValue) return;
+  var radios = document.querySelectorAll('input[name="' + radioName + '"]');
+  var matched = null;
+  radios.forEach(function(r){ if (r.value === rawValue) matched = r; });
+  if (matched) {
+    matched.checked = true;
+    if (otherWrapId) document.getElementById(otherWrapId).classList.add('hidden');
+    if (otherInputId) document.getElementById(otherInputId).value = '';
+    return;
+  }
+  if (!triggerValue) return; // 對不到既有選項，且這組沒有「其他」可以放，放棄帶入
+  var triggerRadio = null;
+  radios.forEach(function(r){ if (r.value === triggerValue) triggerRadio = r; });
+  if (!triggerRadio) return;
+  triggerRadio.checked = true;
+  document.getElementById(otherWrapId).classList.remove('hidden');
+  document.getElementById(otherInputId).value = stripOtherPrefix_(rawValue, triggerValue);
+}
+
+function stripOtherPrefix_(rawValue, triggerValue) {
+  var prefix = triggerValue + '：';
+  return rawValue.indexOf(prefix) === 0 ? rawValue.slice(prefix.length) : rawValue;
 }
 
 function clearLinkCustomer() {
