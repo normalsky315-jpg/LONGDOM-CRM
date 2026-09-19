@@ -1838,8 +1838,22 @@ function renderMyCustomers() {
     } else {
       bar.classList.add('hidden');
     }
+    // 從銷控表戶別卡片點客戶姓名跳過來時，直接帶入搜尋條件定位到那位
+    // 客戶，不用自己在名單裡找（見 viewCustomerCard）
+    if (state.jumpToCustomerName) {
+      document.getElementById('myCustomerSearchName').value = state.jumpToCustomerName;
+      state.jumpToCustomerName = '';
+    }
     renderMyCustomerList();
   });
+}
+
+// 銷控表戶別卡片上的客戶姓名點下去，直接跳到客戶列表並定位到那位
+// 客戶（用姓名帶入既有的搜尋框，複用既有的模糊比對邏輯，不新增後端
+// API）
+function viewCustomerCard(name) {
+  state.jumpToCustomerName = name || '';
+  route('#/mycustomers');
 }
 
 function buildMyCustomerFilterBar(list) {
@@ -4011,7 +4025,8 @@ function salesControlCardHTML(u) {
   var conditionalLine = '';
   if (u.status === '已保留' && u.reserved_until) conditionalLine = '保留至：' + escapeHtml(String(u.reserved_until).substring(0,10));
   else if (u.status === '已收訂' && u.expected_sign_date) conditionalLine = '預計簽約：' + escapeHtml(String(u.expected_sign_date).substring(0,10));
-  if (u.linked_customer_name) conditionalLine += (conditionalLine ? '　' : '') + '客戶：' + escapeHtml(u.linked_customer_name);
+  if (u.linked_customer_name) conditionalLine += (conditionalLine ? '　' : '') + '客戶：' +
+    '<a href="javascript:void(0)" onclick="viewCustomerCard(\'' + escapeHtml(u.linked_customer_name) + '\')" style="color:inherit;text-decoration:underline;">' + escapeHtml(u.linked_customer_name) + '</a>';
 
   var actionBtns = isSales() ? '' :
     '<div style="margin-top:8px;display:flex;gap:6px;">' +
