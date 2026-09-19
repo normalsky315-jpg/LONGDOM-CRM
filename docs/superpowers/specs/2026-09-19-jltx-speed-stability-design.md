@@ -94,6 +94,27 @@
 - 開新分支／沿用目前 `claude/sweet-thompson-lb0tvg` 分支繼續做，改完開 PR（draft），列清楚上述「需要手動完成」的部署清單
 - `.gs` 檔案變更只更新 repo 內的快照備份，不會、也無法自動同步到正式 Google Apps Script 部署
 
+## 追加項目（使用者實際操作時回報，一併納入本輪）
+
+這兩項是功能／UX 問題，不屬於速度穩定性，但同樣是 `jltx.html` 的修改、時機一致，經使用者確認一併納入這次實作。
+
+### 追加 1：回籠客人連結後沒有自動帶入基本資料
+
+**現況**：客戶登記表單選「回籠」→ 搜尋並選擇要連結的舊客戶（`pickLinkCustomer`）後，只記錄 `linked_customer_id`／`linked_customer_name`／`linked_visit_date`，姓名、電話、居住區域、職業、購屋動機、性別、婚姻狀況等全部要重新手動輸入一次。後端 `searchMyCustomers` 目前回傳的欄位也只有 `customer_id`／`customer_name`／`phone`／`visit_date`／`visit_type`／`project_name`，不夠拿來自動帶入。
+
+**修復方向**（使用者已確認）：
+- 後端 `searchMyCustomers`：`results` 的 map 補上 `age`／`district`／`detailed_address`／`occupation_industry`／`purchase_motive`／`source`／`gender`／`marital_status`（沿用同一筆 `readSheetAsObjects` 結果，不加新查詢、不影響效能）
+- 前端 `pickLinkCustomer`：選中後，把上述欄位帶入表單對應輸入框／chips／select（`cust_name`／`cust_phone`／`cust_age`／`cust_detailedAddress`／`cust_industry`／`cust_motive`／`cust_gender`／`cust_marital`／`cust_dist`／`cust_source`），含「外縣市：ＸＸ」「其他：ＸＸ」這類帶額外文字的欄位要正確拆回主選項＋額外輸入框。帶入後**欄位仍可編輯**，不鎖定。
+- 刻意不帶入的欄位（本次接待才會變動的資訊，維持空白讓業務重填）：`status_note`（接待狀況）、`visit_time_slot`、`sqft_requirement`、`room_types`、`budget`、`issues`、`introduced_units`、`referrer_name`、`revisit_plan`
+
+### 追加 2：銷售控制表「待主管確認」提示看不出是哪幾筆
+
+**現況**：`renderHome` 計算 `sales_deal_stage` 已進入下訂/保留等階段、但 `deal_status` 還不是「已成交」的筆數，顯示成「N 筆待主管確認」，但只有數字，沒有名單、沒有連結，主管不知道要點哪裡確認。
+
+**修復方向**（使用者已確認）：
+- 文字改清楚：「N 筆已下訂/保留但尚未標記成交，點此查看」
+- 這個提示卡片改成可點擊，導向一個依同樣條件（`sales_deal_stage` 有值且 ≠ 未成交、`deal_status` ≠ 已成交）過濾出的客戶清單畫面，清單項目可直接點進去用既有的「標記成交」動作處理，不新增後端 API（複用首頁已經抓到的 `getCustomerList` 資料在前端過濾即可）
+
 ## 範圍外（Out of scope）
 
 - LINE ID token 驗證 / 後端簽署 session（認證強化，留待下一輪）
