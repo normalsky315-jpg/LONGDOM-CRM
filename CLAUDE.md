@@ -4,9 +4,17 @@
 
 ## 專案結構
 
-- `index.html` - 主頁面
-- `hstd.html` - HSTD 頁面
-- `hsyy.html` - HSYY 頁面
+目前維運中的案場只有兩個：
+
+- `jltx.html` - 吉隆天曜 CRM（主力優化對象）
+  - `jltx-edm.html` - 吉隆天曜 EDM 行銷頁
+  - `customer360.html` - 吉隆天曜 Customer 360
+- `hstd.html` - 華雄天地 CRM
+- `index.html` - 龍登 CRM 舊版通用入口（多案場下拉選單架構，已被各案場獨立頁面取代）
+
+其他案場（華雄音樂匯 hsyy、龍廷誠家 ltcj、遠見沐景 yjmj）已下線並從 repo 移除，不再維護。
+
+`gas-updates/` 內為對應案場 Google Apps Script 後端的程式碼快照備份，實際部署在 Google Apps Script（不在此 repo 內執行）。
 
 ## 開發方式
 
