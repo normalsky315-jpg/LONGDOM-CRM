@@ -1024,7 +1024,7 @@
     <input type="hidden" id="deal_mode">
     <div class="field-row">
       <div class="field"><div class="field-label">棟別</div><select class="sel" id="deal_building" onchange="populateDealTypeSelect()"><option value="A">A棟</option><option value="B">B棟</option></select></div>
-      <div class="field"><div class="field-label">型別</div><select class="sel" id="deal_unitType"></select></div>
+      <div class="field"><div class="field-label">型別</div><select class="sel" id="deal_unitType" onchange="populateDealFloorSelect()"></select></div>
       <div class="field"><div class="field-label">樓層</div><select class="sel" id="deal_floor"></select></div>
     </div>
     <div class="field">
@@ -1065,6 +1065,7 @@
   </select></div>
   <div class="field hidden" id="ds_unitWrap"><div class="field-label">戶別 <span class="req">*</span></div><select class="sel" id="ds_unit"><option value="">請選擇</option></select></div>
   <div class="field hidden" id="ds_expectedSignWrap"><div class="field-label">預計簽約時間 <span class="req">*</span></div><input class="inp" type="date" id="ds_expectedSignDate"></div>
+  <div class="field hidden" id="ds_depositWrap"><div class="field-label">訂金金額（選填）</div><input class="inp" type="number" id="ds_deposit" placeholder="0"></div>
   <div class="field hidden" id="ds_reservedUntilWrap"><div class="field-label">保留至 <span class="req">*</span></div><input class="inp" type="date" id="ds_reservedUntil"></div>
   <div style="display:flex;gap:10px;margin-top:18px;">
     <button class="btn-mini" style="flex:1;padding:14px;" onclick="closeModal('dealStageModal')">取消</button>
@@ -1983,6 +1984,7 @@ function toggleDealStageFields() {
   var stage = document.getElementById('ds_stage').value;
   document.getElementById('ds_unitWrap').classList.toggle('hidden', stage === '未成交');
   document.getElementById('ds_expectedSignWrap').classList.toggle('hidden', stage !== '已下訂');
+  document.getElementById('ds_depositWrap').classList.toggle('hidden', stage !== '已下訂');
   document.getElementById('ds_reservedUntilWrap').classList.toggle('hidden', stage !== '已保留');
 }
 
@@ -1993,6 +1995,7 @@ function openDealStageModal(custId) {
   document.getElementById('dealStageSubtitle').textContent = c.customer_name || '';
   document.getElementById('ds_stage').value = c.sales_deal_stage || '未成交';
   document.getElementById('ds_expectedSignDate').value = c.expected_sign_date ? String(c.expected_sign_date).substring(0,10) : '';
+  document.getElementById('ds_deposit').value = c.deposit_amount || '';
   document.getElementById('ds_reservedUntil').value = c.reserved_until ? String(c.reserved_until).substring(0,10) : '';
 
   var unitSel = document.getElementById('ds_unit');
@@ -2019,6 +2022,7 @@ function submitDealStage() {
   var stage = document.getElementById('ds_stage').value;
   var unitId = document.getElementById('ds_unit').value;
   var expectedSignDate = document.getElementById('ds_expectedSignDate').value;
+  var deposit = document.getElementById('ds_deposit').value;
   var reservedUntil = document.getElementById('ds_reservedUntil').value;
   if (stage === '已下訂' && (!unitId || !expectedSignDate)) { showToast('狀態選「已下訂」時，戶別跟預計簽約時間必填','error'); return; }
   if (stage === '已保留' && (!unitId || !reservedUntil)) { showToast('狀態選「已保留」時，戶別跟保留至日期必填','error'); return; }
@@ -2028,7 +2032,7 @@ function submitDealStage() {
   btn.disabled = true; btn.textContent = '儲 存 中…';
   gasPost('updateCustomerDealStage', {
     lineUserId: state.user.lineUserId, customer_id: custId, sales_deal_stage: stage,
-    unit_id: unitId, expected_sign_date: expectedSignDate, reserved_until: reservedUntil
+    unit_id: unitId, expected_sign_date: expectedSignDate, deposit_amount: deposit, reserved_until: reservedUntil
   }, function(res) {
     btn.disabled = false; btn.textContent = '儲 存';
     if (res.ok) {
@@ -2493,10 +2497,6 @@ function openDealModal(custId, custName, presetUnit, presetContractStatus) {
   document.getElementById('deal_mode').value = 'new';
   document.getElementById('deal_id').value = '';
   document.getElementById('deal_custId').value = custId || '';
-  ensureSalesControlLoaded_(function(){
-    if (presetUnit) setDealUnitSelects_(presetUnit.building, presetUnit.unit_type, presetUnit.floor);
-    else setDealUnitSelects_('A', null, null);
-  });
   document.getElementById('deal_custName').value = custName || '';
   document.getElementById('deal_salesName').value = state.user.displayName || '';
   document.getElementById('deal_deposit').value = '';
@@ -2513,6 +2513,50 @@ function openDealModal(custId, custName, presetUnit, presetContractStatus) {
   btn.style.flex = '2'; btn.style.padding = '14px'; btn.style.fontWeight = '600';
   populateDealCustomerList();
   openModal('dealModal');
+
+  // 這位客戶如果已經走過業務端「成交階段」填過戶別/預計簽約日/訂金，
+  // 直接帶進來，不要讓主管在標記成交的時候又重打一次；業務員姓名也
+  // 帶這位客戶實際的接待業務，不要預設成現在操作的主管自己。客戶
+  // 名單／銷控表資料都要等載入完才查得到，表單先用陽春預設值開起來，
+  // 資料到了再非同步補上
+  ensureAllCustomersLoaded_(function() {
+    var known = custId ? findCustomerById_(custId) : null;
+    if (known) {
+      if (!custName) document.getElementById('deal_custName').value = known.customer_name || '';
+      document.getElementById('deal_salesName').value = known.sales_name || known.created_by_name || state.user.displayName || '';
+      document.getElementById('deal_deposit').value = known.deposit_amount || '';
+      document.getElementById('deal_expectedSignDate').value = toDateInputValue_(known.expected_sign_date);
+    }
+    ensureSalesControlLoaded_(function(){
+      var unit = presetUnit;
+      if (!unit && known && known.sales_deal_unit_id) {
+        unit = (state.salesControlRaw || []).filter(function(u){ return u.unit_id === known.sales_deal_unit_id; })[0];
+        // unit_id 對不到時（例如銷控表該戶被刪除重建過，ID 換了，但客戶
+        // 資料上存的還是舊 ID），退而求其次用成交階段存的戶別文字比對，
+        // 至少棟別/型別/樓層還能自動帶出來，跟 fillDealModalFieldsForEdit
+        // 既有的容錯方式一致
+        if (!unit && known.sales_deal_unit_label) {
+          unit = (state.salesControlRaw || []).filter(function(u){ return u.unit_label === known.sales_deal_unit_label; })[0];
+        }
+      }
+      setDealUnitSelects_(unit ? unit.building : 'A', unit ? unit.unit_type : null, unit ? unit.floor : null);
+    });
+  });
+}
+
+// Sheets 讀回來的日期大部分是乾淨的 'YYYY-MM-DD' 字串（寫入時已強制文字
+// 格式），但比較早期寫入、還沒套用這個保護的舊資料，讀回來可能是原生
+// 日期物件或含時間的 ISO 字串，直接 substring(0,10) 會解析錯誤讓
+// <input type="date"> 顯示空白。這裡兩種都認得，統一轉成 date input
+// 看得懂的 YYYY-MM-DD
+function toDateInputValue_(val) {
+  if (!val) return '';
+  var m = String(val).match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m) return m[1];
+  var d = new Date(val);
+  if (isNaN(d.getTime())) return '';
+  var pad = function(n){ return n < 10 ? '0' + n : '' + n; };
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
 }
 
 /* 共用：把一筆既有成交明細填進表單，供「編輯成交」使用（成交後發現
@@ -4175,7 +4219,7 @@ function handleSalesControlCellClick_(unitId) {
       '這戶（' + u.unit_label + '）目前是「' + u.status + '」狀態，連結客戶：' + u.linked_customer_name + '。\n\n' +
       '要現在標記成交嗎？（確認後會請你填寫成交明細）\n\n按「取消」則改用編輯戶別。'
     );
-    if (proceed) { openDealModal(u.linked_customer_id, u.linked_customer_name); return; }
+    if (proceed) { openDealModal(u.linked_customer_id, u.linked_customer_name, { building: u.building, unit_type: u.unit_type, floor: u.floor }); return; }
   } else if (u && !isSales() && u.linked_customer_id && u.status === '已簽約') {
     var editIt = confirm(
       '這戶（' + u.unit_label + '）已簽約，客戶：' + u.linked_customer_name + '。\n\n' +
