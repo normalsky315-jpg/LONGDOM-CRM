@@ -212,6 +212,20 @@ v9.41 部署後，使用者實測「銷控表點格子標記成交」發現三�
 
 **新增需求**：客戶卡片「成交階段」選「已下訂」時，新增一個訂金金額輸入框（選填），跟戶別/預計簽約日一樣是業務自己填的資料。後端 `updateCustomerDealStage` 新增 `deposit_amount` 寫入 `Customer_Data`（新增 `ensureCustomerDepositColumn_`：`Customer_Data` 不像 `Deal_Detail` 有自動補欄位機制，欄位都是手動建表時固定的，這次比照同樣的「用到才自動補欄位」做法，第一次用到自動補上這個欄位，不需要使用者自己去 Google Sheet 手動加欄）。這樣訂金也能在銷控表「標記成交」時自動帶入，不用再重打一次。
 
+### 追加八修正：戶別查不到 + 日期解析失敗（v9.42 部署後實測發現）
+
+使用者部署 v9.42 後，從首頁「待主管確認」清單點「標記成交」，實際截圖顯示：型別/樓層對不到客戶原本的戶別（該客戶戶別是 A6/2F，表單卻顯示型別 1型、樓層空白），預定簽約日期也是空白（該客戶已經是「已下訂」狀態，理論上一定填過這個日期）。
+
+**根因 1（已確認）**：戶別查詢只靠 `sales_deal_unit_id`（ID）比對，這戶如果曾經被刪除重建過，客戶資料上存的還是舊 ID，查不到對應的銷控表列，直接退回預設值（A棟、清單第一個型別）。程式碼裡 `fillDealModalFieldsForEdit`（編輯成交用）其實已經有「ID 對不到就退而求其次用戶別文字比對」的容錯機制，但 `openDealModal` 這次新增的自動帶入邏輯忘了比照辦理。
+
+**修復**：`openDealModal` 的戶別查詢比照 `fillDealModalFieldsForEdit` 的容錯方式，`sales_deal_unit_id` 查不到時退而求其次用 `sales_deal_unit_label`（戶別文字，例如「A6/2F」）比對。
+
+**根因 2（合理懷疑，無法完全確認）**：預定簽約日期用 `String(val).substring(0,10)` 解析，如果這筆資料是在 `DATE_ONLY_FIELDS` 強制文字格式保護機制上線之前寫入的舊資料，儲存格可能還是原生日期物件或含時間的 ISO 字串，直接 substring 解析出來的字串格式不對，`<input type="date">` 會直接顯示空白且不報錯。
+
+**修復**：新增 `toDateInputValue_(val)` 共用函式，先嘗試比對乾淨的 `YYYY-MM-DD` 字串開頭，比對不到才退而求其次用 `new Date(val)` 解析再重新組成 `YYYY-MM-DD`，兩種存法都認得。
+
+這次修復純前端（`jltx.html`），沒有動到 `.gs` 後端，不需要重新部署 Apps Script。
+
 ## 範圍外（Out of scope）
 
 - LINE ID token 驗證 / 後端簽署 session（認證強化，留待下一輪）

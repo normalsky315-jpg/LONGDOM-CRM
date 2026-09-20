@@ -2525,15 +2525,38 @@ function openDealModal(custId, custName, presetUnit, presetContractStatus) {
       if (!custName) document.getElementById('deal_custName').value = known.customer_name || '';
       document.getElementById('deal_salesName').value = known.sales_name || known.created_by_name || state.user.displayName || '';
       document.getElementById('deal_deposit').value = known.deposit_amount || '';
-      document.getElementById('deal_expectedSignDate').value = known.expected_sign_date ? String(known.expected_sign_date).substring(0,10) : '';
+      document.getElementById('deal_expectedSignDate').value = toDateInputValue_(known.expected_sign_date);
     }
     ensureSalesControlLoaded_(function(){
-      var unit = presetUnit || (known && known.sales_deal_unit_id
-        ? (state.salesControlRaw || []).filter(function(u){ return u.unit_id === known.sales_deal_unit_id; })[0]
-        : null);
+      var unit = presetUnit;
+      if (!unit && known && known.sales_deal_unit_id) {
+        unit = (state.salesControlRaw || []).filter(function(u){ return u.unit_id === known.sales_deal_unit_id; })[0];
+        // unit_id 對不到時（例如銷控表該戶被刪除重建過，ID 換了，但客戶
+        // 資料上存的還是舊 ID），退而求其次用成交階段存的戶別文字比對，
+        // 至少棟別/型別/樓層還能自動帶出來，跟 fillDealModalFieldsForEdit
+        // 既有的容錯方式一致
+        if (!unit && known.sales_deal_unit_label) {
+          unit = (state.salesControlRaw || []).filter(function(u){ return u.unit_label === known.sales_deal_unit_label; })[0];
+        }
+      }
       setDealUnitSelects_(unit ? unit.building : 'A', unit ? unit.unit_type : null, unit ? unit.floor : null);
     });
   });
+}
+
+// Sheets 讀回來的日期大部分是乾淨的 'YYYY-MM-DD' 字串（寫入時已強制文字
+// 格式），但比較早期寫入、還沒套用這個保護的舊資料，讀回來可能是原生
+// 日期物件或含時間的 ISO 字串，直接 substring(0,10) 會解析錯誤讓
+// <input type="date"> 顯示空白。這裡兩種都認得，統一轉成 date input
+// 看得懂的 YYYY-MM-DD
+function toDateInputValue_(val) {
+  if (!val) return '';
+  var m = String(val).match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m) return m[1];
+  var d = new Date(val);
+  if (isNaN(d.getTime())) return '';
+  var pad = function(n){ return n < 10 ? '0' + n : '' + n; };
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
 }
 
 /* 共用：把一筆既有成交明細填進表單，供「編輯成交」使用（成交後發現
