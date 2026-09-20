@@ -197,6 +197,21 @@
 4. **收尾一個關鍵缺口**：銷控表「編輯戶別」視窗（`submitSalesControlUnit`）原本可以直接把狀態從待售/已保留改成已收訂/已簽約，只填狀態+連結客戶，不會建立成交明細——這是追加項目三就記錄下來、當時故意留到下一輪的資料完整性缺口。這次因為要把成交資訊統一到銷控表，這條路徑不能再放著：改成偵測到「原本待售/已保留，這次要改成已收訂/已簽約」時，直接關掉編輯戶別視窗、改開「標記成交」表單（`openDealModal` 新增 `presetUnit`／`presetContractStatus` 參數，預帶棟別/型別/樓層跟簽約狀態），一次填齊訂金/簽約狀態，不會再有繞過去漏填成交明細的路徑。已保留本身不用比照辦理（還沒收訂金，純軟性保留，維持原本陽春欄位就能存）。
 5. **退戶同步缺口**（後端 `updateSalesControlUnit`）：新增共用函式 `refundDealDetailForUnit_`，只要一戶從已保留/已收訂/已簽約改回退戶或待售、且原本確實連結著客戶，就把該戶還「active」的成交明細標記退戶、客戶資料的正式成交狀態一併改回退戶——不管退戶是從編輯戶別直接改下拉選單，還是走完整的「標記退戶」表單，結果都一致。這是這次連動之後才會踩到的新缺口（之前退戶只能走客戶卡片，銷控表沒有更動狀態就不會退戶；現在退戶入口統一到銷控表，這個同步就變成必要的，不能再留給下一輪）。
 
+## 追加項目八：修正銷控表標記成交重複填寫問題 + 成交階段加訂金欄位
+
+v9.41 部署後，使用者實測「銷控表點格子標記成交」發現三個問題，加上一個新增需求：
+
+1. **戶別/預計簽約日要重打一次**：`openDealModal` 原本永遠用陽春預設值開表單（棟別固定 A、型別/樓層/預計簽約日都空白），完全沒去查這位客戶業務端「成交階段」早就填過的資料，即使是從銷控表已收訂/已保留格子點「標記成交」進來也一樣。
+2. **型別選單選了沒反應，樓層選不到**：`<select id="deal_unitType">` 原本沒有 `onchange`，手動改型別不會觸發 `populateDealFloorSelect()`，樓層清單停留在舊的（或空的）狀態，看起來像壞掉。
+3. **業務員欄位預設成操作當下的主管自己**：`openDealModal` 原本永遠寫入 `state.user.displayName`（當前登入者），沒有查這位客戶實際的接待業務。
+
+**修復**（`jltx.html`）：
+- `openDealModal` 改成非同步查客戶資料（`ensureAllCustomersLoaded_` + `findCustomerById_`）跟銷控表資料（`ensureSalesControlLoaded_`），自動帶入戶別（`sales_deal_unit_id`）、預計簽約日（`expected_sign_date`）、訂金（新增的 `deposit_amount`，見下）、業務員姓名（`sales_name`／`created_by_name`）；`presetUnit` 參數（呼叫端明確指定的戶別，例如點了哪個銷控表格子）優先於客戶資料查到的戶別。
+- `handleSalesControlCellClick_` 既有的「標記成交」呼叫點補上 `presetUnit`（原本漏傳）。
+- `deal_unitType` 補上 `onchange="populateDealFloorSelect()"`。
+
+**新增需求**：客戶卡片「成交階段」選「已下訂」時，新增一個訂金金額輸入框（選填），跟戶別/預計簽約日一樣是業務自己填的資料。後端 `updateCustomerDealStage` 新增 `deposit_amount` 寫入 `Customer_Data`（新增 `ensureCustomerDepositColumn_`：`Customer_Data` 不像 `Deal_Detail` 有自動補欄位機制，欄位都是手動建表時固定的，這次比照同樣的「用到才自動補欄位」做法，第一次用到自動補上這個欄位，不需要使用者自己去 Google Sheet 手動加欄）。這樣訂金也能在銷控表「標記成交」時自動帶入，不用再重打一次。
+
 ## 範圍外（Out of scope）
 
 - LINE ID token 驗證 / 後端簽署 session（認證強化，留待下一輪）
