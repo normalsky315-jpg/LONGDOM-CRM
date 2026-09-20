@@ -1938,20 +1938,9 @@ function myCustomerCardHTML(c) {
     ? '<button class="deal-btn" style="background:var(--teal);" onclick="openEditCustModal(\'' + escapeHtml(c.customer_id) + '\')">✏️ 修改</button>'
     : '<span style="font-size:11px;color:var(--ink-faint);">已超過14天，無法修改</span>';
 
-  // 主管/admin 專用的正式成交標記——跟「近期客戶」清單（recentCustCardHTML）
-  // 用同一套按鈕跟權限規則，之前「我的客戶」清單完全沒有這幾顆按鈕，
-  // 主管只能看到業務自填的「成交階段」（未成交/已下訂/已保留，設計上
-  // 就不包含已成交），導致沒有地方能正式標記已成交
-  var dealBtn = !isDone && !isRefund && !isSales()
-    ? '<button class="deal-btn" onclick="openDealModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">標記成交</button>'
-    : '';
-  var editDealBtn = isDone && !isSales()
-    ? '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openEditDealModal(\'' + escapeHtml(c.customer_id) + '\')">✏️ 編輯成交</button>'
-    : '';
-  var refundBtn = isDone && !isSales()
-    ? '<button class="deal-btn" style="background:var(--rust);margin-left:6px;" onclick="markRefund(\'' + escapeHtml(c.customer_id) + '\')">🔙 標記退戶</button>'
-    : '';
-
+  // 成交明細（標記成交／編輯成交／標記退戶）已經統一搬到銷售控制表
+  // 操作，客戶卡片只留業務自填的「成交階段」，不再放這三顆按鈕，
+  // 避免同一件事有兩個地方可以填、資料容易兜不起來
   var followBtn = '<button class="deal-btn" style="background:var(--gold);margin-left:6px;" onclick="openContactLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">📋 追蹤紀錄</button>';
 
   var logBtn = '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openChangeLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">修改紀錄</button>';
@@ -1971,7 +1960,7 @@ function myCustomerCardHTML(c) {
     dealBadge +
     '<div style="margin-top:8px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">' + editBtn +
       '<button class="deal-btn" style="background:var(--gold);margin-left:6px;" onclick="openDealStageModal(\'' + escapeHtml(c.customer_id) + '\')">🏠 成交階段</button>' +
-      dealBtn + editDealBtn + refundBtn + followBtn + logBtn + deleteBtn + '</div>' +
+      followBtn + logBtn + deleteBtn + '</div>' +
   '</div>';
 }
 
@@ -2387,15 +2376,8 @@ function recentCustCardHTML(c) {
   var badgeClass = isRefund ? 'refund' : (isDone ? 'done' : 'pending');
   var badgeText  = isRefund ? '🔙 退戶' : (isDone ? '✓ 已成交' : '未成交');
   var dealBadge = '<span class="cust-card-deal ' + badgeClass + '">' + badgeText + (c.deal_unit?' — '+escapeHtml(c.deal_unit):'') + '</span>';
-  var dealBtn = !isDone && !isRefund && !isSales()
-    ? '<button class="deal-btn" onclick="openDealModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">標記成交</button>'
-    : '';
-  var editDealBtn = isDone && !isSales()
-    ? '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openEditDealModal(\'' + escapeHtml(c.customer_id) + '\')">✏️ 編輯成交</button>'
-    : '';
-  var refundBtn = isDone && !isSales()
-    ? '<button class="deal-btn" style="background:var(--rust);margin-left:6px;" onclick="markRefund(\'' + escapeHtml(c.customer_id) + '\')">🔙 標記退戶</button>'
-    : '';
+  // 成交明細（標記成交／編輯成交／標記退戶）已經統一搬到銷售控制表
+  // 操作，客戶卡片只留業務自填的「成交階段」，不再放這三顆按鈕
   var logBtn = !isSales()
     ? '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openChangeLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">紀錄</button>'
     : '';
@@ -2410,7 +2392,7 @@ function recentCustCardHTML(c) {
     customerCardFieldsHTML(c) +
     (c.status_note ? '<div class="cust-card-note">📝 ' + escapeHtml(String(c.status_note)) + '</div>' : '') +
     dealStageLineHTML(c) +
-    dealBadge + dealBtn + editDealBtn + refundBtn + followBtn + logBtn +
+    dealBadge + followBtn + logBtn +
     '<button class="deal-btn" style="background:var(--gold);margin-left:6px;" onclick="openDealStageModal(\'' + escapeHtml(c.customer_id) + '\')">🏠 成交階段</button>' +
   '</div>';
 }
@@ -2507,16 +2489,19 @@ function setDealFieldsDisabled(disabled) {
   document.querySelectorAll('input[name="deal_contractStatus"]').forEach(function(r){ r.disabled = disabled; });
 }
 
-function openDealModal(custId, custName) {
+function openDealModal(custId, custName, presetUnit, presetContractStatus) {
   document.getElementById('deal_mode').value = 'new';
   document.getElementById('deal_id').value = '';
   document.getElementById('deal_custId').value = custId || '';
-  ensureSalesControlLoaded_(function(){ setDealUnitSelects_('A', null, null); });
+  ensureSalesControlLoaded_(function(){
+    if (presetUnit) setDealUnitSelects_(presetUnit.building, presetUnit.unit_type, presetUnit.floor);
+    else setDealUnitSelects_('A', null, null);
+  });
   document.getElementById('deal_custName').value = custName || '';
   document.getElementById('deal_salesName').value = state.user.displayName || '';
   document.getElementById('deal_deposit').value = '';
   document.getElementById('deal_expectedSignDate').value = '';
-  document.querySelectorAll('input[name="deal_contractStatus"]').forEach(function(r){ r.checked = (r.value === '待簽約'); });
+  document.querySelectorAll('input[name="deal_contractStatus"]').forEach(function(r){ r.checked = (r.value === (presetContractStatus || '待簽約')); });
   setDealFieldsDisabled(false);
   toggleDealSignDate();
   document.getElementById('deal_refundReasonField').classList.add('hidden');
@@ -3616,18 +3601,48 @@ function syncWeeklyReportSheet() {
   var weekStr = document.getElementById('weekReportDate').value || isoWeekStringFromDate(todayStr());
   var weekRange = isoWeekRangeFromString(weekStr);
   btn.disabled = true; btn.textContent = '同 步 中…';
+  // 先在點擊當下（同步呼叫堆疊內）就開一個空白分頁，通過瀏覽器的
+  // 使用者手勢檢查；網址回來後再導頁過去。如果在非同步的 gasGet
+  // callback 裡才呼叫 window.open，多數瀏覽器（尤其 LINE 內建瀏覽器）
+  // 會當成彈出視窗靜默擋掉——不會報錯，導致使用者以為「已同步」但
+  // 其實試算表沒真的開啟
+  var reportTab = window.open('', '_blank');
   gasGet('refreshWeeklyReport', { lineUserId: state.user.lineUserId, startDate: weekRange[0], endDate: weekRange[1] }, function(res) {
     btn.disabled = false; btn.textContent = '🔄 同步本週報表（Excel 範本）';
     if (res.ok) {
-      showToast('已同步，正在開啟試算表','success');
-      window.open(res.data.url, '_blank');
+      if (reportTab && !reportTab.closed) {
+        reportTab.location.href = res.data.url;
+        showToast('已同步，正在開啟試算表','success');
+      } else if (window.open(res.data.url, '_blank')) {
+        showToast('已同步，正在開啟試算表','success');
+      } else {
+        showToast('已同步，但分頁被瀏覽器擋下，請點下方連結開啟','error');
+        showWeeklyReportLink_(res.data.url);
+      }
     } else {
+      if (reportTab && !reportTab.closed) reportTab.close();
       showToast(res.error || '同步失敗', 'error');
     }
   }, function() {
     btn.disabled = false; btn.textContent = '🔄 同步本週報表（Excel 範本）';
+    if (reportTab && !reportTab.closed) reportTab.close();
     showToast('連線失敗', 'error');
   });
+}
+
+// 分頁被瀏覽器完全擋下時的備援：在同步按鈕下方放一個使用者自己點的
+// 連結，真人點擊的 <a target="_blank"> 幾乎不會被任何瀏覽器（含 LINE
+// 內建瀏覽器）擋掉
+function showWeeklyReportLink_(url) {
+  var btn = document.getElementById('weekSyncReportBtn');
+  var old = document.getElementById('weekReportOpenLink');
+  if (old) old.remove();
+  var a = document.createElement('a');
+  a.id = 'weekReportOpenLink';
+  a.href = url; a.target = '_blank'; a.rel = 'noopener';
+  a.textContent = '📄 點此開啟本週試算表';
+  a.style.cssText = 'display:block;text-align:center;margin-top:8px;color:var(--teal);font-size:13px;';
+  btn.insertAdjacentElement('afterend', a);
 }
 
 // 本週有望客卡片：業務挑選送出的清單，跨業務彙整
@@ -3993,7 +4008,7 @@ function renderScGrid() {
     var cells = types.map(function(t) {
       var u = unitByKey[t + '|' + f];
       if (!u) return '<td><span class="sc-grid-cell empty"></span></td>';
-      return '<td><span class="sc-grid-cell ' + scStatusClass(u.status) + '" onclick="openSalesControlModal(\'' + escapeHtml(u.unit_id) + '\')">' +
+      return '<td><span class="sc-grid-cell ' + scStatusClass(u.status) + '" onclick="handleSalesControlCellClick_(\'' + escapeHtml(u.unit_id) + '\')">' +
         (u.category === '店面' ? '店面' : f + 'F') +
         '<span class="sc-grid-cell-note">' + escapeHtml(u.status) + '</span>' +
       '</span></td>';
@@ -4143,6 +4158,36 @@ function prefillScLinkedCustomer_(customerId) {
   document.getElementById('sc_linkedCustomerId').value = customerId;
 }
 
+// 點銷控表格子時，如果這戶目前是業務自填的「已收訂／已保留」（代表
+// 業務已經談到這個階段，連結了客戶，但主管還沒正式標記成交），先問
+// 主管要不要直接進「標記成交」確認流程（跟首頁「待主管確認」清單
+// 點進去的是同一個表單，一樣會要求填成交明細才算完成）；選否或這戶
+// 不是這個狀態，才照原本邏輯開「編輯戶別」。業務看到的行為不變
+// （業務本來就不能標記成交，看到的還是原本的編輯戶別/唯讀畫面）。
+// 已簽約的格子點下去，讓主管選擇要編輯成交明細還是標記退戶，兩個都是
+// 沿用既有的 dealModal（跟客戶卡片以前的「✏️編輯成交」「🔙標記退戶」
+// 開的是同一個表單，只是入口從客戶卡片改成銷控表）
+function handleSalesControlCellClick_(unitId) {
+  var u = (state.salesControlRaw || []).filter(function(r){ return r.unit_id === unitId; })[0];
+  var pendingStatuses = ['已收訂', '已保留'];
+  if (u && !isSales() && u.linked_customer_id && pendingStatuses.indexOf(u.status) >= 0) {
+    var proceed = confirm(
+      '這戶（' + u.unit_label + '）目前是「' + u.status + '」狀態，連結客戶：' + u.linked_customer_name + '。\n\n' +
+      '要現在標記成交嗎？（確認後會請你填寫成交明細）\n\n按「取消」則改用編輯戶別。'
+    );
+    if (proceed) { openDealModal(u.linked_customer_id, u.linked_customer_name); return; }
+  } else if (u && !isSales() && u.linked_customer_id && u.status === '已簽約') {
+    var editIt = confirm(
+      '這戶（' + u.unit_label + '）已簽約，客戶：' + u.linked_customer_name + '。\n\n' +
+      '按「確定」編輯成交明細；按「取消」可接著選擇標記退戶或改用編輯戶別。'
+    );
+    if (editIt) { openEditDealModal(u.linked_customer_id); return; }
+    var refundIt = confirm('要標記這戶退戶嗎？\n\n按「取消」則改用編輯戶別。');
+    if (refundIt) { markRefund(u.linked_customer_id); return; }
+  }
+  openSalesControlModal(unitId);
+}
+
 function openSalesControlModal(unitId) {
   document.getElementById('sc_unitId').value = unitId || '';
   var unitFields = ['sc_building','sc_unitType','sc_floor'];
@@ -4229,6 +4274,25 @@ function submitSalesControlUnit() {
     if (!finalLinkedCustId) {
       showToast('狀態選「' + status + '」時，請選擇連結的客戶','error'); return;
     }
+  }
+
+  // 這戶原本沒有進行中的交易（待售/已保留都還沒收訂金），這次要改成
+  // 已收訂/已簽約——代表這是全新一筆要收訂金/確認合約的交易，導去開
+  // 「標記成交」表單一次填齊訂金/簽約狀態，不能只靠這裡的陽春欄位
+  // 存檔，不然會漏了成交明細（Deal_Detail）。已保留本身不用（還沒收
+  // 訂金，純軟性保留），維持原本陽春欄位就能存
+  var original = isEdit ? (state.salesControlRaw || []).filter(function(r){ return r.unit_id === unitId; })[0] : null;
+  var startingNewDeal = ['已收訂','已簽約'].indexOf(status) >= 0 &&
+    (!original || ['待售','已保留'].indexOf(original.status) >= 0);
+  if (startingNewDeal && finalLinkedCustId) {
+    var custRow = (state.myCustomersRaw || []).filter(function(c){ return String(c.customer_id) === String(finalLinkedCustId); })[0];
+    closeModal('salesControlModal');
+    openDealModal(finalLinkedCustId, custRow ? custRow.customer_name : '', {
+      building: document.getElementById('sc_building').value,
+      unit_type: document.getElementById('sc_unitType').value,
+      floor: document.getElementById('sc_floor').value
+    }, status === '已簽約' ? '已簽約' : '待簽約');
+    return;
   }
 
   var btn = document.getElementById('scSubmitBtn');
