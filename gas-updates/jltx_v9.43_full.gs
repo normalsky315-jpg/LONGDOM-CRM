@@ -1,21 +1,39 @@
 // ============================================================
 //  龍登 CRM — 吉隆天曜專用版 v9.43
-//  v9.43 變更：週報表客戶反應統計新增「戶型反應」「媒體反應」兩張表
-//  （詳見 docs/superpowers/specs/2026-09-19-jltx-speed-stability-design.md）：
-//    1. 【戶型反應】客戶登記表單「需求房型」（room_types）是複選框，
-//       一位客戶可能同時對好幾個戶型有興趣（例如勾了 2房、3房兩個）。
-//       主管要求：勾了幾個已知戶型（N 個），每個戶型各分到 1/N，不能
-//       每個都算一次（不然一組客戶會被算成兩組來人）。新增
-//       roomTypeBreakdown_，跟其他反應統計一樣維持「加總永遠等於實際
-//       來人數/成交數」的不變量；完全沒勾到已知戶型才整組歸進「未
-//       填寫」。欄位（2房/3房/4房/店面）跟客戶登記表單的選項寫死對齊。
-//    2. 【媒體反應】客戶登記表單「來源管道」（source，單選，路過/591/
-//       親友介紹等），跟區域反應同一套邏輯（選項是 Config_Options 動態
-//       設定，每次同步報表時現抓一次）。
-//    版面接在區域反應下面：戶型反應 row 23 起、媒體反應 row 30 起。
+//  v9.43 變更：週報表客戶反應統計新增三張表、修正年齡反應長期未填寫
+//  過多的問題（詳見 docs/superpowers/specs/2026-09-19-jltx-speed-stability-design.md）：
+//    1. 【戶型反應，row 23】主管要看的「戶型」是銷控表的棟別+型別組合
+//       （例如 A1、A6、B3），不是客戶登記表單的「需求房型」（2房/3房/
+//       4房/店面，那是完全不同的欄位——第一版實作誤用了這個欄位，
+//       實測後主管指正才發現）。真正資料來源是客戶卡片「已介紹產品」
+//       （introduced_units，業務挑棟別/型別/樓層加進清單）。一位客戶
+//       可能被介紹過不只一個戶型，比照其他反應統計同一個規則：介紹過
+//       幾個已知戶型（N 個），每個戶型各分到 1/N，不能每個都算一次
+//       （不然一組客戶會被算成兩組來人），維持「加總永遠等於實際來人
+//       數/成交數」的不變量；完全沒有已介紹產品資料才整組歸進「未
+//       填寫」。欄位清單從 Sales_Control 實際存在的棟別+型別組合動態
+//       產生，不寫死。
+//    2. 【媒體反應，row 30】客戶登記表單「來源管道」（source，單選，
+//       路過/591/親友介紹等），跟區域反應同一套邏輯（選項是
+//       Config_Options 動態設定，每次同步報表時現抓一次）。
+//    3. 【房型需求反應，row 37】主管確認第 1 點的戶型反應跟「需求房型」
+//       是兩回事之後，要求需求房型也要有自己的一張表——2房/3房/4房/
+//       店面，跟戶型反應同樣是 1/N 拆分邏輯，只是資料來源改回
+//       room_types。
+//    4. 【修正年齡反應長期未填寫過多】原本讀「實際歲數」（age）分成
+//       9 個五歲級距，但 age 是 v9.25 才改成讓業務直接輸入實際歲數，
+//       在那之前建立、之後也沒再編輯過的舊資料只有 age_range（區間，
+//       例如「30-39歲」）沒有 age，全部掉進「未填寫」，這是主管實測
+//       這次新表時一併發現、回報的既有問題。v9.25 的設計就是要讓
+//       age_range 兩種填法都會有值（舊資料直接填、新資料存檔時用
+//       ageToRange_ 從 age 自動換算），目的是讓既有統計報表統一讀
+//       age_range 就好、不用管 age 有沒有填（見 v9.25 版本說明），
+//       這裡改成比照辦理，跟區域反應/媒體反應同一套邏輯。
+//    版面：行業別反應(row2)／年齡反應(row9)／區域反應(row16)／戶型
+//    反應(row23)／媒體反應(row30)／房型需求反應(row37)。
 //    syncWeeklyReportLayout_ 本來就設計成每次同步都會重跑、修正舊試算
 //    表的版面（見 v9.36 變更說明），所以既有的舊週報試算表下次同步
-//    就會自動補上這兩張新表，不需要额外的搬遷步驟。
+//    就會自動補上這幾張新表/修正過的年齡反應，不需要额外的搬遷步驟。
 //  v9.42 變更：修正 v9.41「銷控表標記成交」實測發現的三個問題，並讓
 //  業務端「成交階段」可以填訂金（詳見
 //  docs/superpowers/specs/2026-09-19-jltx-speed-stability-design.md）：
@@ -3798,32 +3816,10 @@ function deleteSalesControlUnit(payload) {
 // 職業選項）當欄位，不做任何合併，選項改了這裡也會自動跟著變
 var WEEKLY_REPORT_INDUSTRY_COLS = CONFIG.INDUSTRIES;
 
-// 戶型反應的欄位：跟客戶登記表單「需求房型」複選框（cust_room）的選項
-// 完全一致，這幾個選項是寫死在 jltx.html 裡（不像居住行政區/來源管道
-// 是 Config_Options 動態設定的），這裡比照寫死
+// 房型需求反應的欄位：跟客戶登記表單「需求房型」複選框（cust_room）的
+// 選項完全一致，這幾個選項是寫死在 jltx.html 裡（不像居住行政區/來源
+// 管道/年齡區間是 Config_Options 動態設定的），這裡比照寫死
 var WEEKLY_REPORT_ROOM_TYPE_COLS = ['2房','3房','4房','店面'];
-
-var WEEKLY_REPORT_AGE_BANDS = [
-  { label: '25以下', min: -Infinity, max: 25 },
-  { label: '26～30', min: 26, max: 30 },
-  { label: '31～35', min: 31, max: 35 },
-  { label: '36～40', min: 36, max: 40 },
-  { label: '41～45', min: 41, max: 45 },
-  { label: '46～50', min: 46, max: 50 },
-  { label: '51～55', min: 51, max: 55 },
-  { label: '56～60', min: 56, max: 60 },
-  { label: '61以上', min: 61, max: Infinity }
-];
-function weeklyReportAgeBandLabel_(age) {
-  var n = Number(age);
-  if (!age && age !== 0) return null;
-  if (isNaN(n)) return null;
-  for (var i = 0; i < WEEKLY_REPORT_AGE_BANDS.length; i++) {
-    var b = WEEKLY_REPORT_AGE_BANDS[i];
-    if (n >= b.min && n <= b.max) return b.label;
-  }
-  return null;
-}
 
 var WEEKLY_REPORT_UNKNOWN_LABEL = '未填寫';
 
@@ -3989,8 +3985,15 @@ function syncWeeklyReportLayout_(ss) {
   var industryColsWithUnknown = WEEKLY_REPORT_INDUSTRY_COLS.concat([WEEKLY_REPORT_UNKNOWN_LABEL]);
   wrStyleReactionBlock_(reaction, 2, '行業別反應', industryColsWithUnknown);
 
-  var ageLabelsWithUnknown = WEEKLY_REPORT_AGE_BANDS.map(function(b){ return b.label; }).concat([WEEKLY_REPORT_UNKNOWN_LABEL]);
-  wrStyleReactionBlock_(reaction, 9, '年齡反應', ageLabelsWithUnknown);
+  // ★ v9.43 修正：年齡反應原本讀「實際歲數」（age）分成 9 個五歲級距，
+  // 但 age 是 v9.25 才改成讓業務直接輸入實際歲數，在那之前的舊資料
+  // 只有 age_range（區間，例如「30-39歲」）沒有 age，全部掉進「未
+  // 填寫」。v9.25 的設計就是要讓 age_range 兩種填法都會有值（舊資料
+  // 直接填、新資料存檔時用 ageToRange_ 從 age 自動換算），目的是讓
+  // 既有統計報表不用管 age 有沒有填、統一讀 age_range 就好（見 v9.25
+  // 版本說明），這裡改成比照辦理，跟區域反應／媒體反應同一套邏輯
+  var ageRangeColsWithUnknown = (getAllConfigOptions_().age_range || []).concat([WEEKLY_REPORT_UNKNOWN_LABEL]);
+  wrStyleReactionBlock_(reaction, 9, '年齡反應', ageRangeColsWithUnknown);
 
   // ★ v9.36 新增：區域反應（居住行政區），跟上面兩張表同一個版面邏輯，
   // 接在年齡反應下面（row 16 起）。居住行政區選項是動態的，這裡也要
@@ -3998,14 +4001,28 @@ function syncWeeklyReportLayout_(ss) {
   var districtColsWithUnknown = (getAllConfigOptions_().district || []).concat([WEEKLY_REPORT_UNKNOWN_LABEL]);
   wrStyleReactionBlock_(reaction, 16, '區域反應', districtColsWithUnknown);
 
-  // ★ v9.43 新增：戶型反應（需求房型，接在區域反應下面，row 23 起）、
-  // 媒體反應（來源管道，接在戶型反應下面，row 30 起），跟前三張表同一套
-  // 版面邏輯
-  var roomTypeColsWithUnknown = WEEKLY_REPORT_ROOM_TYPE_COLS.concat([WEEKLY_REPORT_UNKNOWN_LABEL]);
-  wrStyleReactionBlock_(reaction, 23, '戶型反應', roomTypeColsWithUnknown);
+  // ★ v9.43 新增：戶型反應（已介紹產品的棟別+型別組合，例如 A1/A6/B3，
+  // 接在區域反應下面，row 23 起）、媒體反應（來源管道，接在戶型反應
+  // 下面，row 30 起），跟前三張表同一套版面邏輯。戶型欄位清單從目前
+  // Sales_Control 實際存在的棟別+型別組合動態產生，跟 gatherWeeklyReportData_
+  // 算數字時用同一套邏輯，選項改了（新增/刪除戶別）下次同步自動跟著變
+  ensureSalesControlSheet();
+  var unitTypeColsForLayout = [];
+  readSheetAsObjects(CONFIG.SHEETS.SALES_CONTROL).forEach(function(u) {
+    var label = String(u.building) + String(u.unit_type);
+    if (unitTypeColsForLayout.indexOf(label) < 0) unitTypeColsForLayout.push(label);
+  });
+  unitTypeColsForLayout.sort();
+  var unitTypeColsWithUnknown = unitTypeColsForLayout.concat([WEEKLY_REPORT_UNKNOWN_LABEL]);
+  wrStyleReactionBlock_(reaction, 23, '戶型反應', unitTypeColsWithUnknown);
 
   var sourceColsWithUnknown = (getAllConfigOptions_().source || []).concat([WEEKLY_REPORT_UNKNOWN_LABEL]);
   wrStyleReactionBlock_(reaction, 30, '媒體反應', sourceColsWithUnknown);
+
+  // ★ v9.43 新增：房型需求反應（需求房型 2房/3房/4房/店面，接在媒體
+  // 反應下面，row 37 起）
+  var roomTypeColsWithUnknown = WEEKLY_REPORT_ROOM_TYPE_COLS.concat([WEEKLY_REPORT_UNKNOWN_LABEL]);
+  wrStyleReactionBlock_(reaction, 37, '房型需求反應', roomTypeColsWithUnknown);
 
   reaction.setColumnWidth(1, 100);
   reaction.setColumnWidths(2, 24, 70);
@@ -4120,12 +4137,16 @@ function gatherWeeklyReportData_(startDate, endDate) {
     cumulative_deal: industryBreakdown_(cumulativeRows.filter(dealRowsFilter_))
   };
 
-  // 年齡反應：本週/累計 來人與成交；空白或非數字一律算「未填寫」
+  // 年齡反應：本週/累計 來人與成交；改讀 age_range（見上面 syncWeeklyReportLayout_
+  // 裡的說明，這是 v9.25 就設計好要讓既有統計報表統一讀取的欄位，
+  // 不管客戶是舊資料直接填區間、還是新資料填實際歲數自動換算，都會
+  // 有值），跟區域反應/媒體反應同一套邏輯
+  var ageRangeCols = getAllConfigOptions_().age_range || [];
   function ageBreakdown_(rows) {
     var counts = {};
-    WEEKLY_REPORT_AGE_BANDS.map(function(b){ return b.label; }).concat([WEEKLY_REPORT_UNKNOWN_LABEL]).forEach(function(l){ counts[l] = 0; });
+    ageRangeCols.concat([WEEKLY_REPORT_UNKNOWN_LABEL]).forEach(function(c){ counts[c] = 0; });
     rows.forEach(function(r) {
-      counts[weeklyReportAgeBandLabel_(r.age) || WEEKLY_REPORT_UNKNOWN_LABEL]++;
+      counts[weeklyReportBucketLabel_(r.age_range, ageRangeCols)]++;
     });
     return counts;
   }
@@ -4156,30 +4177,48 @@ function gatherWeeklyReportData_(startDate, endDate) {
     cumulative_deal: districtBreakdown_(cumulativeRows.filter(dealRowsFilter_))
   };
 
-  // ★ v9.43 新增：戶型反應（客戶登記表單「需求房型」，欄位是
-  // room_types，複選存成「2房、3房」這種頓號分隔字串）。一位客戶可能
-  // 對不只一個戶型都有興趣，不能每個都算一次成一組（不然一組客戶勾兩
-  // 個戶型，來人數看起來會變成兩組）。改成依勾到「已知戶型」的數量 N，
-  // 每個戶型各分到 1/N，確保加總永遠等於實際來人數/成交數，跟其他反應
-  // 統計同一個不變量；完全沒勾到已知戶型（含空白）才整組 1 歸進「未
-  // 填寫」
-  function roomTypeBreakdown_(rows) {
+  // ★ v9.43 新增（實測後修正資料來源）：戶型反應——主管要看的「戶型」
+  // 是銷控表的棟別+型別組合（例如 A1、A6、B3，跟銷控表格子網格用的
+  // 型別代號一致），不是客戶登記表單的「需求房型」（2房/3房/4房/店面，
+  // 那是完全不同的欄位）。真正對應的資料來源是客戶卡片「已介紹產品」
+  // （introduced_units，業務挑棟別/型別/樓層加進清單，存成「A棟1型5樓、
+  // A棟6型12樓」這種頓號分隔字串）。欄位清單直接從目前 Sales_Control
+  // 實際存在的棟別+型別組合動態產生（跟銷控表格子網格用同一份
+  // salesRows，選項改了下次同步自動跟著變，不用寫死）。
+  // 一位客戶可能被介紹過不只一個戶型（甚至同一戶型不同樓層介紹了兩次，
+  // 這裡會去重只算一次），不能每個都算一次成一組——比照其他反應統計
+  // 同一個規則：介紹過幾個不同戶型（N 個），每個戶型各分到 1/N，確保
+  // 加總永遠等於實際來人數/成交數；完全沒有已介紹產品資料（含空白、
+  // 或格式對不到任何已知戶型）才整組 1 歸進「未填寫」
+  var unitTypeCols = [];
+  salesRows.forEach(function(u) {
+    var label = String(u.building) + String(u.unit_type);
+    if (unitTypeCols.indexOf(label) < 0) unitTypeCols.push(label);
+  });
+  unitTypeCols.sort();
+  function introducedUnitTypeBreakdown_(rows) {
     var counts = {};
-    WEEKLY_REPORT_ROOM_TYPE_COLS.concat([WEEKLY_REPORT_UNKNOWN_LABEL]).forEach(function(c){ counts[c] = 0; });
+    unitTypeCols.concat([WEEKLY_REPORT_UNKNOWN_LABEL]).forEach(function(c){ counts[c] = 0; });
     rows.forEach(function(r) {
-      var picked = String(r.room_types || '').split('、').map(function(s){ return s.trim(); })
-        .filter(function(s){ return WEEKLY_REPORT_ROOM_TYPE_COLS.indexOf(s) >= 0; });
+      var entries = String(r.introduced_units || '').split('、');
+      var picked = [];
+      entries.forEach(function(e) {
+        var m = e.match(/^(.)棟(.+)型\d+樓$/);
+        if (!m) return;
+        var label = m[1] + m[2];
+        if (unitTypeCols.indexOf(label) >= 0 && picked.indexOf(label) < 0) picked.push(label);
+      });
       if (!picked.length) { counts[WEEKLY_REPORT_UNKNOWN_LABEL]++; return; }
       var share = 1 / picked.length;
       picked.forEach(function(p){ counts[p] += share; });
     });
     return counts;
   }
-  var roomType = {
-    week_visitor: roomTypeBreakdown_(weekRows),
-    cumulative_visitor: roomTypeBreakdown_(cumulativeRows),
-    week_deal: roomTypeBreakdown_(weekRows.filter(dealRowsFilter_)),
-    cumulative_deal: roomTypeBreakdown_(cumulativeRows.filter(dealRowsFilter_))
+  var unitType = {
+    week_visitor: introducedUnitTypeBreakdown_(weekRows),
+    cumulative_visitor: introducedUnitTypeBreakdown_(cumulativeRows),
+    week_deal: introducedUnitTypeBreakdown_(weekRows.filter(dealRowsFilter_)),
+    cumulative_deal: introducedUnitTypeBreakdown_(cumulativeRows.filter(dealRowsFilter_))
   };
 
   // ★ v9.43 新增：媒體反應（客戶登記表單「來源管道」，欄位是 source，
@@ -4200,6 +4239,32 @@ function gatherWeeklyReportData_(startDate, endDate) {
     cumulative_visitor: sourceBreakdown_(cumulativeRows),
     week_deal: sourceBreakdown_(weekRows.filter(dealRowsFilter_)),
     cumulative_deal: sourceBreakdown_(cumulativeRows.filter(dealRowsFilter_))
+  };
+
+  // ★ v9.43 新增：房型需求反應（客戶登記表單「需求房型」，欄位是
+  // room_types，複選存成「2房、3房」這種頓號分隔字串，這是客戶自己
+  // 說想要幾房，跟上面「戶型反應」的棟別+型別編號是不同東西，主管
+  // 兩個都要看）。一位客戶可能同時對好幾個房型都有興趣，不能每個都
+  // 算一次（不然一組客戶會被算成兩組來人），比照戶型反應同一個規則：
+  // 勾了幾個已知房型（N 個），每個房型各分到 1/N；完全沒勾到已知房型
+  // （含空白）才整組 1 歸進「未填寫」
+  function roomTypeBreakdown_(rows) {
+    var counts = {};
+    WEEKLY_REPORT_ROOM_TYPE_COLS.concat([WEEKLY_REPORT_UNKNOWN_LABEL]).forEach(function(c){ counts[c] = 0; });
+    rows.forEach(function(r) {
+      var picked = String(r.room_types || '').split('、').map(function(s){ return s.trim(); })
+        .filter(function(s){ return WEEKLY_REPORT_ROOM_TYPE_COLS.indexOf(s) >= 0; });
+      if (!picked.length) { counts[WEEKLY_REPORT_UNKNOWN_LABEL]++; return; }
+      var share = 1 / picked.length;
+      picked.forEach(function(p){ counts[p] += share; });
+    });
+    return counts;
+  }
+  var roomType = {
+    week_visitor: roomTypeBreakdown_(weekRows),
+    cumulative_visitor: roomTypeBreakdown_(cumulativeRows),
+    week_deal: roomTypeBreakdown_(weekRows.filter(dealRowsFilter_)),
+    cumulative_deal: roomTypeBreakdown_(cumulativeRows.filter(dealRowsFilter_))
   };
 
   // 銷控表：依實際 Sales_Control 資料動態抓棟別/樓層/戶型範圍
@@ -4275,8 +4340,9 @@ function gatherWeeklyReportData_(startDate, endDate) {
 
   return {
     start_date: startDate, end_date: endDate,
-    days: days, industry: industry, age: age, district: district, district_cols: districtCols,
-    room_type: roomType, media_source: mediaSource, media_source_cols: sourceCols,
+    days: days, industry: industry, age: age, age_range_cols: ageRangeCols, district: district, district_cols: districtCols,
+    unit_type: unitType, unit_type_cols: unitTypeCols, media_source: mediaSource, media_source_cols: sourceCols,
+    room_type: roomType, room_type_cols: WEEKLY_REPORT_ROOM_TYPE_COLS,
     sales_control_grid: salesControlGrid, sales_stats: salesStats,
     total_units: salesRows.length,
     total_parking: salesRows.filter(function(u){ return !!u.parking_id; }).length
@@ -4327,7 +4393,7 @@ function writeWeeklyReportToSheet_(ss, data) {
     reaction.getRange(4 + i, 2, 1, values.length).setValues([values]);
     reaction.getRange(4 + i, values.length + 2).setValue(total);
   });
-  var ageLabelsWithUnknown = WEEKLY_REPORT_AGE_BANDS.map(function(b){ return b.label; }).concat([WEEKLY_REPORT_UNKNOWN_LABEL]);
+  var ageLabelsWithUnknown = (data.age_range_cols || []).concat([WEEKLY_REPORT_UNKNOWN_LABEL]);
   var ageRows = [
     ['本週來人', data.age.week_visitor], ['累計來人', data.age.cumulative_visitor],
     ['本週成交', data.age.week_deal],    ['累計成交', data.age.cumulative_deal]
@@ -4352,17 +4418,18 @@ function writeWeeklyReportToSheet_(ss, data) {
     reaction.getRange(18 + i, 2, 1, values.length).setValues([values]);
     reaction.getRange(18 + i, values.length + 2).setValue(total);
   });
-  // ★ v9.43 新增：戶型反應（一位客戶可能同時勾好幾個戶型，數字用
-  // 1/N 拆分過，四捨五入到小數點後兩位方便閱讀，合計用四捨五入後的
-  // 數字加總，避免看起來「合計對不起來」）
-  var roomTypeColsWithUnknown = WEEKLY_REPORT_ROOM_TYPE_COLS.concat([WEEKLY_REPORT_UNKNOWN_LABEL]);
-  var roomTypeRows = [
-    ['本週來人', data.room_type.week_visitor], ['累計來人', data.room_type.cumulative_visitor],
-    ['本週成交', data.room_type.week_deal],    ['累計成交', data.room_type.cumulative_deal]
+  // ★ v9.43 新增（實測後修正資料來源，改用「已介紹產品」的棟別+型別
+  // 組合）：戶型反應（一位客戶可能被介紹過好幾個戶型，數字用 1/N
+  // 拆分過，四捨五入到小數點後兩位方便閱讀，合計用四捨五入後的數字
+  // 加總，避免看起來「合計對不起來」）
+  var unitTypeColsWithUnknown = (data.unit_type_cols || []).concat([WEEKLY_REPORT_UNKNOWN_LABEL]);
+  var unitTypeRows = [
+    ['本週來人', data.unit_type.week_visitor], ['累計來人', data.unit_type.cumulative_visitor],
+    ['本週成交', data.unit_type.week_deal],    ['累計成交', data.unit_type.cumulative_deal]
   ];
-  roomTypeRows.forEach(function(pair, i) {
+  unitTypeRows.forEach(function(pair, i) {
     var counts = pair[1];
-    var values = roomTypeColsWithUnknown.map(function(c){ return Math.round((counts[c] || 0) * 100) / 100; });
+    var values = unitTypeColsWithUnknown.map(function(c){ return Math.round((counts[c] || 0) * 100) / 100; });
     var total = values.reduce(function(s,v){ return s+v; }, 0);
     reaction.getRange(25 + i, 2, 1, values.length).setValues([values]);
     reaction.getRange(25 + i, values.length + 2).setValue(Math.round(total * 100) / 100);
@@ -4379,6 +4446,20 @@ function writeWeeklyReportToSheet_(ss, data) {
     var total = values.reduce(function(s,v){ return s+v; }, 0);
     reaction.getRange(32 + i, 2, 1, values.length).setValues([values]);
     reaction.getRange(32 + i, values.length + 2).setValue(total);
+  });
+  // ★ v9.43 新增：房型需求反應（一位客戶可能同時勾好幾個房型，數字用
+  // 1/N 拆分過，四捨五入到小數點後兩位方便閱讀）
+  var roomTypeColsWithUnknown = (data.room_type_cols || []).concat([WEEKLY_REPORT_UNKNOWN_LABEL]);
+  var roomTypeRows = [
+    ['本週來人', data.room_type.week_visitor], ['累計來人', data.room_type.cumulative_visitor],
+    ['本週成交', data.room_type.week_deal],    ['累計成交', data.room_type.cumulative_deal]
+  ];
+  roomTypeRows.forEach(function(pair, i) {
+    var counts = pair[1];
+    var values = roomTypeColsWithUnknown.map(function(c){ return Math.round((counts[c] || 0) * 100) / 100; });
+    var total = values.reduce(function(s,v){ return s+v; }, 0);
+    reaction.getRange(39 + i, 2, 1, values.length).setValues([values]);
+    reaction.getRange(39 + i, values.length + 2).setValue(Math.round(total * 100) / 100);
   });
 
   var control = ss.getSheetByName('銷售控制表');
