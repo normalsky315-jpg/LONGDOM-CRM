@@ -1938,20 +1938,9 @@ function myCustomerCardHTML(c) {
     ? '<button class="deal-btn" style="background:var(--teal);" onclick="openEditCustModal(\'' + escapeHtml(c.customer_id) + '\')">✏️ 修改</button>'
     : '<span style="font-size:11px;color:var(--ink-faint);">已超過14天，無法修改</span>';
 
-  // 主管/admin 專用的正式成交標記——跟「近期客戶」清單（recentCustCardHTML）
-  // 用同一套按鈕跟權限規則，之前「我的客戶」清單完全沒有這幾顆按鈕，
-  // 主管只能看到業務自填的「成交階段」（未成交/已下訂/已保留，設計上
-  // 就不包含已成交），導致沒有地方能正式標記已成交
-  var dealBtn = !isDone && !isRefund && !isSales()
-    ? '<button class="deal-btn" onclick="openDealModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">標記成交</button>'
-    : '';
-  var editDealBtn = isDone && !isSales()
-    ? '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openEditDealModal(\'' + escapeHtml(c.customer_id) + '\')">✏️ 編輯成交</button>'
-    : '';
-  var refundBtn = isDone && !isSales()
-    ? '<button class="deal-btn" style="background:var(--rust);margin-left:6px;" onclick="markRefund(\'' + escapeHtml(c.customer_id) + '\')">🔙 標記退戶</button>'
-    : '';
-
+  // 成交明細（標記成交／編輯成交／標記退戶）已經統一搬到銷售控制表
+  // 操作，客戶卡片只留業務自填的「成交階段」，不再放這三顆按鈕，
+  // 避免同一件事有兩個地方可以填、資料容易兜不起來
   var followBtn = '<button class="deal-btn" style="background:var(--gold);margin-left:6px;" onclick="openContactLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">📋 追蹤紀錄</button>';
 
   var logBtn = '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openChangeLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">修改紀錄</button>';
@@ -1971,7 +1960,7 @@ function myCustomerCardHTML(c) {
     dealBadge +
     '<div style="margin-top:8px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">' + editBtn +
       '<button class="deal-btn" style="background:var(--gold);margin-left:6px;" onclick="openDealStageModal(\'' + escapeHtml(c.customer_id) + '\')">🏠 成交階段</button>' +
-      dealBtn + editDealBtn + refundBtn + followBtn + logBtn + deleteBtn + '</div>' +
+      followBtn + logBtn + deleteBtn + '</div>' +
   '</div>';
 }
 
@@ -2387,15 +2376,8 @@ function recentCustCardHTML(c) {
   var badgeClass = isRefund ? 'refund' : (isDone ? 'done' : 'pending');
   var badgeText  = isRefund ? '🔙 退戶' : (isDone ? '✓ 已成交' : '未成交');
   var dealBadge = '<span class="cust-card-deal ' + badgeClass + '">' + badgeText + (c.deal_unit?' — '+escapeHtml(c.deal_unit):'') + '</span>';
-  var dealBtn = !isDone && !isRefund && !isSales()
-    ? '<button class="deal-btn" onclick="openDealModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">標記成交</button>'
-    : '';
-  var editDealBtn = isDone && !isSales()
-    ? '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openEditDealModal(\'' + escapeHtml(c.customer_id) + '\')">✏️ 編輯成交</button>'
-    : '';
-  var refundBtn = isDone && !isSales()
-    ? '<button class="deal-btn" style="background:var(--rust);margin-left:6px;" onclick="markRefund(\'' + escapeHtml(c.customer_id) + '\')">🔙 標記退戶</button>'
-    : '';
+  // 成交明細（標記成交／編輯成交／標記退戶）已經統一搬到銷售控制表
+  // 操作，客戶卡片只留業務自填的「成交階段」，不再放這三顆按鈕
   var logBtn = !isSales()
     ? '<button class="deal-btn" style="background:var(--ink-light);margin-left:6px;" onclick="openChangeLogModal(\'' + escapeHtml(c.customer_id) + '\',\'' + escapeHtml(c.customer_name||'') + '\')">紀錄</button>'
     : '';
@@ -2410,7 +2392,7 @@ function recentCustCardHTML(c) {
     customerCardFieldsHTML(c) +
     (c.status_note ? '<div class="cust-card-note">📝 ' + escapeHtml(String(c.status_note)) + '</div>' : '') +
     dealStageLineHTML(c) +
-    dealBadge + dealBtn + editDealBtn + refundBtn + followBtn + logBtn +
+    dealBadge + followBtn + logBtn +
     '<button class="deal-btn" style="background:var(--gold);margin-left:6px;" onclick="openDealStageModal(\'' + escapeHtml(c.customer_id) + '\')">🏠 成交階段</button>' +
   '</div>';
 }
@@ -2507,16 +2489,19 @@ function setDealFieldsDisabled(disabled) {
   document.querySelectorAll('input[name="deal_contractStatus"]').forEach(function(r){ r.disabled = disabled; });
 }
 
-function openDealModal(custId, custName) {
+function openDealModal(custId, custName, presetUnit, presetContractStatus) {
   document.getElementById('deal_mode').value = 'new';
   document.getElementById('deal_id').value = '';
   document.getElementById('deal_custId').value = custId || '';
-  ensureSalesControlLoaded_(function(){ setDealUnitSelects_('A', null, null); });
+  ensureSalesControlLoaded_(function(){
+    if (presetUnit) setDealUnitSelects_(presetUnit.building, presetUnit.unit_type, presetUnit.floor);
+    else setDealUnitSelects_('A', null, null);
+  });
   document.getElementById('deal_custName').value = custName || '';
   document.getElementById('deal_salesName').value = state.user.displayName || '';
   document.getElementById('deal_deposit').value = '';
   document.getElementById('deal_expectedSignDate').value = '';
-  document.querySelectorAll('input[name="deal_contractStatus"]').forEach(function(r){ r.checked = (r.value === '待簽約'); });
+  document.querySelectorAll('input[name="deal_contractStatus"]').forEach(function(r){ r.checked = (r.value === (presetContractStatus || '待簽約')); });
   setDealFieldsDisabled(false);
   toggleDealSignDate();
   document.getElementById('deal_refundReasonField').classList.add('hidden');
@@ -4179,6 +4164,9 @@ function prefillScLinkedCustomer_(customerId) {
 // 點進去的是同一個表單，一樣會要求填成交明細才算完成）；選否或這戶
 // 不是這個狀態，才照原本邏輯開「編輯戶別」。業務看到的行為不變
 // （業務本來就不能標記成交，看到的還是原本的編輯戶別/唯讀畫面）。
+// 已簽約的格子點下去，讓主管選擇要編輯成交明細還是標記退戶，兩個都是
+// 沿用既有的 dealModal（跟客戶卡片以前的「✏️編輯成交」「🔙標記退戶」
+// 開的是同一個表單，只是入口從客戶卡片改成銷控表）
 function handleSalesControlCellClick_(unitId) {
   var u = (state.salesControlRaw || []).filter(function(r){ return r.unit_id === unitId; })[0];
   var pendingStatuses = ['已收訂', '已保留'];
@@ -4188,6 +4176,14 @@ function handleSalesControlCellClick_(unitId) {
       '要現在標記成交嗎？（確認後會請你填寫成交明細）\n\n按「取消」則改用編輯戶別。'
     );
     if (proceed) { openDealModal(u.linked_customer_id, u.linked_customer_name); return; }
+  } else if (u && !isSales() && u.linked_customer_id && u.status === '已簽約') {
+    var editIt = confirm(
+      '這戶（' + u.unit_label + '）已簽約，客戶：' + u.linked_customer_name + '。\n\n' +
+      '按「確定」編輯成交明細；按「取消」可接著選擇標記退戶或改用編輯戶別。'
+    );
+    if (editIt) { openEditDealModal(u.linked_customer_id); return; }
+    var refundIt = confirm('要標記這戶退戶嗎？\n\n按「取消」則改用編輯戶別。');
+    if (refundIt) { markRefund(u.linked_customer_id); return; }
   }
   openSalesControlModal(unitId);
 }
@@ -4278,6 +4274,25 @@ function submitSalesControlUnit() {
     if (!finalLinkedCustId) {
       showToast('狀態選「' + status + '」時，請選擇連結的客戶','error'); return;
     }
+  }
+
+  // 這戶原本沒有進行中的交易（待售/已保留都還沒收訂金），這次要改成
+  // 已收訂/已簽約——代表這是全新一筆要收訂金/確認合約的交易，導去開
+  // 「標記成交」表單一次填齊訂金/簽約狀態，不能只靠這裡的陽春欄位
+  // 存檔，不然會漏了成交明細（Deal_Detail）。已保留本身不用（還沒收
+  // 訂金，純軟性保留），維持原本陽春欄位就能存
+  var original = isEdit ? (state.salesControlRaw || []).filter(function(r){ return r.unit_id === unitId; })[0] : null;
+  var startingNewDeal = ['已收訂','已簽約'].indexOf(status) >= 0 &&
+    (!original || ['待售','已保留'].indexOf(original.status) >= 0);
+  if (startingNewDeal && finalLinkedCustId) {
+    var custRow = (state.myCustomersRaw || []).filter(function(c){ return String(c.customer_id) === String(finalLinkedCustId); })[0];
+    closeModal('salesControlModal');
+    openDealModal(finalLinkedCustId, custRow ? custRow.customer_name : '', {
+      building: document.getElementById('sc_building').value,
+      unit_type: document.getElementById('sc_unitType').value,
+      floor: document.getElementById('sc_floor').value
+    }, status === '已簽約' ? '已簽約' : '待簽約');
+    return;
   }
 
   var btn = document.getElementById('scSubmitBtn');
